@@ -233,6 +233,17 @@ const bridge = {
     update: (templateId, config) => ipcRenderer.invoke('templates:update', templateId, config),
     delete: (templateId) => ipcRenderer.invoke('templates:delete', templateId),
   },
+  complianceCheck: {
+    loadState: () => ipcRenderer.invoke('compliance-check:load-state'),
+    selectFile: (role) => ipcRenderer.invoke('compliance-check:select-file', role),
+    saveInput: (input) => ipcRenderer.invoke('compliance-check:save-input', input),
+    run: (payload) => ipcRenderer.invoke('compliance-check:run', payload),
+    getStatus: () => ipcRenderer.invoke('compliance-check:get-status'),
+    getReport: (jobId) => ipcRenderer.invoke('compliance-check:get-report', jobId),
+    cancel: () => ipcRenderer.invoke('compliance-check:cancel'),
+    clear: () => ipcRenderer.invoke('compliance-check:clear'),
+    ping: () => ipcRenderer.invoke('compliance-check:ping'),
+  },
   tasks: {
     startBidSectionExtraction: (payload) => ipcRenderer.invoke('tasks:start-bid-section-extraction', payload),
     startBidAnalysis: (payload) => ipcRenderer.invoke('tasks:start-bid-analysis', payload),

@@ -903,3 +903,58 @@ ON feasibility_report_outline_nodes(parent_node_id, sort_order);
 
 CREATE INDEX IF NOT EXISTS idx_feasibility_report_outline_level
 ON feasibility_report_outline_nodes(level);
+
+-- ============================================================================
+-- 合规检查 compliance_check_*（v24 已落地）
+-- ============================================================================
+
+-- 合规检查任务。input_json 保存 tender_file/bid_file/project_metadata/checks。
+CREATE TABLE IF NOT EXISTS compliance_check_jobs (
+  job_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  input_json TEXT NOT NULL,
+  task_json TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_check_jobs_created
+ON compliance_check_jobs(created_at DESC);
+
+-- 合规检查完整结果。result_json 保存 Sidecar 原始协议响应，便于 UI 回放。
+CREATE TABLE IF NOT EXISTS compliance_check_results (
+  job_id TEXT PRIMARY KEY,
+  version TEXT NOT NULL,
+  status TEXT NOT NULL,
+  severity TEXT,
+  summary TEXT,
+  metrics_json TEXT,
+  result_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (job_id) REFERENCES compliance_check_jobs(job_id) ON DELETE CASCADE
+);
+
+-- 合规检查问题明细。用于后续按严重级别、检查项和位置检索。
+CREATE TABLE IF NOT EXISTS compliance_check_findings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id TEXT NOT NULL,
+  check_id TEXT NOT NULL,
+  finding_id TEXT NOT NULL,
+  code TEXT,
+  title TEXT,
+  message TEXT,
+  severity TEXT,
+  evidence TEXT,
+  suggestion TEXT,
+  location_json TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (job_id) REFERENCES compliance_check_jobs(job_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_check_findings_job_order
+ON compliance_check_findings(job_id, sort_order);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_check_findings_severity
+ON compliance_check_findings(job_id, severity);

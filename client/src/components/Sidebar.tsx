@@ -25,6 +25,7 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   'bid-check': BidCheckIcon,
   'duplicate-check': CompareIcon,
   'rejection-check': ShieldIcon,
+  'compliance-check': ShieldIcon,
   'ai-evaluation': BidCheckIcon,
   'template-settings': DocumentIcon,
   'my-templates': DocumentIcon,

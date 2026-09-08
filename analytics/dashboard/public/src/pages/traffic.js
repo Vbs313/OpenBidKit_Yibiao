@@ -40,6 +40,7 @@ const pageLabels = {
   'duplicate-check/analysis/content': '标书查重 - 正文结果',
   'duplicate-check/analysis/image': '标书查重 - 图片结果',
   'rejection-check': '废标项检查',
+  'compliance-check': '合规检查',
   'rejection-check/documents/tender': '废标项检查 - 招标文件',
   'rejection-check/documents/bid': '废标项检查 - 投标文件',
   'rejection-check/items/analysis': '废标项检查 - 解析结果',

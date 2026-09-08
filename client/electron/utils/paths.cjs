@@ -192,15 +192,52 @@ function getBundledOpenXmlHelperPath(app) {
   return path.join(getBundledOpenXmlHelperDir(app), fileName);
 }
 
+/** 合规检查 Sidecar 的开发态脚本路径。 */
+function getComplianceCheckerScriptPath() {
+  return path.join(__dirname, '..', 'services', 'compliance', 'checker', 'checker_sidecar.py');
+}
+
+/** 合规检查 Sidecar 的打包资源目录。 */
+function getBundledComplianceCheckerDir(app) {
+  if (process.env.YIBIAO_COMPLIANCE_CHECKER_DIR) {
+    return process.env.YIBIAO_COMPLIANCE_CHECKER_DIR;
+  }
+  if (app?.isPackaged) {
+    return path.join(process.resourcesPath, 'compliance-checker');
+  }
+  return path.join(__dirname, '..', '..', 'vendor', 'compliance-checker', getPlatformArchKey());
+}
+
+/** 合规检查 Sidecar 的打包可执行文件路径。 */
+function getBundledComplianceCheckerPath(app) {
+  const fileName = process.platform === 'win32' ? 'checker.exe' : 'checker';
+  return path.join(getBundledComplianceCheckerDir(app), fileName);
+}
+
+/** 合规检查任务临时目录。 */
+function getComplianceCheckerJobsDir(app) {
+  return path.join(getWorkspaceDir(app), 'compliance-checker', 'jobs');
+}
+
+/** 单个合规检查任务目录。 */
+function getComplianceCheckerJobDir(app, jobId) {
+  return path.join(getComplianceCheckerJobsDir(app), String(jobId || ''));
+}
+
 module.exports = {
   getAgentRuntimeDir,
   getAiLogsDir,
   getBundledAgentToolsBinDir,
+  getBundledComplianceCheckerDir,
+  getBundledComplianceCheckerPath,
   getBundledOpenXmlHelperDir,
   getBundledOpenXmlHelperPath,
   getDeveloperLogsDir,
   getDuplicateCheckContentDir,
   getDuplicateCheckDir,
+  getComplianceCheckerJobDir,
+  getComplianceCheckerJobsDir,
+  getComplianceCheckerScriptPath,
   getConfigFilePath,
   getDonationStateFilePath,
   getGpuStartupProbePath,

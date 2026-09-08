@@ -24,6 +24,7 @@ const {
 const { runFeasibilityOutlineTask } = require('./feasibilityOutlineTask.cjs');
 const { runFeasibilityOutlineAdjustmentTask } = require('./feasibilityOutlineAdjustmentTask.cjs');
 const { normalizeLogs } = require('./taskLogStore.cjs');
+const { runComplianceCheckTask } = require('./compliance/complianceCheckTask.cjs');
 
 const taskDefinitions = {
   'bid-section-extraction': {
@@ -170,6 +171,15 @@ const taskDefinitions = {
     stateKey: 'feasibilityReport',
     field: 'humanWritingTask',
   },
+  'compliance-check': {
+    label: '合规检查',
+    group: 'compliance-check',
+    groupLabel: '合规检查',
+    step: 1,
+    lockPolicy: 'group-exclusive',
+    stateKey: 'complianceCheck',
+    field: 'checkTask',
+  },
 };
 
 function now() {
@@ -196,6 +206,9 @@ function createDuplicateCheckPayloadSignature(payload = {}) {
 function getPayloadSignature(type, payload) {
   if (type === 'duplicate-analysis') {
     return createDuplicateCheckPayloadSignature(payload);
+  }
+  if (type === 'compliance-check') {
+    return crypto.createHash('sha1').update(JSON.stringify({ input: payload?.input || {}, checks: payload?.checks || [] })).digest('hex');
   }
   return undefined;
 }
@@ -314,7 +327,7 @@ function createTask(type, payload) {
   };
 }
 
-function createTaskService({ aiService, agentService, autoConfirmationService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, feasibilityReportStore, knowledgeBaseService, duplicateCheckService, openXmlHelperService }) {
+function createTaskService({ aiService, agentService, autoConfirmationService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, feasibilityReportStore, knowledgeBaseService, duplicateCheckService, openXmlHelperService, complianceCheckStore, complianceCheckerService }) {
   const subscribers = new Set();
   const callbackSubscribers = new Set();
   const activeTasks = new Map();
@@ -504,6 +517,9 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
     if (definition.stateKey === 'feasibilityReport') {
       return buildFeasibilityReportSnapshot(task, state, eventPatch);
     }
+    if (definition.stateKey === 'complianceCheck') {
+      return { complianceCheckPatch: state };
+    }
     return {};
   }
 
@@ -520,6 +536,9 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
     }
     if (definition.stateKey === 'feasibilityReport') {
       return buildSnapshot(definition, feasibilityReportStore.loadFeasibilityReport(), task);
+    }
+    if (definition.stateKey === 'complianceCheck') {
+      return { complianceCheck: complianceCheckStore.loadComplianceCheck() };
     }
     return {};
   }
@@ -625,6 +644,10 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
       feasibilityReportStore.updateFeasibilityReportWithoutReload(partial);
       return;
     }
+    if (definition.stateKey === 'complianceCheck') {
+      complianceCheckStore.updateComplianceCheckWithoutReload(partial);
+      return;
+    }
     technicalPlanStore.updateTechnicalPlanWithoutReload(partial);
   }
 
@@ -640,6 +663,9 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
     }
     if (definition.stateKey === 'feasibilityReport') {
       return feasibilityReportStore.loadFeasibilityReport();
+    }
+    if (definition.stateKey === 'complianceCheck') {
+      return complianceCheckStore.loadComplianceCheck();
     }
     return technicalPlanStore.loadTechnicalPlan();
   }
@@ -872,7 +898,9 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
         ? rejectionCheckStore
         : definition.stateKey === 'feasibilityReport'
           ? feasibilityReportStore
-          : duplicateCheckStore;
+          : definition.stateKey === 'complianceCheck'
+            ? complianceCheckStore
+            : duplicateCheckStore;
     const runnerAiService = aiService?.withQueueScope ? aiService.withQueueScope(queueScopeId, taskControl.signal) : aiService;
     const agentTaskContextProvider = () => createAgentUserTaskContext(type, definition, payload, currentTask);
     const runnerAgentService = agentService.bindTaskContext(
@@ -890,7 +918,7 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
         signal: taskControl.signal,
       },
     );
-    runner({ aiService: runnerAiService, agentService: runnerAgentService, ordinaryAgentService: runnerOrdinaryAgentService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, openXmlHelperService, updateTask, checkpointTask, payload, taskControl, previousState }).catch((error) => {
+    runner({ aiService: runnerAiService, agentService: runnerAgentService, ordinaryAgentService: runnerOrdinaryAgentService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, openXmlHelperService, complianceCheckerService, updateTask, checkpointTask, payload, taskControl, previousState }).catch((error) => {
       if (!taskControl.signal.aborted) {
         checkpointTask({ status: 'error', error: error.message || '任务执行失败' });
       }
@@ -1370,6 +1398,7 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
   recoverInterruptedRejectionCheckTasks(rejectionCheckRecoveryState);
   recoverInterruptedDuplicateCheckTask(duplicateCheckRecoveryState);
   recoverInterruptedFeasibilityTasks(feasibilityReportRecoveryState);
+  complianceCheckStore?.recoverInterruptedJobs?.();
 
   return {
     subscribe,
@@ -1572,6 +1601,31 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
     },
     startFeasibilityHumanWriting(payload) {
       return startManagedTask('feasibility-human-writing', payload, runFeasibilityHumanWritingTask);
+    },
+    startComplianceCheck(payload) {
+      const input = payload?.input || payload || {};
+      const checks = Array.isArray(payload?.checks) && payload.checks.length ? payload.checks : ['pricing_arithmetic'];
+      return startManagedTask('compliance-check', { ...payload, input: { ...input, checks }, checks }, runComplianceCheckTask, {
+        input: { ...input, checks },
+        checkTask: undefined,
+        lastReport: null,
+      });
+    },
+    cancelComplianceCheck() {
+      const control = activeTaskControls.get('compliance-check');
+      if (control?.cancel) {
+        control.cancel('合规检查已取消');
+        return { success: true };
+      }
+      return { success: false, message: '当前没有运行中的合规检查' };
+    },
+    async resetComplianceCheck() {
+      const control = activeTaskControls.get('compliance-check');
+      if (control?.cancel) {
+        control.cancel('合规检查已重置');
+        await control.waitForSettlement?.();
+      }
+      return complianceCheckStore.clearComplianceCheck();
     },
     confirmOutlineSelection(payload) {
       const control = activeTaskControls.get('outline-generation');

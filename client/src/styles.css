@@ -15,6 +15,7 @@
 @import './styles/feature-feasibility-report.css';
 @import './styles/feature-duplicate-check.css';
 @import './styles/feature-rejection-check.css';
+@import './styles/feature-compliance-check.css';
 @import './styles/feature-settings.css';
 @import './styles/feature-knowledge-base.css';
 @import './styles/feature-resources.css';

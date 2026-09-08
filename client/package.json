@@ -59,6 +59,13 @@
           "filter": [
             "**/*"
           ]
+        },
+        {
+          "from": "electron/services/compliance/checker",
+          "to": "compliance-checker",
+          "filter": [
+            "**/*"
+          ]
         }
       ],
       "target": [
@@ -102,6 +109,13 @@
         {
           "from": "vendor/openxml-tools/darwin-${arch}",
           "to": "openxml-tools/darwin-${arch}",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "electron/services/compliance/checker",
+          "to": "compliance-checker",
           "filter": [
             "**/*"
           ]

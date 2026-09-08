@@ -11,6 +11,7 @@ export type SectionId =
   | 'bid-check'
   | 'duplicate-check'
   | 'rejection-check'
+  | 'compliance-check'
   | 'ai-evaluation'
   | 'template-settings'
   | 'my-templates'

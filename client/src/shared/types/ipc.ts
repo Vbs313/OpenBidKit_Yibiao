@@ -3,6 +3,7 @@ import type { DuplicateCheckWorkspacePatch, DuplicateCheckWorkspaceState, FileSe
 import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelInfoResult, ModelListResult, UpdateChannel } from './config';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseIndexMutationResult, KnowledgeBaseMutationResult, KnowledgeBaseSearchRequest, KnowledgeBaseSearchPage, KnowledgeBaseRetryDocumentResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from '../../features/knowledge-base/types';
 import type { RejectionCheckWorkspacePatch, RejectionCheckWorkspaceState, RejectionDocumentRole } from '../../features/rejection-check/types';
+import type { ComplianceCheckFileSelectionResult, ComplianceCheckInput, ComplianceCheckPingResult, ComplianceCheckResponse, ComplianceCheckState, ComplianceCheckTaskState, ComplianceCheckWorkspacePatch } from '../../features/compliance-check/types';
 import type { BidAnalysisMode, BidAnalysisTaskState, BidSectionMode, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationProgressDetail, ContentGenerationRuntimeState, ContentGenerationSectionState, DetectedBidSection, GlobalFactGroupState, GlobalFactsMode, SaveOutlineRequest, SaveOutlineSelectionRequest, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../features/technical-plan/types';
 import type { FeasibilityProjectInfo, FeasibilityReportState, FeasibilityReportStep, FeasibilitySaveOutlineRequest, FeasibilitySourceFile } from '../../features/feasibility-report/types';
 import type { ExportFormatConfig, ExportTemplateRecord } from './exportFormat';
@@ -34,6 +35,8 @@ export interface TaskEvent<TState = unknown, TRejectionCheckState = unknown, TDu
   rejectionCheckPatch?: RejectionCheckWorkspacePatch;
   duplicateCheck?: TDuplicateCheckState;
   duplicateCheckPatch?: DuplicateCheckWorkspacePatch;
+  complianceCheck?: ComplianceCheckState;
+  complianceCheckPatch?: ComplianceCheckWorkspacePatch;
   feasibilityReportPatch?: Partial<FeasibilityReportState>;
 }
 
@@ -721,6 +724,17 @@ export interface YibiaoBridge {
     create: (config: ExportFormatConfig) => Promise<ExportTemplateRecord>;
     update: (templateId: string, config: ExportFormatConfig) => Promise<ExportTemplateRecord>;
     delete: (templateId: string) => Promise<{ success: boolean; message: string }>;
+  };
+  complianceCheck: {
+    loadState: () => Promise<ComplianceCheckState>;
+    selectFile: (role: 'tender' | 'bid') => Promise<ComplianceCheckFileSelectionResult>;
+    saveInput: (input: ComplianceCheckInput) => Promise<ComplianceCheckState>;
+    run: (payload: { input: ComplianceCheckInput; checks?: string[]; timeout_ms?: number }) => Promise<ComplianceCheckTaskState>;
+    getStatus: () => Promise<ComplianceCheckState>;
+    getReport: (jobId: string) => Promise<ComplianceCheckResponse | null>;
+    cancel: () => Promise<{ success: boolean; message?: string }>;
+    clear: () => Promise<ComplianceCheckState>;
+    ping: () => Promise<ComplianceCheckPingResult>;
   };
   tasks: {
     startBidSectionExtraction: (payload?: unknown) => Promise<unknown>;

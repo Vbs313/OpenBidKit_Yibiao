@@ -97,6 +97,13 @@ export const appMenuItems: AppMenuItem[] = [
         icon: 'shield',
       },
       {
+        id: 'compliance-check',
+        label: '合规检查',
+        description: '报价算术、资质、保证金等规则检查',
+        icon: 'shield',
+        badge: 'Beta',
+      },
+      {
         id: 'ai-evaluation',
         label: 'AI评标',
         description: '模拟AI评标，对标书进行打分，出具评标报告',
