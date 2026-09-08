@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { normalizeInput } = require('./complianceCheckStore.cjs');
+const { normalizeCheckIds, requiresModel } = require('./complianceCheckRegistry.cjs');
 
 function appendLog(logs, message) {
   const normalized = Array.isArray(logs) ? logs.slice() : [];
@@ -8,7 +9,24 @@ function appendLog(logs, message) {
   return normalized.slice(-80);
 }
 
+// 只描述模型路由信息；Sidecar 协议不接受任何凭据字段，因此这里刻意不读取 api_key。
+function buildModelConfig(aiService) {
+  let config = {};
+  try {
+    config = aiService?.getConfig?.() || {};
+  } catch {
+    config = {};
+  }
+  const model = String(config.model_name || '').trim();
+  const baseUrl = String(config.compliance_proxy_base_url || '').trim();
+  const next = {};
+  if (model) next.model = model;
+  if (baseUrl) next.base_url = baseUrl;
+  return Object.keys(next).length ? next : undefined;
+}
+
 async function runComplianceCheckTask({
+  aiService,
   complianceCheckerService,
   workspaceStore,
   updateTask,
@@ -21,8 +39,10 @@ async function runComplianceCheckTask({
 
   const input = normalizeInput(payload.input || payload);
   if (!input.bid_file) throw new Error('请选择投标文件');
-  const checks = Array.isArray(payload.checks) && payload.checks.length ? payload.checks : input.checks;
+  const checks = normalizeCheckIds(payload.checks?.length ? payload.checks : input.checks);
+  if (!checks.length) throw new Error('请至少选择一个合规检查项');
   const jobId = String(payload.job_id || payload.jobId || crypto.randomUUID()).trim();
+  const modelConfig = requiresModel(checks) ? buildModelConfig(aiService) : undefined;
   let logs = ['正在启动合规检查 Sidecar。'];
 
   let currentTask = updateTask({
@@ -41,12 +61,17 @@ async function runComplianceCheckTask({
     updated_at: new Date().toISOString(),
   };
 
-  workspaceStore.createJob({ jobId, input: { ...input, checks }, task: currentTask });
+  workspaceStore.createJob({
+    jobId,
+    input: { ...input, checks, model_config: modelConfig },
+    task: currentTask,
+  });
 
   try {
     const report = await complianceCheckerService.runChecks({
       jobId,
       input: { ...input, checks },
+      ...(modelConfig ? { modelConfig } : {}),
       checks,
       signal: taskControl?.signal,
       timeoutMs: Number(payload.timeout_ms || payload.timeoutMs || 120000),

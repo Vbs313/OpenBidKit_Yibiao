@@ -98,10 +98,20 @@
   font-size: 20px;
 }
 
-.compliance-check-count-pill {\n  display: inline-flex;\n  align-items: center;\n  padding: 4px 10px;\n  border-radius: var(--yb-radius-pill);\n  background: var(--yb-border-soft);\n  color: var(--yb-text-soft);\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.compliance-check-panel-head > span {
+.compliance-check-count-pill,
+.compliance-check-panel-head > span {
   color: var(--yb-text-soft);
   font-size: 13px;
   font-weight: 700;
+}
+
+.compliance-check-count-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--yb-radius-pill);
+  background: var(--yb-border-soft);
+  white-space: nowrap;
 }
 
 .compliance-check-item {
@@ -251,6 +261,90 @@
   text-align: center;
 }
 
+/* 检查项多选列表 */
+.compliance-check-item-list {
+  display: grid;
+  gap: 10px;
+}
+
+label.compliance-check-item {
+  cursor: pointer;
+  align-items: flex-start;
+}
+
+label.compliance-check-item input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin-top: 4px;
+  accent-color: var(--yb-primary);
+  flex: 0 0 auto;
+}
+
+.compliance-check-item:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.compliance-check-item-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.compliance-check-item-model {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: var(--yb-radius-pill);
+  background: var(--yb-warning-soft);
+  border: 1px solid var(--yb-warning-border);
+  color: var(--yb-warning-deep);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* 多检查结果分组 */
+.compliance-check-result {
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--yb-border-soft);
+}
+
+.compliance-check-result:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.compliance-check-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.compliance-check-result-head strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
+.compliance-check-result-head span {
+  color: var(--yb-text-soft);
+  font-size: 13px;
+}
+
+.compliance-check-status.is-critical,
+.compliance-check-status.is-major {
+  border-color: var(--yb-danger-border);
+  background: var(--yb-danger-soft);
+  color: var(--yb-danger-deep);
+}
+
+.compliance-check-status.is-minor {
+  border-color: var(--yb-warning-border);
+  background: var(--yb-warning-soft);
+  color: var(--yb-warning-deep);
+}
+
 @media (max-width: 900px) {
   .compliance-check-page {
     padding: 20px 18px 110px;
@@ -258,6 +352,7 @@
 
   .compliance-check-header,
   .compliance-check-item,
+  .compliance-check-result-head,
   .compliance-check-finding-head,
   .compliance-check-finding-foot {
     flex-direction: column;

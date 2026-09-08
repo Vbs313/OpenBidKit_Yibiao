@@ -61,6 +61,33 @@ test('compliance checker sidecar ping and pricing arithmetic', async (t) => {
   await service.terminateChild();
   const restartedPing = await service.ping(2000);
   assert.equal(restartedPing.ok, true);
+
+  const capabilities = await service.listChecks();
+  assert.ok(capabilities.some((item) => item.check_id === 'validity' && item.requires_model === false));
+
+  const withModelConfig = await service.runChecks({
+    jobId: 'test-model-config',
+    input: { bid_file: fixture.bidFile, project_metadata: {} },
+    checks: ['validity'],
+    modelConfig: { base_url: 'http://127.0.0.1:4891/v1', model: 'deepseek-chat' },
+    timeoutMs: 10000,
+  });
+  assert.equal(withModelConfig.results[0].check_id, 'validity');
+
+  await assert.rejects(
+    () => service.runChecks({
+      jobId: 'test-credential-rejected',
+      input: { bid_file: fixture.bidFile, project_metadata: {} },
+      checks: ['validity'],
+      modelConfig: { base_url: 'http://127.0.0.1:4891/v1', api_key: 'sk-should-never-travel' },
+      timeoutMs: 10000,
+    }),
+    (error) => {
+      assert.equal(error.code, 'COMPLIANCE_MODEL_CONFIG_INVALID');
+      assert.ok(!String(error.message).includes('sk-should-never-travel'));
+      return true;
+    },
+  );
 });
 
 

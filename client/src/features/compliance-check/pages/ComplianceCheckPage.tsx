@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FloatingToolbar,
   ProgressBar,
@@ -9,21 +9,15 @@ import {
   useToast,
 } from '../../../shared/ui';
 import type {
+  ComplianceCheckDefinition,
   ComplianceCheckInput,
-  ComplianceCheckResponse,
   ComplianceCheckState,
   ComplianceCheckTaskState,
 } from '../types';
 
-const PRICING_ARITHMETIC_CHECK = {
-  id: 'pricing_arithmetic',
-  name: '报价算术核查',
-  description: '检查单价 × 数量、分项合计、总价、大小写金额、空白值和重复计费。',
-};
-
 const initialState: ComplianceCheckState = {
   step: 'configure',
-  input: { tender_file: '', bid_file: '', project_metadata: {}, checks: [PRICING_ARITHMETIC_CHECK.id] },
+  input: { tender_file: '', bid_file: '', project_metadata: {}, checks: [] },
   checkTask: undefined,
   lastReport: null,
 };
@@ -48,21 +42,30 @@ function statusLabel(status?: string) {
 
 function ComplianceCheckPage() {
   const [state, setState] = useState<ComplianceCheckState>(initialState);
+  const [definitions, setDefinitions] = useState<ComplianceCheckDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
     let alive = true;
-    window.yibiao.complianceCheck.loadState()
-      .then((next) => { if (alive) setState({ ...initialState, ...next }); })
+    Promise.all([window.yibiao.complianceCheck.loadState(), window.yibiao.complianceCheck.listChecks()])
+      .then(([next, checks]) => {
+        if (!alive) return;
+        setDefinitions(checks);
+        const enabled = Array.isArray(next.input?.checks) && next.input.checks.length
+          ? next.input.checks
+          : checks.map((item) => item.check_id);
+        setState({ ...initialState, ...next, input: { ...next.input, checks: enabled } });
+      })
       .catch((error) => { if (alive) showToast(error?.message || '读取合规检查状态失败', 'error'); })
       .finally(() => { if (alive) setLoading(false); });
 
     const unsubscribe = window.yibiao.tasks.onTaskEvent((event) => {
       if (event.task.type !== 'compliance-check') return;
-      if (event.complianceCheck) {
-        setState(event.complianceCheck);
+      const patch = event.complianceCheck;
+      if (patch) {
+        setState((current) => ({ ...current, ...patch, input: { ...current.input, ...(patch.input || {}) } }));
         return;
       }
       setState((current) => ({
@@ -82,32 +85,54 @@ function ComplianceCheckPage() {
   const report = state.lastReport;
   const running = isRunning(task);
   const progress = Math.max(0, Math.min(100, Number(task?.progress || (state.step === 'done' ? 100 : 0))));
-  const findings = useMemo(() => (report?.results || []).flatMap((result) => result.findings.map((finding) => ({ ...finding, checkName: result.check_name }))), [report]);
+  const selectedChecks = useMemo(
+    () => (Array.isArray(state.input?.checks) && state.input.checks.length
+      ? state.input.checks
+      : definitions.map((item) => item.check_id)),
+    [definitions, state.input?.checks],
+  );
+  const results = report?.results || [];
+  const overallSeverity = useMemo(() => {
+    if (results.some((item) => item.status === 'error' || item.severity === 'critical')) return 'critical';
+    if (results.some((item) => item.status === 'fail')) return 'major';
+    if (results.some((item) => item.status === 'warning')) return 'minor';
+    return 'info';
+  }, [results]);
 
   async function saveInput(nextInput: ComplianceCheckInput) {
     const next = await window.yibiao.complianceCheck.saveInput(nextInput);
-    setState({ ...initialState, ...next, step: 'configure' });
+    setState((current) => ({ ...current, ...next, step: 'configure' }));
   }
+
+  const toggleCheck = useCallback(async (checkId: string) => {
+    const current = selectedChecks.includes(checkId)
+      ? selectedChecks.filter((item) => item !== checkId)
+      : [...selectedChecks, checkId];
+    if (!current.length) {
+      showToast('至少需要保留一个检查项', 'info');
+      return;
+    }
+    try {
+      await saveInput({ ...state.input, checks: current });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '保存检查项失败', 'error');
+    }
+  }, [selectedChecks, showToast, state.input]);
 
   async function selectFile(role: 'tender' | 'bid') {
     try {
       const selected = await window.yibiao.complianceCheck.selectFile(role);
       if (selected.canceled || !selected.filePath) return;
       const key = role === 'tender' ? 'tender_file' : 'bid_file';
-      const nextInput: ComplianceCheckInput = {
-        ...state.input,
-        [key]: selected.filePath,
-        checks: [PRICING_ARITHMETIC_CHECK.id],
-      };
-      await saveInput(nextInput);
+      await saveInput({ ...state.input, [key]: selected.filePath, checks: selectedChecks });
     } catch (error) {
-      showToast(error?.message || '选择文件失败', 'error');
+      showToast(error instanceof Error ? error.message : '选择文件失败', 'error');
     }
   }
 
   async function removeFile(role: 'tender' | 'bid') {
     const key = role === 'tender' ? 'tender_file' : 'bid_file';
-    await saveInput({ ...state.input, [key]: '', checks: [PRICING_ARITHMETIC_CHECK.id] });
+    await saveInput({ ...state.input, [key]: '', checks: selectedChecks });
   }
 
   async function startCheck() {
@@ -118,12 +143,12 @@ function ComplianceCheckPage() {
     setSubmitting(true);
     try {
       const nextTask = await window.yibiao.complianceCheck.run({
-        input: { ...state.input, checks: [PRICING_ARITHMETIC_CHECK.id] },
-        checks: [PRICING_ARITHMETIC_CHECK.id],
+        input: { ...state.input, checks: selectedChecks },
+        checks: selectedChecks,
       });
       setState((current) => ({ ...current, step: 'running', checkTask: nextTask, lastReport: null }));
     } catch (error) {
-      showToast(error?.message || '启动合规检查失败', 'error');
+      showToast(error instanceof Error ? error.message : '启动合规检查失败', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -136,7 +161,7 @@ function ComplianceCheckPage() {
 
   async function clearCheck() {
     const next = await window.yibiao.complianceCheck.clear();
-    setState({ ...initialState, ...next });
+    setState((current) => ({ ...current, ...next, lastReport: null, checkTask: undefined }));
     showToast('合规检查结果已清空', 'success');
   }
 
@@ -155,17 +180,17 @@ function ComplianceCheckPage() {
         <div>
           <span className="section-kicker">标书检查</span>
           <h1>合规检查</h1>
-          <p>第一版接入常驻 Python Sidecar，先跑通报价算术核查。</p>
+          <p>由常驻 Python Sidecar 执行确定性规则检查，结果写入本地数据库。</p>
         </div>
-        <div className={`compliance-check-status is-${report?.results?.[0]?.status || (running ? 'running' : 'idle')}`}>
-          {running ? '检查中' : statusLabel(report?.results?.[0]?.status)}
+        <div className={`compliance-check-status is-${results[0]?.status || (running ? 'running' : overallSeverity === 'info' ? 'idle' : overallSeverity)}`}>
+          {running ? '检查中' : results.length ? statusLabel(overallSeverity === 'major' ? 'fail' : overallSeverity === 'minor' ? 'warning' : 'pass') : '待检查'}
         </div>
       </header>
 
       <UploadBoard
         kicker="STEP 01"
         title="选择检查文件"
-        subtitle="第一版支持 Markdown、JSON、TXT。投标文件必选，招标文件用于读取最高限价。"
+        subtitle="投标文件必选；招标文件用于读取招标要求的有效期天数与起始日期。当前支持 Markdown、JSON、TXT。"
       >
         <UploadRow
           index="01"
@@ -181,7 +206,7 @@ function ComplianceCheckPage() {
           {state.input.tender_file ? (
             <UploadFilePill badge="MD" name={fileName(state.input.tender_file)} meta={state.input.tender_file} />
           ) : (
-            <UploadEmpty title="尚未选择招标文件" hint="没有招标文件时仍可执行投标文件内部算术检查" />
+            <UploadEmpty title="尚未选择招标文件" hint="没有招标文件时仍可执行投标文件内部一致性检查" />
           )}
         </UploadRow>
 
@@ -199,7 +224,7 @@ function ComplianceCheckPage() {
           {state.input.bid_file ? (
             <UploadFilePill badge="MD" name={fileName(state.input.bid_file)} meta={state.input.bid_file} />
           ) : (
-            <UploadEmpty title="请选择投标报价文件" hint="支持 Markdown 表格或 project_metadata.line_items 结构化数据" />
+            <UploadEmpty title="请选择投标报价文件" hint="支持 Markdown 表格与 project_metadata 结构化数据" />
           )}
         </UploadRow>
       </UploadBoard>
@@ -210,15 +235,23 @@ function ComplianceCheckPage() {
             <span className="section-kicker">STEP 02</span>
             <h2>检查项</h2>
           </div>
-          <span className="compliance-check-count-pill">1 项</span>
+          <span className="compliance-check-count-pill">{selectedChecks.length} / {definitions.length}</span>
         </div>
-        <article className="compliance-check-item is-selected">
-          <div>
-            <strong>{PRICING_ARITHMETIC_CHECK.name}</strong>
-            <p>{PRICING_ARITHMETIC_CHECK.description}</p>
-          </div>
-          <span className="compliance-check-item-state">已启用</span>
-        </article>
+        <div className="compliance-check-item-list">
+          {definitions.map((definition) => {
+            const enabled = selectedChecks.includes(definition.check_id);
+            return (
+              <label key={definition.check_id} className={`compliance-check-item${enabled ? ' is-selected' : ''}`}>
+                <input type="checkbox" checked={enabled} onChange={() => toggleCheck(definition.check_id)} disabled={running} />
+                <span className="compliance-check-item-copy">
+                  <strong>{definition.label}</strong>
+                  <span>{definition.description}</span>
+                </span>
+                {definition.requires_model ? <em className="compliance-check-item-model">需模型</em> : null}
+              </label>
+            );
+          })}
+        </div>
       </section>
 
       {(running || task?.status === 'success' || task?.status === 'error') ? (
@@ -240,42 +273,54 @@ function ComplianceCheckPage() {
         </section>
       ) : null}
 
-      {report?.results?.length ? (
+      {results.length ? (
         <section className="compliance-check-panel">
           <div className="compliance-check-panel-head">
             <div>
               <span className="section-kicker">检查结果</span>
-              <h2>{report.results[0].check_name}</h2>
+              <h2>共 {results.length} 项检查</h2>
             </div>
-            <span className={`compliance-check-result-pill is-${report.results[0].status}`}>{statusLabel(report.results[0].status)}</span>
+            <span className="compliance-check-count-pill">
+              问题 {results.reduce((sum, item) => sum + item.metrics.failed, 0)} · 提醒 {results.reduce((sum, item) => sum + item.metrics.warning, 0)}
+            </span>
           </div>
-          <p className="compliance-check-summary">{report.results[0].summary}</p>
-          <div className="compliance-check-metrics">
-            <article><span>检查项</span><strong>{report.results[0].metrics.total}</strong></article>
-            <article><span>通过</span><strong>{report.results[0].metrics.passed}</strong></article>
-            <article><span>问题</span><strong>{report.results[0].metrics.failed}</strong></article>
-            <article><span>提醒</span><strong>{report.results[0].metrics.warning}</strong></article>
-          </div>
-          {findings.length ? (
-            <div className="compliance-check-findings">
-              {findings.map((finding) => (
-                <article key={`${finding.checkName}-${finding.id}`} className={`compliance-check-finding is-${finding.severity}`}>
-                  <div className="compliance-check-finding-head">
-                    <strong>{finding.title}</strong>
-                    <span>{severityLabel(finding.severity)}</span>
-                  </div>
-                  <p>{finding.message}</p>
-                  {finding.evidence ? <pre>{finding.evidence}</pre> : null}
-                  <div className="compliance-check-finding-foot">
-                    <span>{finding.suggestion}</span>
-                    {finding.location?.line ? <small>{fileName(finding.location.file || '')} 第 {finding.location.line} 行</small> : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="compliance-check-empty-result">没有发现需要处理的问题。</div>
-          )}
+          {results.map((result) => (
+            <article className="compliance-check-result" key={result.check_id}>
+              <div className="compliance-check-result-head">
+                <div>
+                  <strong>{result.check_name}</strong>
+                  <span>{result.summary}</span>
+                </div>
+                <span className={`compliance-check-result-pill is-${result.status}`}>{statusLabel(result.status)}</span>
+              </div>
+              <div className="compliance-check-metrics">
+                <article><span>检查点</span><strong>{result.metrics.total}</strong></article>
+                <article><span>通过</span><strong>{result.metrics.passed}</strong></article>
+                <article><span>问题</span><strong>{result.metrics.failed}</strong></article>
+                <article><span>提醒</span><strong>{result.metrics.warning}</strong></article>
+              </div>
+              {result.findings.length ? (
+                <div className="compliance-check-findings">
+                  {result.findings.map((finding) => (
+                    <div key={`${result.check_id}-${finding.id}`} className={`compliance-check-finding is-${finding.severity}`}>
+                      <div className="compliance-check-finding-head">
+                        <strong>{finding.title}</strong>
+                        <span>{severityLabel(finding.severity)}</span>
+                      </div>
+                      <p>{finding.message}</p>
+                      {finding.evidence ? <pre>{finding.evidence}</pre> : null}
+                      <div className="compliance-check-finding-foot">
+                        <span>{finding.suggestion}</span>
+                        {finding.location?.line ? <small>{fileName(finding.location.file || '')} 第 {finding.location.line} 行</small> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="compliance-check-empty-result">没有发现需要处理的问题。</div>
+              )}
+            </article>
+          ))}
         </section>
       ) : null}
 
@@ -288,7 +333,7 @@ function ComplianceCheckPage() {
               { id: 'start', label: submitting ? '启动中…' : '开始检查', variant: 'primary', disabled: running || submitting || !state.input.bid_file, onClick: startCheck },
               { id: 'cancel', label: '取消', variant: 'warning', disabled: !running, onClick: cancelCheck },
               { id: 'ping', label: '测试 Sidecar', variant: 'secondary', onClick: pingSidecar },
-              { id: 'clear', label: '清空结果', variant: 'ghost', disabled: running || (!report && !task), onClick: clearCheck },
+              { id: 'clear', label: '清空结果', variant: 'ghost', disabled: running || (!results.length && !task), onClick: clearCheck },
             ],
           },
         ]}
@@ -298,5 +343,3 @@ function ComplianceCheckPage() {
 }
 
 export default ComplianceCheckPage;
-
-

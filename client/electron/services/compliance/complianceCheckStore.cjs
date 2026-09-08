@@ -1,4 +1,6 @@
 const crypto = require('node:crypto');
+const { normalizeCheckIds } = require('./complianceCheckRegistry.cjs');
+const { stripCredentialFields } = require('./protocol.cjs');
 
 function now() {
   return new Date().toISOString();
@@ -24,17 +26,22 @@ function clone(value) {
 
 function normalizeInput(input = {}) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
-  const checks = Array.isArray(source.checks) && source.checks.length
-    ? source.checks.map((item) => String(item || '').trim()).filter(Boolean)
-    : ['pricing_arithmetic'];
-  return {
+  const checks = normalizeCheckIds(source.checks);
+  // project_metadata 是自由结构，落库前剔除任何凭据字段，保证 API Key 不进入 stdin 与 SQLite。
+  const metadata = source.project_metadata && typeof source.project_metadata === 'object' && !Array.isArray(source.project_metadata)
+    ? stripCredentialFields(source.project_metadata)
+    : {};
+  const normalized = {
     tender_file: String(source.tender_file || source.tenderFile || '').trim(),
     bid_file: String(source.bid_file || source.bidFile || '').trim(),
-    project_metadata: source.project_metadata && typeof source.project_metadata === 'object' && !Array.isArray(source.project_metadata)
-      ? source.project_metadata
-      : {},
-    checks,
+    project_metadata: metadata,
+    checks: checks.length ? checks : normalizeCheckIds([]),
   };
+  const modelConfig = source.model_config || source.modelConfig;
+  if (modelConfig && typeof modelConfig === 'object' && !Array.isArray(modelConfig)) {
+    normalized.model_config = stripCredentialFields(modelConfig);
+  }
+  return normalized;
 }
 
 function initialState() {

@@ -1,4 +1,5 @@
 const { dialog, ipcMain } = require('electron');
+const { listComplianceChecks } = require('../services/compliance/complianceCheckRegistry.cjs');
 
 const FILE_FILTERS = [
   { name: '报价文件', extensions: ['md', 'markdown', 'json', 'txt'] },
@@ -7,6 +8,7 @@ const FILE_FILTERS = [
 
 function registerComplianceCheckIpc({ complianceCheckStore, complianceCheckerService, taskService }) {
   ipcMain.handle('compliance-check:load-state', () => complianceCheckStore.loadComplianceCheck());
+  ipcMain.handle('compliance-check:list-checks', () => listComplianceChecks());
   ipcMain.handle('compliance-check:select-file', async (_event, role) => {
     const label = role === 'tender' ? '招标文件' : '投标文件';
     const result = await dialog.showOpenDialog({

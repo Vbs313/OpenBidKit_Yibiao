@@ -1,4 +1,4 @@
-export type ComplianceCheckId = 'pricing_arithmetic';
+export type ComplianceCheckId = 'pricing_arithmetic' | 'validity';
 
 export type ComplianceCheckStatus = 'pass' | 'fail' | 'warning' | 'error';
 export type ComplianceSeverity = 'info' | 'minor' | 'major' | 'critical';
@@ -59,11 +59,30 @@ export interface ComplianceCheckResponse {
   message?: string;
 }
 
+/**
+ * 模型路由信息。协议用它替代 api_key：Sidecar 只允许 base_url / model / reasoning_effort，
+ * 任何凭据字段都会在 B 侧或 Sidecar 侧被拒绝。
+ */
+export interface ComplianceCheckModelConfig {
+  base_url?: string;
+  model?: string;
+  reasoning_effort?: string;
+}
+
+export interface ComplianceCheckDefinition {
+  check_id: ComplianceCheckId | string;
+  label: string;
+  description: string;
+  group: string;
+  requires_model: boolean;
+}
+
 export interface ComplianceCheckInput {
   tender_file?: string;
   bid_file?: string;
   project_metadata?: Record<string, unknown>;
   checks?: string[];
+  model_config?: ComplianceCheckModelConfig;
 }
 
 export interface ComplianceCheckTaskState {

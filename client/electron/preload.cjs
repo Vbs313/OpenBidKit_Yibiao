@@ -235,6 +235,7 @@ const bridge = {
   },
   complianceCheck: {
     loadState: () => ipcRenderer.invoke('compliance-check:load-state'),
+    listChecks: () => ipcRenderer.invoke('compliance-check:list-checks'),
     selectFile: (role) => ipcRenderer.invoke('compliance-check:select-file', role),
     saveInput: (input) => ipcRenderer.invoke('compliance-check:save-input', input),
     run: (payload) => ipcRenderer.invoke('compliance-check:run', payload),

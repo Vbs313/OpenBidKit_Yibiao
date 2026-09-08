@@ -10,10 +10,12 @@ const {
 } = require('../../utils/paths.cjs');
 const {
   PROTOCOL_VERSION,
+  assertNoCredentialFields,
   createRequest,
   isProgressMessage,
   validateResponse,
 } = require('./protocol.cjs');
+const { listComplianceChecks } = require('./complianceCheckRegistry.cjs');
 
 const DEFAULT_TIMEOUT_MS = 120000;
 const PING_TIMEOUT_MS = 1000;
@@ -219,6 +221,7 @@ function createComplianceCheckerService({ app, configStore } = {}) {
   }
 
   function writeRequest(request) {
+    assertNoCredentialFields(request, '合规检查请求');
     if (!child?.stdin || child.stdin.destroyed) {
       throw new Error('合规检查 Sidecar 尚未就绪');
     }
@@ -230,7 +233,7 @@ function createComplianceCheckerService({ app, configStore } = {}) {
     });
   }
 
-  function sendRequest({ jobId, action, input, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onProgress }) {
+  function sendRequest({ jobId, action, input, modelConfig, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onProgress }) {
     const normalizedJobId = String(jobId || crypto.randomUUID()).trim();
     return ensureStarted().then(() => new Promise((resolve, reject) => {
       if (signal?.aborted) {
@@ -268,7 +271,7 @@ function createComplianceCheckerService({ app, configStore } = {}) {
       }
 
       try {
-        const request = createRequest({ jobId: normalizedJobId, action, input });
+        const request = createRequest({ jobId: normalizedJobId, action, input, modelConfig });
         writeRequest(request).catch((error) => settleWaiter(normalizedJobId, 'reject', error));
       } catch (error) {
         settleWaiter(normalizedJobId, 'reject', error);
@@ -308,12 +311,13 @@ function createComplianceCheckerService({ app, configStore } = {}) {
     });
   }
 
-  function runChecks({ jobId, input, checks, timeoutMs, signal, onProgress } = {}) {
+  function runChecks({ jobId, input, checks, modelConfig, timeoutMs, signal, onProgress } = {}) {
     const normalizedChecks = Array.isArray(checks) && checks.length ? checks : ['pricing_arithmetic'];
     return enqueue(() => sendRequest({
       jobId,
       action: 'run_checks',
       input: { ...(input || {}), checks: normalizedChecks },
+      ...(modelConfig ? { modelConfig } : {}),
       timeoutMs,
       signal,
       onProgress,
@@ -333,6 +337,32 @@ function createComplianceCheckerService({ app, configStore } = {}) {
       return { ok: response.status === 'success', message: response.message || 'pong' };
     } catch (error) {
       return { ok: false, message: error.message || String(error) };
+    }
+  }
+
+  // 检查项能力以 Sidecar 上报为准；Sidecar 未就绪时退回 B 侧注册表，保证页面仍可渲染。
+  async function listChecks() {
+    if (pending.size > 0) {
+      return listComplianceChecks();
+    }
+    try {
+      const response = await enqueue(() => sendRequest({
+        jobId: `caps-${crypto.randomUUID()}`,
+        action: 'ping',
+        timeoutMs: PING_TIMEOUT_MS,
+      }));
+      const capabilities = Array.isArray(response.checks) ? response.checks : [];
+      if (!capabilities.length) return listComplianceChecks();
+      return capabilities.map((item) => ({
+        check_id: String(item?.check_id || ''),
+        label: String(item?.check_name || item?.check_id || ''),
+        description: String(item?.description || ''),
+        group: String(item?.group || 'general'),
+        requires_model: Boolean(item?.requires_model),
+      })).filter((item) => item.check_id);
+    } catch (error) {
+      writeLog('checker.capabilities.fallback', { error: compactLogError(error) });
+      return listComplianceChecks();
     }
   }
 
@@ -402,6 +432,7 @@ function createComplianceCheckerService({ app, configStore } = {}) {
     close,
     ensureStarted,
     getStatus,
+    listChecks,
     ping,
     restart,
     runChecks,
