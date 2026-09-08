@@ -25,6 +25,7 @@ const { runFeasibilityOutlineTask } = require('./feasibilityOutlineTask.cjs');
 const { runFeasibilityOutlineAdjustmentTask } = require('./feasibilityOutlineAdjustmentTask.cjs');
 const { normalizeLogs } = require('./taskLogStore.cjs');
 const { runComplianceCheckTask } = require('./compliance/complianceCheckTask.cjs');
+const perfTrace = require('../utils/perfTrace.cjs');
 
 const taskDefinitions = {
   'bid-section-extraction': {
@@ -335,14 +336,16 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
 
   function emit(task, snapshot) {
     const event = { task, ...snapshot };
-    for (const webContents of subscribers) {
-      if (!webContents.isDestroyed()) {
-        webContents.send('tasks:event', event);
+    perfTrace.timeSync('task', 'emit', () => {
+      for (const webContents of subscribers) {
+        if (!webContents.isDestroyed()) {
+          webContents.send('tasks:event', event);
+        }
       }
-    }
-    for (const callback of callbackSubscribers) {
-      callback(event);
-    }
+      for (const callback of callbackSubscribers) {
+        callback(event);
+      }
+    });
   }
 
   function buildTechnicalPlanSnapshot(task, state = {}, eventPatch = {}) {
@@ -628,6 +631,11 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
   }
 
   function updateWorkspaceStateWithoutReload(definition, partial) {
+    // SQLite 同步写入发生在主进程，耗时直接进入基线。
+    perfTrace.timeSync('task', 'checkpoint_write', () => updateWorkspaceState(definition, partial));
+  }
+
+  function updateWorkspaceState(definition, partial) {
     if (definition.stateKey === 'technicalPlan') {
       technicalPlanStore.updateTechnicalPlanWithoutReload(partial);
       return;
@@ -692,6 +700,7 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
 
   function startManagedTask(type, payload, runner, initialPartial = {}, startOptions = {}) {
     const existingTask = activeTasks.get(type);
+    const taskStartedAt = performance.now();
     if (existingTask && isActiveTaskStatus(existingTask.status)) {
       const nextPayloadSignature = getPayloadSignature(type, payload);
       if (existingTask.payload_signature && nextPayloadSignature && existingTask.payload_signature !== nextPayloadSignature) {
@@ -918,12 +927,13 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
         signal: taskControl.signal,
       },
     );
-    runner({ aiService: runnerAiService, agentService: runnerAgentService, ordinaryAgentService: runnerOrdinaryAgentService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, openXmlHelperService, complianceCheckerService, updateTask, checkpointTask, payload, taskControl, previousState }).catch((error) => {
-      if (!taskControl.signal.aborted) {
-        checkpointTask({ status: 'error', error: error.message || '任务执行失败' });
-      }
-    }).finally(() => {
-      taskControl.dispose();
+      runner({ aiService: runnerAiService, agentService: runnerAgentService, ordinaryAgentService: runnerOrdinaryAgentService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, openXmlHelperService, complianceCheckerService, updateTask, checkpointTask, payload, taskControl, previousState }).catch((error) => {
+        if (!taskControl.signal.aborted) {
+          checkpointTask({ status: 'error', error: error.message || '任务执行失败' });
+        }
+      }).finally(() => {
+        perfTrace.record('task', `run.${type}`, performance.now() - taskStartedAt);
+        taskControl.dispose();
       if (aiService?.resumeQueueScope) {
         aiService.resumeQueueScope(queueScopeId);
       }

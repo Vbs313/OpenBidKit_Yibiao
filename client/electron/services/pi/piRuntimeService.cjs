@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const perfTrace = require('../../utils/perfTrace.cjs');
 const { getDeveloperLogsDir } = require('../../utils/paths.cjs');
 const { createAgentOpenAiProxy } = require('../agent/agentOpenAiProxy.cjs');
 const { isExpectedAgentInterruption, resolveAgentAbortReason } = require('../agent/agentInterruption.cjs');
@@ -355,6 +356,7 @@ function createPiRuntimeService({ app, configStore, aiService, isMonitorActive, 
   async function ensureStarted() {
     if (proxy && phase !== 'unhealthy' && phase !== 'stopped' && phase !== 'closing') return proxyInfo;
     if (startPromise) return startPromise;
+    const bootStartedAt = performance.now();
     startPromise = (async () => {
       setPhase(phase === 'unhealthy' ? 'restarting' : 'starting', `正在启动 ${runtimeName}`);
       const { codingAgent } = await loadPiModules();
@@ -380,6 +382,8 @@ function createPiRuntimeService({ app, configStore, aiService, isMonitorActive, 
       lastHealthError = '';
       setPhase(activeTask ? 'running' : 'idle', activeTask ? `${runtimeName} 正在执行任务` : `${runtimeName} 空闲`);
       if (!statusTimer) statusTimer = setInterval(() => { if (activeTask) emitStatus(); }, STATUS_TICK_MS);
+      // 冷启动成本（Pi 模块加载 + 本地代理监听 + 回环探测）单独记录，命中复用时不走这条路径。
+      perfTrace.record('agent', 'cold_boot', performance.now() - bootStartedAt);
       return proxyInfo;
     })();
     try {
@@ -771,9 +775,9 @@ function createPiRuntimeService({ app, configStore, aiService, isMonitorActive, 
 
     try {
       if (!persistentTask) await clearDirectoryAsync(workspaceDir);
-      await writeWorkspaceFilesAsync(workspaceDir, payload.files || []);
+      await perfTrace.time('agent', 'write_workspace', () => writeWorkspaceFilesAsync(workspaceDir, payload.files || []));
       await ensureStarted();
-      const created = await createPiSession({
+      const created = await perfTrace.time('agent', 'session_create', () => createPiSession({
         workspaceDir,
         sessionsDir: persistentTask?.paths.sessionsDir,
         sessionFile: persistentSessionFile,
@@ -789,7 +793,7 @@ function createPiRuntimeService({ app, configStore, aiService, isMonitorActive, 
           if (!activeController.signal.aborted) activeController.abort(error);
         },
         openXmlTool: payload.open_xml_tool,
-      });
+      }));
       session = created.session;
       sessionSnapshot = created.snapshot;
       activeTask.session_id = session.sessionId || '';
@@ -848,7 +852,7 @@ function createPiRuntimeService({ app, configStore, aiService, isMonitorActive, 
               phase: activeTask.workflow_stage,
               agent_connection: 'running',
             });
-            await session.prompt(stagePrompt, { expandPromptTemplates: false });
+            await perfTrace.time('agent', 'prompt_round', () => session.prompt(stagePrompt, { expandPromptTemplates: false }));
             if (activeController.signal.aborted) throw activeController.signal.reason;
             const assistantError = getAssistantError(session.messages);
             if (assistantError) {

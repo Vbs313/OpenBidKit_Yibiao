@@ -245,7 +245,10 @@ const bridge = {
     clear: () => ipcRenderer.invoke('compliance-check:clear'),
     ping: () => ipcRenderer.invoke('compliance-check:ping'),
   },
-  tasks: {
+  perf: {
+    getSnapshot: (limit) => ipcRenderer.invoke('perf:get-snapshot', limit),
+    reset: () => ipcRenderer.invoke('perf:reset'),
+  },  tasks: {
     startBidSectionExtraction: (payload) => ipcRenderer.invoke('tasks:start-bid-section-extraction', payload),
     startBidAnalysis: (payload) => ipcRenderer.invoke('tasks:start-bid-analysis', payload),
     startOutlineGeneration: (payload) => ipcRenderer.invoke('tasks:start-outline-generation', payload),

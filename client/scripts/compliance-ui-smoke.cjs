@@ -219,6 +219,17 @@ async function run() {
 
     const dbBytes = fs.readFileSync(path.join(userData, 'workspace', 'yibiao.sqlite'));
     assert(!dbBytes.includes(Buffer.from('sk-', 'utf8')), 'SQLite 中出现疑似 API Key 前缀');
+
+    // 顺带导出这一轮真实性能路径的耗时基线，供后续优化对照。
+    const perf = await window.webContents.executeJavaScript('window.yibiao.perf.getSnapshot(24)');
+    const keys = perf && Array.isArray(perf.keys) ? perf.keys : [];
+    for (const required of ['task.run.compliance-check', 'task.emit', 'task.checkpoint_write']) {
+      assert(keys.some((item) => item.key === required), `性能基线缺少 ${required}`);
+    }
+    console.log('[compliance-ui] 性能基线（ms）:');
+    for (const item of keys) {
+      console.log(`  ${item.key} count=${item.count} avg=${item.avgMs} p95=${item.p95Ms} max=${Math.round(item.maxMs)} total=${Math.round(item.totalMs)}`);
+    }
     console.log('[compliance-ui] all checks passed');
     app.exit(0);
   } catch (error) {

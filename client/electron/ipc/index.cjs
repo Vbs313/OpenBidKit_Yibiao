@@ -13,6 +13,7 @@ const { registerLicenseIpc } = require('./licenseIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
 const { registerTaskIpc } = require('./taskIpc.cjs');
 const { registerComplianceCheckIpc } = require('./complianceCheckIpc.cjs');
+const { registerPerfIpc } = require('./perfIpc.cjs');
 const { registerTechnicalPlanIpc } = require('./technicalPlanIpc.cjs');
 const { registerFeasibilityReportIpc } = require('./feasibilityReportIpc.cjs');
 const { registerTemplateIpc } = require('./templateIpc.cjs');
@@ -50,6 +51,7 @@ const { createComplianceCheckStore } = require('../services/compliance/complianc
 const { createComplianceCheckerService } = require('../services/compliance/complianceCheckerService.cjs');
 const { cleanupTrashDirSync } = require('../utils/forceRemove.cjs');
 const { getWorkspaceTrashDir } = require('../utils/paths.cjs');
+const perfTrace = require('../utils/perfTrace.cjs');
 
 let pendingUiCurrentView = null;
 let agentWorkspaceServiceRef = null;
@@ -335,6 +337,9 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const complianceCheckerService = createComplianceCheckerService({ app, configStore });
   const exportService = createExportService({ configStore });
   const systemFontService = createSystemFontService();
+  // 性能基线：聚合计数始终保留，开发者模式才保留分位样本。
+  perfTrace.setEnabled(Boolean(configStore.load()?.developer_mode));
+  registerPerfIpc();
   const databaseStatus = registerWorkspaceDatabaseStatusIpc({ mainWindow });
   let workspaceDatabaseStarted = false;
   let gpuTrialRelaunchStarted = false;
@@ -408,6 +413,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     onConfigChanged(nextConfig, previousConfig) {
       agentService.handleConfigChanged?.(nextConfig, previousConfig);
       autoConfirmationService.handleConfigChanged?.(nextConfig, previousConfig);
+      perfTrace.setEnabled(Boolean(nextConfig?.developer_mode));
     },
     onDeveloperModeChange(developerMode) {
       if (!developerMode) {

@@ -24,6 +24,7 @@ const {
 } = require('../utils/aiLog.cjs');
 const textTokenStatsStore = require('./textTokenStatsStore.cjs');
 const { normalizeTokenUsage } = textTokenStatsStore;
+const perfTrace = require('../utils/perfTrace.cjs');
 
 const AI_REQUEST_TIMEOUT_MS = 600000;
 const MULTIMODAL_IMAGE_MAX_EDGE = 2048;
@@ -1116,11 +1117,12 @@ async function requestTextAiStream(app, config, requestBody, options = {}) {
 }
 
 async function requestTextAi(app, config, requestBody, options = {}) {
-  if (options.requestMode === 'stream') {
-    return requestTextAiStream(app, config, requestBody, options);
-  }
-
-  return requestTextAiNormal(app, config, requestBody, options);
+  return perfTrace.time('ai', options.requestMode === 'stream' ? 'text.request_stream' : 'text.request_normal', async () => {
+    if (options.requestMode === 'stream') {
+      return requestTextAiStream(app, config, requestBody, options);
+    }
+    return requestTextAiNormal(app, config, requestBody, options);
+  });
 }
 
 function appendOpenAICompatibleImageItem(state, item) {
@@ -2421,16 +2423,44 @@ function createAiService({ app, configStore }) {
     };
   }
 
+  // 排队等待是“点了没反应”的第一现场，这里只测不改：记录首次出队等待与整体耗时。
+  function instrumentedRunner(label, runner) {
+    const beganAt = performance.now();
+    let dequeued = false;
+    return (...args) => {
+      if (!dequeued) {
+        dequeued = true;
+        perfTrace.record('ai', `${label}.queue_wait`, performance.now() - beganAt);
+      }
+      return runner(...args);
+    };
+  }
+
   function enqueueTextRequest(request, runner, options = {}) {
-    return textRequestQueue.enqueue(runner, {
+    const beganAt = performance.now();
+    return textRequestQueue.enqueue(instrumentedRunner('text', runner), {
       scopeId: getQueueScopeId(request),
       signal: options.signal,
       maxAttempts: options.maxAttempts,
+    }).then((value) => {
+      perfTrace.record('ai', 'text.total', performance.now() - beganAt);
+      return value;
+    }, (error) => {
+      perfTrace.record('ai', 'text.total', performance.now() - beganAt, { error: true });
+      throw error;
     });
   }
 
   function enqueueImageRequest(request, runner) {
-    return imageRequestQueue.enqueue(runner, { scopeId: getQueueScopeId(request), signal: request?.signal });
+    const beganAt = performance.now();
+    return imageRequestQueue.enqueue(instrumentedRunner('image', runner), { scopeId: getQueueScopeId(request), signal: request?.signal })
+      .then((value) => {
+        perfTrace.record('ai', 'image.total', performance.now() - beganAt);
+        return value;
+      }, (error) => {
+        perfTrace.record('ai', 'image.total', performance.now() - beganAt, { error: true });
+        throw error;
+      });
   }
 
   const service = {

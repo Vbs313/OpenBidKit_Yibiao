@@ -5,6 +5,7 @@ const { app, dialog, nativeImage } = require('electron');
 const cheerio = require('cheerio');
 const { imageSize } = require('image-size');
 const { compactLogError, createDeveloperLogger, textMetrics } = require('../utils/developerLog.cjs');
+const perfTrace = require('../utils/perfTrace.cjs');
 const { getMermaidCacheEntry, saveMermaidCacheImage } = require('../utils/mermaidCache.cjs');
 const { getGeneratedImagesDir, getImportedImagesDir } = require('../utils/paths.cjs');
 const { REMOTE_IMAGE_RETRY_ATTEMPTS, REMOTE_IMAGE_RETRY_DELAY_MS } = require('../utils/remoteImageRetry.cjs');
@@ -2433,14 +2434,15 @@ function createExportService({ configStore } = {}) {
 
       try {
         const warnings = [];
-        const buildResult = await buildDocxResult(payload, { onProgress, warnings, developerLogger });
+        // 导出是用户最直接的“卡住”感受来源，记录构建与写盘两段耗时。
+        const buildResult = await perfTrace.time('export', 'build_docx', () => buildDocxResult(payload, { onProgress, warnings, developerLogger }));
         reportProgress({ onProgress, warnings: buildResult.warnings, stats: buildResult.stats }, 96, '正在写入 Word 文件。');
         developerLogger.write('export.word.write.started', {
           output_file_name: path.basename(result.filePath),
           output_extension: path.extname(result.filePath).toLowerCase(),
           buffer_bytes: buildResult.buffer.length,
         });
-        fs.writeFileSync(result.filePath, buildResult.buffer);
+        perfTrace.timeSync('export', 'write_file', () => fs.writeFileSync(result.filePath, buildResult.buffer));
         const message = buildResult.warnings.length
           ? `Word 已导出，但有 ${buildResult.warnings.length} 处图片未能插入，请打开文档核对。`
           : 'Word 已导出，请打开文档核对图片、表格和版式。';
