@@ -1,4 +1,4 @@
-export type ComplianceCheckId = 'pricing_arithmetic' | 'validity';
+export type ComplianceCheckId = 'pricing_arithmetic' | 'validity' | 'deposit';
 
 export type ComplianceCheckStatus = 'pass' | 'fail' | 'warning' | 'error';
 export type ComplianceSeverity = 'info' | 'minor' | 'major' | 'critical';

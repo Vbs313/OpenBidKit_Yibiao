@@ -7,6 +7,7 @@ const { compactLogError, createDeveloperLogger } = require('../../utils/develope
 const {
   getBundledComplianceCheckerPath,
   getComplianceCheckerScriptPath,
+  getComplianceCheckerSourceDir,
 } = require('../../utils/paths.cjs');
 const {
   PROTOCOL_VERSION,
@@ -38,8 +39,20 @@ function resolvePythonCommand() {
   return process.env.YIBIAO_PYTHON_PATH || (process.platform === 'win32' ? 'python' : 'python3');
 }
 
+/** 判断 a 是否比 b 新；b 不存在时视为 a 更新。 */
+function isNewerThanFile(a, b) {
+  try {
+    const aTime = fs.statSync(a).mtimeMs;
+    const bTime = fs.statSync(b).mtimeMs;
+    return aTime > bTime;
+  } catch {
+    return false;
+  }
+}
+
 function createComplianceCheckerService({ app, configStore } = {}) {
   let child = null;
+  let activeSpec = null;
   let lineReader = null;
   let pending = new Map();
   let queue = Promise.resolve();
@@ -59,37 +72,37 @@ function createComplianceCheckerService({ app, configStore } = {}) {
   }
 
   function resolveSpawnSpec() {
-    if (app?.isPackaged) {
-      const executablePath = getBundledComplianceCheckerPath(app);
-      if (fs.existsSync(executablePath)) {
+    const executablePath = getBundledComplianceCheckerPath(app);
+    const sourceDir = getComplianceCheckerSourceDir(app);
+    const scriptPath = app?.isPackaged ? path.join(sourceDir, 'checker_sidecar.py') : getComplianceCheckerScriptPath();
+
+    if (fs.existsSync(executablePath)) {
+      // 开发态下源码比 exe 新时优先跑脚本，避免改完检查逻辑却仍在验证旧 exe。
+      if (!app?.isPackaged && isNewerThanFile(scriptPath, executablePath)) {
+        writeLog('checker.spawn.prefer_source', { scriptPath, executablePath });
+      } else {
         return {
           command: executablePath,
           args: [],
           cwd: path.dirname(executablePath),
+          kind: 'bundled',
         };
       }
-
-      const packagedScript = path.join(process.resourcesPath, 'compliance-checker', 'checker_sidecar.py');
-      if (fs.existsSync(packagedScript)) {
-        return {
-          command: resolvePythonCommand(),
-          args: [packagedScript],
-          cwd: path.dirname(packagedScript),
-        };
-      }
-
-      throw new Error('找不到合规检查 Sidecar。请先运行 prepare-compliance-checker 或确认 resources/compliance-checker 已打包。');
     }
 
-    const scriptPath = getComplianceCheckerScriptPath();
-    if (!fs.existsSync(scriptPath)) {
-      throw new Error(`找不到合规检查 Sidecar 脚本: ${scriptPath}`);
+    if (fs.existsSync(scriptPath)) {
+      return {
+        command: resolvePythonCommand(),
+        args: [scriptPath],
+        cwd: path.dirname(scriptPath),
+        kind: 'python',
+      };
     }
-    return {
-      command: resolvePythonCommand(),
-      args: [scriptPath],
-      cwd: path.dirname(scriptPath),
-    };
+
+    throw new Error(
+      `找不到合规检查 Sidecar。请在 client 下运行 npm run prepare-compliance-checker 生成 ${executablePath}，`
+      + `或确保本机 Python 可执行 ${scriptPath}。`,
+    );
   }
 
   function cleanupWaiter(waiter) {
@@ -197,7 +210,8 @@ function createComplianceCheckerService({ app, configStore } = {}) {
         if (message) writeLog('checker.stderr', { message });
       });
       next.once('spawn', () => {
-        writeLog('checker.started', { command: spec.command, args: spec.args, pid: next.pid });
+        activeSpec = { command: spec.command, cwd: spec.cwd, kind: spec.kind || 'bundled' };
+        writeLog('checker.started', { command: spec.command, args: spec.args, pid: next.pid, kind: spec.kind });
         resolve();
       });
       next.once('error', (error) => {
@@ -420,6 +434,8 @@ function createComplianceCheckerService({ app, configStore } = {}) {
       pid: child?.pid || null,
       pending_jobs: pending.size,
       protocol_version: PROTOCOL_VERSION,
+      spawn_kind: activeSpec?.kind || null,
+      spawn_command: activeSpec?.command || null,
     };
   }
 

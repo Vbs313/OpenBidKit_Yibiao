@@ -142,6 +142,25 @@ jobs:
       - name: Verify Agent tools
         run: node scripts/verify-agent-tools.cjs --platform win32 --arch x64
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache compliance checker build
+        id: cache-compliance-checker
+        uses: actions/cache@v4
+        with:
+          path: client/vendor/compliance-checker/win32-x64
+          key: ${{ runner.os }}-x64-compliance-${{ hashFiles('client/electron/services/compliance/checker/**', 'client/scripts/prepare-compliance-checker.cjs') }}
+
+      - name: Prepare compliance checker
+        if: steps.cache-compliance-checker.outputs.cache-hit != 'true'
+        run: node scripts/prepare-compliance-checker.cjs --platform win32 --arch x64
+
+      - name: Smoke test compliance checker (Sidecar + SQLite)
+        run: npm run smoke:compliance-checker
+
       - name: Publish Open XML helper
         if: steps.cache-openxml-helper.outputs.cache-hit != 'true'
         run: node scripts/prepare-openxml-helper.cjs --platform win32 --arch x64
@@ -259,6 +278,25 @@ jobs:
 
       - name: Verify Agent tools
         run: node scripts/verify-agent-tools.cjs --platform darwin --arch ${{ matrix.arch }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache compliance checker build
+        id: cache-compliance-checker
+        uses: actions/cache@v4
+        with:
+          path: client/vendor/compliance-checker/darwin-${{ matrix.arch }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-compliance-${{ hashFiles('client/electron/services/compliance/checker/**', 'client/scripts/prepare-compliance-checker.cjs') }}
+
+      - name: Prepare compliance checker
+        if: steps.cache-compliance-checker.outputs.cache-hit != 'true'
+        run: node scripts/prepare-compliance-checker.cjs --platform darwin --arch ${{ matrix.arch }}
+
+      - name: Smoke test compliance checker (Sidecar + SQLite)
+        run: npm run smoke:compliance-checker
 
       - name: Publish Open XML helper
         if: steps.cache-openxml-helper.outputs.cache-hit != 'true'

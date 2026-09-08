@@ -13,6 +13,12 @@ const complianceCheckRegistry = {
     requiresModel: false,
     group: 'timeline',
   },
+  deposit: {
+    label: '投标保证金核查',
+    description: '检查保证金金额、缴纳方式与缴纳时限是否与招标要求一致。',
+    requiresModel: false,
+    group: 'deposit',
+  },
 };
 
 const DEFAULT_COMPLIANCE_CHECKS = Object.keys(complianceCheckRegistry);

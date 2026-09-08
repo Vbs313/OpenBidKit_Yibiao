@@ -63,9 +63,14 @@ function ComplianceCheckPage() {
 
     const unsubscribe = window.yibiao.tasks.onTaskEvent((event) => {
       if (event.task.type !== 'compliance-check') return;
-      const patch = event.complianceCheck;
-      if (patch) {
-        setState((current) => ({ ...current, ...patch, input: { ...current.input, ...(patch.input || {}) } }));
+      // 与废标项检查一致：整包状态优先，其次合并增量 patch（结果、进度都走 patch）。
+      const full = event.complianceCheck;
+      const patch = event.complianceCheckPatch;
+      if (full || patch) {
+        setState((current) => {
+          const merged = { ...current, ...(full || {}), ...(patch || {}) };
+          return { ...merged, input: { ...current.input, ...((full || patch || {}).input || {}) } };
+        });
         return;
       }
       setState((current) => ({

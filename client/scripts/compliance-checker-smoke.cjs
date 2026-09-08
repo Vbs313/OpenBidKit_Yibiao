@@ -50,7 +50,12 @@ async function runSmoke() {
 
     const store = createComplianceCheckStore({ db: database.db });
     const capabilities = await service.listChecks();
+    const status = service.getStatus();
+    const expectedKind = process.env.YIBIAO_COMPLIANCE_CHECKER_DIR ? 'python' : 'bundled';
+    assert(status.spawn_kind === expectedKind, `Sidecar 启动方式应为 ${expectedKind}，实际 ${status.spawn_kind}`);
+    console.log(`[compliance-smoke] spawn_kind=${status.spawn_kind} command=${status.spawn_command}`);
     assert(capabilities.some((item) => item.check_id === 'validity'), 'Sidecar 未上报 validity 检查项');
+    assert(capabilities.some((item) => item.check_id === 'deposit'), 'Sidecar 未上报 deposit 检查项');
     assert(capabilities.every((item) => item.requires_model === false), '第一版不应包含需要模型的检查');
 
     const bidPath = writeFixture(tempDir, '投标文件.md', [

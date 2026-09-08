@@ -5,6 +5,9 @@ from typing import Any, Callable
 from checks.pricing_arithmetic import CHECK_ID as PRICING_ARITHMETIC_ID
 from checks.pricing_arithmetic import CHECK_NAME as PRICING_ARITHMETIC_NAME
 from checks.pricing_arithmetic import run_pricing_arithmetic
+from checks.deposit_check import CHECK_ID as DEPOSIT_ID
+from checks.deposit_check import CHECK_NAME as DEPOSIT_NAME
+from checks.deposit_check import run_deposit_check
 from checks.validity_check import CHECK_ID as VALIDITY_ID
 from checks.validity_check import CHECK_NAME as VALIDITY_NAME
 from checks.validity_check import run_validity_check
@@ -21,6 +24,11 @@ CHECK_REGISTRY: dict[str, dict[str, Any]] = {
     VALIDITY_ID: {
         "name": VALIDITY_NAME,
         "runner": run_validity_check,
+        "requires_model": False,
+    },
+    DEPOSIT_ID: {
+        "name": DEPOSIT_NAME,
+        "runner": run_deposit_check,
         "requires_model": False,
     },
 }

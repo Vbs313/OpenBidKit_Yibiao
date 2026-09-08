@@ -29,6 +29,7 @@ client/.tmp-agent-tools-download/
 openxmlhelper/**/bin/
 openxmlhelper/**/obj/
 client/vendor/openxml-tools/
+client/vendor/compliance-checker/
 
 # 临时和缓存文件
 *.tmp

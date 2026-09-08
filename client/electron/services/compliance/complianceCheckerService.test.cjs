@@ -64,6 +64,7 @@ test('compliance checker sidecar ping and pricing arithmetic', async (t) => {
 
   const capabilities = await service.listChecks();
   assert.ok(capabilities.some((item) => item.check_id === 'validity' && item.requires_model === false));
+  assert.ok(capabilities.some((item) => item.check_id === 'deposit' && item.requires_model === false));
 
   const withModelConfig = await service.runChecks({
     jobId: 'test-model-config',

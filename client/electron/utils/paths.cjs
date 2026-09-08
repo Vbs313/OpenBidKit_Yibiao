@@ -214,6 +214,14 @@ function getBundledComplianceCheckerPath(app) {
   return path.join(getBundledComplianceCheckerDir(app), fileName);
 }
 
+/** 安装包内的 Python 源码副本目录，用于缺少打包产物时回落到解释器运行。 */
+function getComplianceCheckerSourceDir(app) {
+  if (app?.isPackaged) {
+    return path.join(process.resourcesPath, 'compliance-checker-src');
+  }
+  return path.join(__dirname, '..', 'services', 'compliance', 'checker');
+}
+
 /** 合规检查任务临时目录。 */
 function getComplianceCheckerJobsDir(app) {
   return path.join(getWorkspaceDir(app), 'compliance-checker', 'jobs');
@@ -238,6 +246,7 @@ module.exports = {
   getComplianceCheckerJobDir,
   getComplianceCheckerJobsDir,
   getComplianceCheckerScriptPath,
+  getComplianceCheckerSourceDir,
   getConfigFilePath,
   getDonationStateFilePath,
   getGpuStartupProbePath,
