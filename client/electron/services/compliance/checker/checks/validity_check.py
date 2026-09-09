@@ -15,6 +15,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from checks.document_text import read_document_text
+
 CHECK_ID = "validity"
 CHECK_NAME = "投标有效期核查"
 

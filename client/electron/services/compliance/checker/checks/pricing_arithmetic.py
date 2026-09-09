@@ -5,6 +5,7 @@ import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+from checks.document_text import normalize_document_text
 
 CHECK_ID = "pricing_arithmetic"
 CHECK_NAME = "报价算术核查"
@@ -64,10 +65,11 @@ def _read_text_file(file_path: Any) -> str:
     raw = path.read_bytes()
     for encoding in ("utf-8-sig", "utf-8", "gb18030", "gbk"):
         try:
-            return raw.decode(encoding)
+            # 解码成功不代表干净：转换器的 U+0001 哨兵和页码标记仍要统一去掉。
+            return normalize_document_text(raw.decode(encoding))
         except UnicodeDecodeError:
             continue
-    return raw.decode("utf-8", errors="replace")
+    return normalize_document_text(raw.decode("utf-8", errors="replace"))
 
 
 def _extract_numeric_text(value: Any) -> Decimal | None:

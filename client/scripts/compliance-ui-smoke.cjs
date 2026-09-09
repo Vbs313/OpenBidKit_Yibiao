@@ -33,6 +33,8 @@ async function waitFor(label, fn, { timeoutMs = 60000, intervalMs = 200 } = {}) 
   throw new Error(`等待${label}超时：${lastError?.message || '条件未满足'}`);
 }
 
+// 用回调代替固定队列：每次点击“选择”都按当前角色返回对应样本，可重复且不会错位。
+const dialogFiles = { tender: null, bid: null };
 function writeFixtures(dir) {
   const bid = path.join(dir, '投标文件.md');
   const tender = path.join(dir, '招标文件.md');
@@ -113,12 +115,14 @@ async function run() {
   app.setPath('sessionData', userData);
 
   const { bid, tender } = writeFixtures(tempDir);
+  dialogFiles.tender = tender;
+  dialogFiles.bid = bid;
   const badBid = writeBadFixture(tempDir);
-  // 替换原生文件对话框：页面点击“选择”时按队列返回固定文件，其余流程保持真实。
-  const dialogQueue = [tender, bid, badBid];
+  // 替换原生文件对话框：按对话框标题返回固定的招标/投标文件，其余流程保持真实。
   const realShowOpenDialog = dialog.showOpenDialog;
-  dialog.showOpenDialog = async () => {
-    const filePath = dialogQueue.shift();
+  dialog.showOpenDialog = async (options = {}) => {
+    const isTender = String(options.title || "").includes("招标");
+    const filePath = isTender ? dialogFiles.tender : dialogFiles.bid;
     if (!filePath) return { canceled: true, filePaths: [] };
     return { canceled: false, filePaths: [filePath] };
   };
@@ -180,7 +184,8 @@ async function run() {
     assert(String(await toggle('评分项交叉对照')).startsWith('CLICKED_CHECKBOX'), '无法取消勾选评分项交叉对照');
     await waitFor('关闭模型检查项', async () => (await pageText()).includes(`${DETERMINISTIC_COUNT} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
     assert(String(await toggle('投标保证金核查')).startsWith('CLICKED_CHECKBOX'), '无法取消勾选保证金核查');
-    await waitFor('取消勾选生效', async () => (await pageText()).includes(`${CHECK_COUNT - 1} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
+    // 此时“评分项交叉对照”和“投标保证金核查”都已取消，计数应为 (4-2) / 4。
+    await waitFor('取消勾选生效', async () => (await pageText()).includes(`${DETERMINISTIC_COUNT - 1} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
     assert(String(await toggle('投标保证金核查')).startsWith('CLICKED_CHECKBOX'), '无法重新勾选保证金核查');
     await waitFor('重新勾选生效', async () => (await pageText()).includes(`${DETERMINISTIC_COUNT} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
     console.log(`[compliance-ui] 检查项勾选状态可读写，复选框=${checkboxCount}`);
@@ -201,6 +206,7 @@ async function run() {
     console.log('[compliance-ui] 页面发起真实 Sidecar 检查，三项确定性结果均为通过');
 
     // 失败路径：换成有算术错误的报价文件，页面应渲染问题明细与修改建议。
+    dialogFiles.bid = badBid;
     assert(String(await clickRow(1)).startsWith('CLICKED_ROW'), '替换投标文件按钮不可点');
     await waitFor('替换后的投标文件出现在页面', async () => (await pageText()).includes('错误报价文件.md'), { timeoutMs: 10000 });
     assert(String(await click('开始检查')).startsWith('CLICKED'), '二次检查按钮不可点');
@@ -219,6 +225,10 @@ async function run() {
 
     // 隔离性：把需要模型的检查项加回来。未配置模型时它必须自己失败，
     // 但不能把同一批里已通过的确定性检查一起拖掉。
+    // 换回带评分项内容的投标文件，让交叉对照真正进入模型调用分支。
+    dialogFiles.bid = bid;
+    assert(String(await clickRow(1)).startsWith("CLICKED_ROW"), "无法替换回投标文件");
+    await waitFor("投标文件换回原件", async () => (await pageText()).includes("投标文件.md"), { timeoutMs: 10000 });
     assert(String(await toggle('评分项交叉对照')).startsWith('CLICKED_CHECKBOX'), '无法重新勾选评分项交叉对照');
     // 勾选是异步落 Main 的，必须等状态稳定再点开始，否则会带着旧选择发起检查。
     await waitFor('评分项交叉对照已勾选', async () => {

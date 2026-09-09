@@ -17,6 +17,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from checks.document_text import read_document_text
 from checks.pricing_arithmetic import MONEY_TOLERANCE, parse_chinese_money, parse_money
 
 CHECK_ID = "deposit"
@@ -47,7 +48,7 @@ def _read_text(path: Any) -> str:
     if not value:
         return ""
     try:
-        return Path(value).read_text(encoding="utf-8", errors="replace")
+        return read_document_text(value)
     except OSError:
         return ""
 

@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import runner
-from checks.cross_check import extract_scoring_items, run_cross_check
+from checks.cross_check import _normalize_verdicts, extract_scoring_items, run_cross_check
 from llm_client import MODEL_TOKEN_ENV, LlmUnavailable, chat_json
 
 TENDER = "\n".join([
@@ -103,11 +103,14 @@ class CrossCheckTests(unittest.TestCase):
         self.assertEqual(result["check_id"], "cross_check")
         self.assertEqual(result["status"], "fail")
         # 模型返回的 T99 不在编号清单内，必须被丢弃；T01/T02 正常回填，T02 missing 成为严重问题。
-        self.assertEqual(result["metrics"]["total"], 2)
+        # 施工组织设计=covered，质量保障措施=missing，售后服务方案未检索到 → 两项 major 问题。
+        self.assertEqual(result["metrics"]["total"], 3)
         self.assertEqual(result["metrics"]["passed"], 1)
-        self.assertEqual(result["metrics"]["failed"], 1)
-        self.assertEqual([item["id"] for item in result["findings"]], ["cross-check:T02"])
-        self.assertEqual(result["findings"][0]["severity"], "critical")
+        self.assertEqual(result["metrics"]["failed"], 2)
+        self.assertEqual(result["metrics"]["warning"], 0)
+        self.assertEqual([item["id"] for item in result["findings"]], ["cross-check:T02", "cross-check:T03"])
+        self.assertEqual(result["findings"][0]["code"], "CROSS_CHECK_MISSING")
+        self.assertEqual(result["findings"][1]["code"], "CROSS_CHECK_NOT_LOCATED")
         self.assertEqual(result["usage"]["model"], "test-model")
         self.assertEqual(result["usage"]["prompt_tokens"], 120)
         sent = self.server.requests[-1]
@@ -148,6 +151,65 @@ class CrossCheckTests(unittest.TestCase):
         finally:
             _MockProxy.payload = {"items": []}
 
+    def test_locates_evidence_at_end_of_very_long_bid(self):
+        """回归：旧实现把投标文件截断到 12000 字，尾部内容会被误判为未覆盖。"""
+        with tempfile.TemporaryDirectory() as directory:
+            tender = Path(directory) / "招标文件.md"
+            tender.write_text("应急保障预案，25分\n", encoding="utf-8")
+            bid = Path(directory) / "投标文件.md"
+            filler = "通用承诺内容。" * 6000  # 约 4.2 万字，远超旧阈值
+            bid.write_text(filler + "\n应急保障预案：配备2辆抢修车，30分钟到场。\n", encoding="utf-8")
+            before = len(_MockProxy.calls) if hasattr(_MockProxy, "calls") else 0
+            result = run_cross_check({
+                "tender_file": str(tender),
+                "bid_file": str(bid),
+                "model_config": self._config(),
+            })
+        # 尾部内容被定位到，因此不会以“未检索到”结束，而是交给模型判定。
+        codes = [item["code"] for item in result["findings"]]
+        self.assertNotIn("CROSS_CHECK_NOT_LOCATED", codes, result)
+
+    def test_parses_markdown_scoring_table(self):
+        table = "\n".join([
+            "| 序号 | 评审因素 | 分值 |",
+            "| --- | --- | --- |",
+            "| 1 | 施工组织设计 | 30 |",
+            "| 2 | 质量保障措施 | 20 |",
+            "| 3 | 合计 | 50 |",
+        ])
+        items = extract_scoring_items(table)
+        self.assertEqual([item["name"] for item in items], ["施工组织设计", "质量保障措施"])
+        self.assertEqual([item["score"] for item in items], ["30", "20"])
+
+    def test_skips_model_when_nothing_located(self):
+        """全文都没命中时不该白烧一次模型调用。"""
+        with tempfile.TemporaryDirectory() as directory:
+            tender = Path(directory) / "招标文件.md"
+            tender.write_text("BIM协同平台应用，18分\n", encoding="utf-8")
+            bid = Path(directory) / "投标文件.md"
+            bid.write_text("我方完全响应招标文件全部要求。\n", encoding="utf-8")
+            calls_before = len(self.server.requests)
+            result = run_cross_check({
+                "tender_file": str(tender),
+                "bid_file": str(bid),
+                "model_config": self._config(),
+            })
+        self.assertEqual(len(self.server.requests), calls_before, "未定位到证据时不应请求模型")
+        self.assertEqual(result["findings"][0]["code"], "CROSS_CHECK_NOT_LOCATED")
+        self.assertEqual(result["usage"]["model"], None)
+
+    def test_every_verdict_status_is_accepted(self):
+        """四种判定都必须被采纳；曾因为漏掉 missing 而把“未覆盖”静默丢弃。"""
+        rows = [{"id": f"T0{i}", "requirement": f"项{i}", "score": "10", "snippets": ["证据"], "line": None} for i in range(1, 5)]
+        parsed = {"items": [
+            {"id": "T01", "status": "covered", "evidence": "e", "reason": "r", "suggestion": "s"},
+            {"id": "T02", "status": "partial", "evidence": "e", "reason": "r", "suggestion": "s"},
+            {"id": "T03", "status": "missing", "evidence": "e", "reason": "r", "suggestion": "s"},
+            {"id": "T04", "status": "unknown", "evidence": "e", "reason": "r", "suggestion": "s"},
+        ]}
+        verdicts = _normalize_verdicts(parsed, rows)
+        self.assertEqual([v["status"] for v in verdicts], ["covered", "partial", "missing", "unknown"])
+
     def test_metrics_never_contradict_findings(self):
         # metrics 必须由 findings 推导，否则页面顶部汇总会把提醒吞掉。
         with tempfile.TemporaryDirectory() as directory:
@@ -169,14 +231,14 @@ class CrossCheckTests(unittest.TestCase):
         self.assertGreater(metrics["total"], 0, "有明细时计数不能全为 0")
 
     def test_model_without_verdicts_is_warning_not_pass(self):
-        # 模型没给出可校验编号时必须报提醒，不能假装通过。
+        # 所有编号都能定位、但模型没给判定时，必须报提醒，不能假装通过。
         _MockProxy.payload = {"items": []}
         try:
             with tempfile.TemporaryDirectory() as directory:
                 tender = Path(directory) / "招标文件.md"
-                tender.write_text(TENDER, encoding="utf-8")
+                tender.write_text("施工组织设计，30分\n", encoding="utf-8")
                 bid = Path(directory) / "投标文件.md"
-                bid.write_text(BID, encoding="utf-8")
+                bid.write_text("本章为施工组织设计。", encoding="utf-8")
                 result = run_cross_check({
                     "tender_file": str(tender),
                     "bid_file": str(bid),
