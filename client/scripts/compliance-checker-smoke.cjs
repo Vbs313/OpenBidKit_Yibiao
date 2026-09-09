@@ -11,6 +11,7 @@ const { app } = require('electron');
 const { createSqliteDatabase } = require('../electron/services/sqliteDatabase.cjs');
 const { createComplianceCheckStore } = require('../electron/services/compliance/complianceCheckStore.cjs');
 const { createComplianceCheckerService } = require('../electron/services/compliance/complianceCheckerService.cjs');
+const registry = require('../electron/services/compliance/complianceCheckRegistry.cjs');
 
 function exitWithCode(code) {
   if (app?.isReady?.()) {
@@ -56,7 +57,14 @@ async function runSmoke() {
     console.log(`[compliance-smoke] spawn_kind=${status.spawn_kind} command=${status.spawn_command}`);
     assert(capabilities.some((item) => item.check_id === 'validity'), 'Sidecar 未上报 validity 检查项');
     assert(capabilities.some((item) => item.check_id === 'deposit'), 'Sidecar 未上报 deposit 检查项');
-    assert(capabilities.every((item) => item.requires_model === false), '第一版不应包含需要模型的检查');
+    // 上报的 requires_model 必须与 B 侧注册表一致，否则页面会选错是否需要 model_config。
+    for (const item of capabilities) {
+      const definition = registry.complianceCheckRegistry[item.check_id];
+      assert(definition, `Sidecar 上报了未登记检查项: ${item.check_id}`);
+      assert(item.requires_model === definition.requiresModel,
+        `检查项 ${item.check_id} 的 requires_model 应为 ${definition.requiresModel}，实际 ${item.requires_model}`);
+    }
+    assert(capabilities.some((item) => item.requires_model === true), '注册表应包含需要模型的检查项');
 
     const bidPath = writeFixture(tempDir, '投标文件.md', [
       '# 投标报价表',

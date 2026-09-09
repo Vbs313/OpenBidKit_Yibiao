@@ -50,7 +50,7 @@ function isNewerThanFile(a, b) {
   }
 }
 
-function createComplianceCheckerService({ app, configStore } = {}) {
+function createComplianceCheckerService({ app, configStore, resolveChildEnv } = {}) {
   let child = null;
   let activeSpec = null;
   let lineReader = null;
@@ -188,6 +188,13 @@ function createComplianceCheckerService({ app, configStore } = {}) {
     if (startingPromise) return startingPromise;
 
     const spec = resolveSpawnSpec();
+    // 模型代理令牌只走子进程环境，绝不进协议、日志或 SQLite。
+    let childEnv = {};
+    try {
+      childEnv = typeof resolveChildEnv === 'function' ? (resolveChildEnv() || {}) : {};
+    } catch (error) {
+      writeLog('checker.child_env_failed', { error: compactLogError(error) });
+    }
     startingPromise = new Promise((resolve, reject) => {
       const next = spawn(spec.command, spec.args, {
         cwd: spec.cwd,
@@ -198,6 +205,7 @@ function createComplianceCheckerService({ app, configStore } = {}) {
           ...process.env,
           PYTHONIOENCODING: 'utf-8',
           PYTHONUTF8: '1',
+          ...childEnv,
         },
       });
       child = next;

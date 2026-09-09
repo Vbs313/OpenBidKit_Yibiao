@@ -328,7 +328,7 @@ function createTask(type, payload) {
   };
 }
 
-function createTaskService({ aiService, agentService, autoConfirmationService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, feasibilityReportStore, knowledgeBaseService, duplicateCheckService, openXmlHelperService, complianceCheckStore, complianceCheckerService }) {
+function createTaskService({ aiService, agentService, autoConfirmationService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, feasibilityReportStore, knowledgeBaseService, duplicateCheckService, openXmlHelperService, complianceCheckStore, complianceCheckerService, complianceModelService }) {
   const subscribers = new Set();
   const callbackSubscribers = new Set();
   const activeTasks = new Map();
@@ -927,7 +927,7 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
         signal: taskControl.signal,
       },
     );
-      runner({ aiService: runnerAiService, agentService: runnerAgentService, ordinaryAgentService: runnerOrdinaryAgentService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, openXmlHelperService, complianceCheckerService, updateTask, checkpointTask, payload, taskControl, previousState }).catch((error) => {
+    runner({ aiService: runnerAiService, agentService: runnerAgentService, ordinaryAgentService: runnerOrdinaryAgentService, workspaceStore: runnerWorkspaceStore, knowledgeBaseService, openXmlHelperService, complianceCheckerService, complianceModelService, updateTask, checkpointTask, payload, taskControl, previousState }).catch((error) => {
         if (!taskControl.signal.aborted) {
           checkpointTask({ status: 'error', error: error.message || '任务执行失败' });
         }

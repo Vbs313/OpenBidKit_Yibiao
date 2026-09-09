@@ -9,6 +9,7 @@
 | `pricing_arithmetic` | 报价算术核查 | 否 |
 | `validity` | 投标有效期核查 | 否 |
 | `deposit` | 投标保证金核查 | 否 |
+| `cross_check` | 评分项交叉对照 | 是（走本机模型代理） |
 
 新增检查项需要同步登记三处：`checker/runner.py` 的 `CHECK_REGISTRY`、`complianceCheckRegistry.cjs`、`src/features/compliance-check/types.ts` 的 `ComplianceCheckId`。
 
@@ -38,6 +39,12 @@ Sidecar 从 stdin 逐行读 JSON，向 stdout 逐行写协议 JSON；stderr 只�
 
 `action` 还支持 `ping`（健康检查并回报可用检查项）和 `shutdown`。
 
+### 令牌如何到达 Sidecar
+
+代理令牌不属于协议内容：`complianceModelProxy` 启动本机代理后，通过子进程环境变量 `YIBIAO_COMPLIANCE_MODEL_TOKEN` 传给 Sidecar，`llm_client.py` 读取后仅用于访问回环代理。
+因此 `model_config`、stdin、stdout、日志与 SQLite 里都不会出现令牌或模型服务商密钥。缺令牌时 Sidecar 直接返回可读错误，而不是静默跳过。
+
+需要模型的检查项若未拿到 `model_config`，返回 `CHECK_SKIPPED_MODEL_UNAVAILABLE` 提醒；单个检查项失败只影响自己，同批其他检查项结果保持完整。
 ### model_config 替代 api_key
 
 `model_config` 是模型路由信息，只允许 `base_url`、`model`、`reasoning_effort` 三个字段：

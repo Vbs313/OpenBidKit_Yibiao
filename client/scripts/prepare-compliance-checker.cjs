@@ -106,6 +106,8 @@ function buildTarget(platform, arch) {
       '--hidden-import', 'checks.pricing_arithmetic',
       '--hidden-import', 'checks.validity_check',
       '--hidden-import', 'checks.deposit_check',
+      '--hidden-import', 'checks.cross_check',
+      '--hidden-import', 'llm_client',
       '--distpath', distDir,
       '--workpath', workDir,
       '--specpath', specDir,

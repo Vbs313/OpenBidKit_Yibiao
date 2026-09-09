@@ -8,6 +8,9 @@ from checks.pricing_arithmetic import run_pricing_arithmetic
 from checks.deposit_check import CHECK_ID as DEPOSIT_ID
 from checks.deposit_check import CHECK_NAME as DEPOSIT_NAME
 from checks.deposit_check import run_deposit_check
+from checks.cross_check import CHECK_ID as CROSS_CHECK_ID
+from checks.cross_check import CHECK_NAME as CROSS_CHECK_NAME
+from checks.cross_check import run_cross_check
 from checks.validity_check import CHECK_ID as VALIDITY_ID
 from checks.validity_check import CHECK_NAME as VALIDITY_NAME
 from checks.validity_check import run_validity_check
@@ -30,6 +33,11 @@ CHECK_REGISTRY: dict[str, dict[str, Any]] = {
         "name": DEPOSIT_NAME,
         "runner": run_deposit_check,
         "requires_model": False,
+    },
+    CROSS_CHECK_ID: {
+        "name": CROSS_CHECK_NAME,
+        "runner": run_cross_check,
+        "requires_model": True,
     },
 }
 

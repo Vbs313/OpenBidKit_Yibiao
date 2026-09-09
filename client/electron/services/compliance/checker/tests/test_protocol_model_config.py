@@ -28,7 +28,13 @@ class ProtocolModelConfigTests(unittest.TestCase):
     def test_available_checks_report_requires_model_flag(self):
         checks = runner.available_checks()
         self.assertTrue(all("requires_model" in item for item in checks))
-        self.assertTrue(all(item["requires_model"] is False for item in checks))
+        # 上报的 requires_model 必须与注册表一致，B 端据此决定是否准备 model_config。
+        for item in checks:
+            self.assertEqual(
+                item["requires_model"],
+                bool(runner.CHECK_REGISTRY[item["check_id"]].get("requires_model")),
+            )
+        self.assertTrue(any(item["requires_model"] for item in checks), "至少应有一个需要模型的检查项")
 
     def test_valid_loopback_model_config_is_accepted(self):
         response = _request({

@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { normalizeInput } = require('./complianceCheckStore.cjs');
-const { normalizeCheckIds, requiresModel } = require('./complianceCheckRegistry.cjs');
+const { assertKnownChecks, normalizeCheckIds, requiresModel } = require('./complianceCheckRegistry.cjs');
 
 function appendLog(logs, message) {
   const normalized = Array.isArray(logs) ? logs.slice() : [];
@@ -10,7 +10,17 @@ function appendLog(logs, message) {
 }
 
 // 只描述模型路由信息；Sidecar 协议不接受任何凭据字段，因此这里刻意不读取 api_key。
-function buildModelConfig(aiService) {
+// 只描述模型路由信息；Sidecar 协议不接受任何凭据字段，因此这里刻意不读取 api_key。
+// base_url 由 B 的本机模型代理提供，真实密钥只在代理内部注入。
+async function buildModelConfig(aiService, complianceModelService) {
+  if (typeof complianceModelService?.buildModelConfig === 'function') {
+    try {
+      const config = await complianceModelService.buildModelConfig();
+      if (config) return config;
+    } catch {
+      // 代理不可用时退回“只带模型名”，runner 会把它当成缺少可用模型给出可见提醒。
+    }
+  }
   let config = {};
   try {
     config = aiService?.getConfig?.() || {};
@@ -18,16 +28,13 @@ function buildModelConfig(aiService) {
     config = {};
   }
   const model = String(config.model_name || '').trim();
-  const baseUrl = String(config.compliance_proxy_base_url || '').trim();
-  const next = {};
-  if (model) next.model = model;
-  if (baseUrl) next.base_url = baseUrl;
-  return Object.keys(next).length ? next : undefined;
+  return model ? { model } : undefined;
 }
 
 async function runComplianceCheckTask({
   aiService,
   complianceCheckerService,
+  complianceModelService,
   workspaceStore,
   updateTask,
   checkpointTask,
@@ -39,10 +46,12 @@ async function runComplianceCheckTask({
 
   const input = normalizeInput(payload.input || payload);
   if (!input.bid_file) throw new Error('请选择投标文件');
-  const checks = normalizeCheckIds(payload.checks?.length ? payload.checks : input.checks);
-  if (!checks.length) throw new Error('请至少选择一个合规检查项');
+  // 发起前严格校验编号：未知编号要显式报错，不能静默少跑检查项。
+  const checks = assertKnownChecks(payload.checks?.length ? payload.checks : input.checks);
   const jobId = String(payload.job_id || payload.jobId || crypto.randomUUID()).trim();
-  const modelConfig = requiresModel(checks) ? buildModelConfig(aiService) : undefined;
+  const modelConfig = requiresModel(checks)
+    ? await buildModelConfig(aiService, complianceModelService)
+    : undefined;
   let logs = ['正在启动合规检查 Sidecar。'];
 
   let currentTask = updateTask({

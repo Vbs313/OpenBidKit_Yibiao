@@ -49,6 +49,7 @@ const { initLocalImageRenderService } = require('../services/localImageRenderSer
 const { createOpenXmlHelperService } = require('../services/openXmlHelperService.cjs');
 const { createComplianceCheckStore } = require('../services/compliance/complianceCheckStore.cjs');
 const { createComplianceCheckerService } = require('../services/compliance/complianceCheckerService.cjs');
+const { createComplianceModelProxy } = require('../services/compliance/complianceModelProxy.cjs');
 const { cleanupTrashDirSync } = require('../utils/forceRemove.cjs');
 const { getWorkspaceTrashDir } = require('../utils/paths.cjs');
 const perfTrace = require('../utils/perfTrace.cjs');
@@ -257,7 +258,7 @@ function registerWorkspaceDatabaseStatusIpc({ mainWindow }) {
   };
 }
 
-function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentService, autoConfirmationService, fileService, openXmlHelperService, complianceCheckerService, updateStatus }) {
+function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentService, autoConfirmationService, fileService, openXmlHelperService, complianceCheckerService, complianceModelService, updateStatus }) {
   const sqliteDatabase = createSqliteDatabase(app, { onStatus: updateStatus });
   runHistoricalStorageCleanup({ app, db: sqliteDatabase.db, configStore, onStatus: updateStatus });
   clearStalePiTaskArchives(app);
@@ -280,7 +281,7 @@ function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentS
     rejectionCheckStore,
     duplicateCheckStore,
   });
-  const taskService = createTaskService({ aiService, agentService, autoConfirmationService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, feasibilityReportStore, knowledgeBaseService, duplicateCheckService, openXmlHelperService, complianceCheckStore, complianceCheckerService });
+  const taskService = createTaskService({ aiService, agentService, autoConfirmationService, technicalPlanStore, rejectionCheckStore, duplicateCheckStore, feasibilityReportStore, knowledgeBaseService, duplicateCheckService, openXmlHelperService, complianceCheckStore, complianceCheckerService, complianceModelService });
   const agentWorkspaceService = createAgentWorkspaceService({ agentService, taskService, technicalPlanStore, feasibilityReportStore });
   agentWorkspaceServiceRef = agentWorkspaceService;
   technicalPlanStore.setAgentWorkspaceChangeListener(() => agentWorkspaceService.emitWorkspacesChanged());
@@ -334,7 +335,13 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
   const agentService = createAgentService({ app, configStore, aiService, licenseService, autoConfirmationService });
   const fileService = createFileService({ app, configStore });
   const openXmlHelperService = createOpenXmlHelperService({ app, configStore });
-  const complianceCheckerService = createComplianceCheckerService({ app, configStore });
+  // 模型代理必须先创建：Sidecar 启动时要从代理拿到本机令牌写入子进程环境。
+  const complianceModelService = createComplianceModelProxy({ app, aiService, configStore });
+  const complianceCheckerService = createComplianceCheckerService({
+    app,
+    configStore,
+    resolveChildEnv: () => complianceModelService.childEnv(),
+  });
   const exportService = createExportService({ configStore });
   const systemFontService = createSystemFontService();
   // 性能基线：聚合计数始终保留，开发者模式才保留分位样本。
@@ -350,6 +357,7 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     autoConfirmationService.close?.();
     await openXmlHelperService.close?.();
     await complianceCheckerService.close?.();
+    await complianceModelService.close?.();
   };
 
   const closeServicesBeforeExit = async () => {
@@ -463,7 +471,11 @@ function registerIpcHandlers({ app, mainWindow, checkAndDownloadUpdate, triggerU
     databaseStatus.updateStatus({ phase: 'checking', ready: false, message: '正在检查本地数据库' });
     setTimeout(() => {
       try {
-        registerWorkspaceDatabaseServices({ app, configStore, aiService, agentService, autoConfirmationService, fileService, openXmlHelperService, complianceCheckerService, updateStatus: databaseStatus.updateStatus });
+        registerWorkspaceDatabaseServices({ app, configStore, aiService, agentService, autoConfirmationService, fileService, openXmlHelperService, complianceCheckerService, complianceModelService, updateStatus: databaseStatus.updateStatus });
+        // 预热合规模型代理（本机监听，实测毫秒级）；不预热 Sidecar 子进程，避免为不用该功能的用户白占内存。
+        setTimeout(() => {
+          void complianceModelService.ensureBaseUrl?.().catch(() => undefined);
+        }, 400);
         setTimeout(() => {
           void agentService.warmup?.().catch((error) => {
             console.warn('[agent] warmup failed', error?.message || String(error));

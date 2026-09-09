@@ -11,7 +11,8 @@ const { app, BrowserWindow, dialog } = require('electron');
 const { registerIpcHandlers } = require('../electron/ipc/index.cjs');
 
 const DEV_URL = process.env.YIBIAO_DEV_URL || 'http://127.0.0.1:5173/';
-const CHECK_COUNT = 3;
+const CHECK_COUNT = 4;
+const DETERMINISTIC_COUNT = 3;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -50,6 +51,8 @@ function writeFixtures(dir) {
     '# 招标文件',
     '投标有效期自投标截止之日起计算，不少于 60 日历天。',
     '投标截止时间为 2026年3月15日。',
+    '技术评分：施工组织设计，30分',
+    '质量保障措施，20分',
     '投标保证金：人民币 20,000.00元，须于 2026年3月10日前 以银行转账方式缴纳。',
   ].join('\n'), 'utf8');
   return { bid, tender };
@@ -167,16 +170,19 @@ async function run() {
     console.log('[compliance-ui] 本地数据库就绪，合规检查页面已挂载');
 
     let text = await pageText();
-    for (const label of ['报价算术核查', '投标有效期核查', '投标保证金核查']) {
+    for (const label of ['报价算术核查', '投标有效期核查', '投标保证金核查', '评分项交叉对照']) {
       assert(text.includes(label), `页面缺少检查项：${label}`);
     }
     const checkboxCount = await window.webContents.executeJavaScript('document.querySelectorAll(".compliance-check-item input[type=checkbox]").length');
     assert(checkboxCount === CHECK_COUNT, `检查项复选框应为 ${CHECK_COUNT} 个，实际 ${checkboxCount}`);
 
+    // 先关掉需要模型的检查项，保证这一轮跑的是 3 个确定性检查。
+    assert(String(await toggle('评分项交叉对照')).startsWith('CLICKED_CHECKBOX'), '无法取消勾选评分项交叉对照');
+    await waitFor('关闭模型检查项', async () => (await pageText()).includes(`${DETERMINISTIC_COUNT} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
     assert(String(await toggle('投标保证金核查')).startsWith('CLICKED_CHECKBOX'), '无法取消勾选保证金核查');
     await waitFor('取消勾选生效', async () => (await pageText()).includes(`${CHECK_COUNT - 1} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
     assert(String(await toggle('投标保证金核查')).startsWith('CLICKED_CHECKBOX'), '无法重新勾选保证金核查');
-    await waitFor('重新勾选生效', async () => (await pageText()).includes(`${CHECK_COUNT} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
+    await waitFor('重新勾选生效', async () => (await pageText()).includes(`${DETERMINISTIC_COUNT} / ${CHECK_COUNT}`), { timeoutMs: 5000 });
     console.log(`[compliance-ui] 检查项勾选状态可读写，复选框=${checkboxCount}`);
 
     assert(String(await clickRow(0)).startsWith('CLICKED_ROW'), '招标文件选择按钮不可点');
@@ -186,13 +192,13 @@ async function run() {
     console.log('[compliance-ui] 文件选择走原生对话框链路成功');
 
     assert(String(await click('开始检查')).startsWith('CLICKED'), '页面缺少“开始检查”按钮');
-    await waitFor('检查结果', async () => (await pageText()).includes(`共 ${CHECK_COUNT} 项检查`), { timeoutMs: 60000 });
+    await waitFor('检查结果', async () => (await pageText()).includes(`共 ${DETERMINISTIC_COUNT} 项检查`), { timeoutMs: 60000 });
     text = await pageText();
     assert(/问题 0 · 提醒 0/.test(text), `结果汇总不符合预期：${text.slice(Math.max(0, text.indexOf('共 3 项检查')), text.indexOf('共 3 项检查') + 200)}`);
     for (const phrase of ['报价算术校验通过', '投标有效期核查通过', '投标保证金核查通过']) {
       assert(text.includes(phrase), `检查项未全部通过，缺少：${phrase}`);
     }
-    console.log('[compliance-ui] 页面发起真实 Sidecar 检查，三项结果均为通过');
+    console.log('[compliance-ui] 页面发起真实 Sidecar 检查，三项确定性结果均为通过');
 
     // 失败路径：换成有算术错误的报价文件，页面应渲染问题明细与修改建议。
     assert(String(await clickRow(1)).startsWith('CLICKED_ROW'), '替换投标文件按钮不可点');
@@ -209,7 +215,30 @@ async function run() {
     console.log('[compliance-ui] 失败路径问题明细与建议渲染正常');
 
     const stored = await window.webContents.executeJavaScript('window.yibiao.complianceCheck.loadState().then((state) => ({ report: state.lastReport && state.lastReport.results ? state.lastReport.results.length : 0 }))');
-    assert(stored.report === CHECK_COUNT, `Main 状态应保留 ${CHECK_COUNT} 项结果，实际 ${stored.report}`);
+    assert(stored.report === DETERMINISTIC_COUNT, `Main 状态应保留 ${DETERMINISTIC_COUNT} 项结果，实际 ${stored.report}`);
+
+    // 隔离性：把需要模型的检查项加回来。未配置模型时它必须自己失败，
+    // 但不能把同一批里已通过的确定性检查一起拖掉。
+    assert(String(await toggle('评分项交叉对照')).startsWith('CLICKED_CHECKBOX'), '无法重新勾选评分项交叉对照');
+    // 勾选是异步落 Main 的，必须等状态稳定再点开始，否则会带着旧选择发起检查。
+    await waitFor('评分项交叉对照已勾选', async () => {
+      const rowsJson = await window.webContents.executeJavaScript('JSON.stringify(Array.from(document.querySelectorAll(".compliance-check-item")).map((el) => [String(el.textContent || ""), el.querySelector("input[type=checkbox]").checked]))');
+      const row = JSON.parse(rowsJson).find((item) => String(item[0]).includes('评分项交叉对照'));
+      return Boolean(row && row[1] === true);
+    }, { timeoutMs: 15000 });
+    assert(String(await click('开始检查')).startsWith('CLICKED'), '四项检查按钮不可点');
+    await waitFor('四项结果', async () => (await pageText()).includes(`共 ${CHECK_COUNT} 项检查`), { timeoutMs: 60000 });
+    text = await pageText();
+    assert(text.includes('评分项交叉对照'), '四项结果中缺少评分项交叉对照');
+    assert(text.includes('执行失败'), '未配置模型时评分项交叉对照应显示执行失败');
+    // 交叉对照失败必须计入顶部问题数，不能出现“有明细但汇总为 0”。
+    {
+      const tail = text.slice(text.indexOf('共 4 项检查'));
+      const header = (tail.match(/问题 (\d+) · 提醒 (\d+)/) || [])[1];
+      assert(Number(header) >= 7, `交叉对照失败未计入顶部问题数：${tail.slice(0, 120)}`);
+    }
+    assert(text.includes('分项合计计算错误'), '一个检查项失败不应抹掉其他检查项的结果');
+    console.log('[compliance-ui] 单个检查项失败已被隔离，同批其他结果仍然完整');
 
     await window.webContents.reload();
     await waitForDatabase();
