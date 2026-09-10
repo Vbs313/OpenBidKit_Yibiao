@@ -12,6 +12,15 @@ const { REMOTE_IMAGE_RETRY_ATTEMPTS, REMOTE_IMAGE_RETRY_DELAY_MS } = require('..
 const { renderMarkdownHtml } = require('../utils/renderMarkdownHtml.cjs');
 const { getLocalImageRenderService } = require('./localImageRenderService.cjs');
 const {
+  normalizeColumnSpan,
+  isMarkdownTableRowLine,
+  isMarkdownTableDelimiterLine,
+  splitMarkdownTableCells,
+  isMarkdownTableDelimiterCell,
+  formatMarkdownTableRow,
+  normalizeMarkdownListMarkersForDocx,
+} = require('./export/markdownDocx.cjs');
+const {
   AlignmentType,
   BorderStyle,
   Document,
@@ -687,59 +696,16 @@ function getCaptionParagraphOptions(context) {
   };
 }
 
-function normalizeColumnSpan(value) {
-  const span = Number.parseInt(String(value || ''), 10);
-  return Number.isFinite(span) && span > 1 ? span : 1;
-}
 
-function isMarkdownTableRowLine(line) {
-  return /^\s*\|.*\|\s*$/.test(String(line || ''));
-}
 
-function isMarkdownTableDelimiterLine(line) {
-  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(String(line || ''));
-}
 
-function splitMarkdownTableCells(line) {
-  let source = String(line || '').trim();
-  if (!source.includes('|')) {
-    return [];
-  }
-  if (source.startsWith('|')) {
-    source = source.slice(1);
-  }
-  if (source.endsWith('|')) {
-    source = source.slice(0, -1);
-  }
 
-  const cells = [];
-  let current = '';
-  let escaped = false;
-  for (const char of source) {
-    if (char === '|' && !escaped) {
-      cells.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += char;
-    escaped = char === '\\' && !escaped;
-  }
-  cells.push(current.trim());
-  return cells;
-}
-
-function isMarkdownTableDelimiterCell(cell) {
-  return /^:?-{3,}:?$/.test(String(cell || '').trim());
-}
 
 function markdownTableRowIndent(line) {
   const match = /^(\s*)\|/.exec(String(line || ''));
   return match ? match[1] : '';
 }
 
-function formatMarkdownTableRow(cells, indent = '') {
-  return `${indent}| ${cells.map((cell) => String(cell || '').trim()).join(' | ')} |`;
-}
 
 function expandCompressedMarkdownTableRows(headerLine, nextLine) {
   if (!isMarkdownTableRowLine(headerLine) || !isMarkdownTableRowLine(nextLine)) {
@@ -832,13 +798,6 @@ function normalizeMarkdownTablesForDocx(content) {
   return lines.join('\n');
 }
 
-function normalizeMarkdownListMarkersForDocx(content) {
-  return String(content || '').split('\n').map((line) => {
-    const match = line.match(/^(\s*)[•●○◦▪▫■□◆◇‣➢➤✓✔✧–－]\s+(.*)$/u);
-    if (!match) return line;
-    return `${match[1]}- ${match[2]}`;
-  }).join('\n');
-}
 
 function createListReference(context, ordered) {
   const bodyStyle = context.exportFormat?.body_text || {};
