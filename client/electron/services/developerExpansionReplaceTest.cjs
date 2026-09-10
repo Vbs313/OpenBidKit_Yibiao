@@ -1,6 +1,6 @@
 const {
   __developerContentExpansionPatchRuntime,
-} = require('./contentGenerationTask.cjs');
+} = require('./tasks/contentGenerationTask.cjs');
 
 const {
   normalizeContentExpansionPatch,

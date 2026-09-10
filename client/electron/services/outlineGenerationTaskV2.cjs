@@ -2,7 +2,7 @@ const {
   OUTLINE_AGENT_TASK_KEY,
   TEMPLATE_EXTRACTION_AGENT_TASK_KEY,
 } = require('./agentTaskKeys.cjs');
-const { runTemplateExtractionTask } = require('./templateExtractionTask.cjs');
+const { runTemplateExtractionTask } = require('./tasks/templateExtractionTask.cjs');
 
 const DEFAULT_ESTIMATED_SECTION_WORDS = 3000;
 const OUTLINE_OUTPUT_FILE = 'outline.json';

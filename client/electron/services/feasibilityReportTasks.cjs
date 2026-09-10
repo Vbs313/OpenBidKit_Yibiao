@@ -13,7 +13,7 @@ const {
   formatProjectInfo,
   renderOutlineForPrompt,
 } = require('./feasibilityReportPrompts.cjs');
-const { loadLightweightKnowledgeItems } = require('./feasibilityOutlineTask.cjs');
+const { loadLightweightKnowledgeItems } = require('./tasks/feasibilityOutlineTask.cjs');
 
 const PROTECTED_QUANTITY_PATTERN = /(?:\d+(?:\.\d+)?(?:\s*(?:-|～|~|至)\s*\d+(?:\.\d+)?)?\s*(?:亿元|万元|元|%|％|年|个月|月|日|天|小时|平方米|平方公里|亩|公里|米|千米|吨|千瓦时|千瓦|兆瓦|人|户|家|项|套|台|个|座|栋|层|次))/g;
 

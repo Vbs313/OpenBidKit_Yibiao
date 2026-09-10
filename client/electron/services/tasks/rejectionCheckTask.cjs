@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
-const { compactLogError, createNoopDeveloperLogger, textMetrics } = require('../utils/developerLog.cjs');
-const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
+const { compactLogError, createNoopDeveloperLogger, textMetrics } = require('./../../utils/developerLog.cjs');
+const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
 const { runInvalidBidAndRejectionItemsExtraction } = require('./bidAnalysisTask.cjs');
 
 const checkRunStatus = ['idle', 'running', 'success', 'error'];

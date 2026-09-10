@@ -1,6 +1,6 @@
-const { buildBidSectionContextHint } = require('../utils/bidSectionContext.cjs');
-const { mergeSegmentedAiResults } = require('../utils/segmentedAiResultMerger.cjs');
-const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
+const { buildBidSectionContextHint } = require('./../../utils/bidSectionContext.cjs');
+const { mergeSegmentedAiResults } = require('./../../utils/segmentedAiResultMerger.cjs');
+const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
 
 const PROMPT_CACHE_WARMUP_DELAY_MS = 5000;
 const MARKDOWN_MISSING_RESULT = '未提取到';

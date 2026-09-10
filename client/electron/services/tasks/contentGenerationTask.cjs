@@ -1,12 +1,12 @@
 const crypto = require('node:crypto');
-const { AI_QUEUE_SCOPE_PAUSED } = require('../utils/aiRequestQueue.cjs');
-const { createNoopDeveloperLogger } = require('../utils/developerLog.cjs');
+const { AI_QUEUE_SCOPE_PAUSED } = require('./../../utils/aiRequestQueue.cjs');
+const { createNoopDeveloperLogger } = require('./../../utils/developerLog.cjs');
 const {
   ILLUSTRATION_PLAN_VERSION,
   buildIllustrationPlanningContext,
   buildIllustrationPlanningPrompt,
   resolveIllustrationPlan,
-} = require('./contentIllustrationPlanning.cjs');
+} = require('./../contentIllustrationPlanning.cjs');
 const {
   HTML_AGENT_THRESHOLD_CHARS,
   applyGeneratedIllustrationsToDocument,
@@ -15,10 +15,10 @@ const {
   generateHtmlIllustration,
   generateMermaidIllustration,
   stripGeneratedIllustrationsFromDocument,
-} = require('./contentIllustrationGeneration.cjs');
-const { applyRangeEdits, findTextMatches } = require('../utils/textEdit.cjs');
-const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
-const { countReadableWords } = require('../utils/wordCount.cjs');
+} = require('./../contentIllustrationGeneration.cjs');
+const { applyRangeEdits, findTextMatches } = require('./../../utils/textEdit.cjs');
+const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
+const { countReadableWords } = require('./../../utils/wordCount.cjs');
 
 const DEFAULT_CONTEXT_LENGTH_LIMIT = 400000;
 const AGENT_CONTEXT_THRESHOLD_RATIO = 0.7;

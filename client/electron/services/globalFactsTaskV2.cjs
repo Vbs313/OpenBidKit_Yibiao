@@ -8,7 +8,7 @@ const {
   normalizeGlobalFactsResponse,
   normalizeReferenceDocumentIds,
   validateGlobalFactsResponse,
-} = require('./globalFactsTask.cjs');
+} = require('./tasks/globalFactsTask.cjs');
 
 const GLOBAL_FACTS_OUTPUT_FILE = 'global-facts.json';
 

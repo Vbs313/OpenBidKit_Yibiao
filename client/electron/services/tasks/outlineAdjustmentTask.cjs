@@ -1,4 +1,4 @@
-const { OUTLINE_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
+const { OUTLINE_AGENT_TASK_KEY } = require('./../agentTaskKeys.cjs');
 const {
   OUTLINE_OUTPUT_FILE,
   OUTLINE_JSON_SCHEMA,
@@ -6,7 +6,7 @@ const {
   stripOutlineInternalFields,
   readJson,
   formatProgressTitle,
-} = require('./outlineGenerationTaskV2.cjs');
+} = require('./../outlineGenerationTaskV2.cjs');
 
 // 只保留 Agent 目录结构字段，正文等业务字段不进入 Agent 工作区。
 function buildAgentOutlineInput(outlineData) {

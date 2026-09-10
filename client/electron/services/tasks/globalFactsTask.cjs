@@ -1,5 +1,5 @@
-const { buildBidSectionContextHint } = require('../utils/bidSectionContext.cjs');
-const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
+const { buildBidSectionContextHint } = require('./../../utils/bidSectionContext.cjs');
+const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
 
 const DEFAULT_CONTEXT_LENGTH_LIMIT = 400000;
 const GLOBAL_FACTS_CONTEXT_LIMIT_RATIO = 0.8;

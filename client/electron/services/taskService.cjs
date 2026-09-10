@@ -1,15 +1,15 @@
 const crypto = require('node:crypto');
-const { runBidSectionExtractionTask } = require('./bidSectionExtractionTask.cjs');
-const { runBidAnalysisTask } = require('./bidAnalysisTask.cjs');
-const { runContentGenerationTask } = require('./contentGenerationTask.cjs');
+const { runBidSectionExtractionTask } = require('./tasks/bidSectionExtractionTask.cjs');
+const { runBidAnalysisTask } = require('./tasks/bidAnalysisTask.cjs');
+const { runContentGenerationTask } = require('./tasks/contentGenerationTask.cjs');
 const { runGlobalFactsTaskV2 } = require('./globalFactsTaskV2.cjs');
 const { runOutlineGenerationTaskV2 } = require('./outlineGenerationTaskV2.cjs');
-const { runOutlineAdjustmentTask } = require('./outlineAdjustmentTask.cjs');
-const { runGlobalFactsAdjustmentTask } = require('./globalFactsAdjustmentTask.cjs');
+const { runOutlineAdjustmentTask } = require('./tasks/outlineAdjustmentTask.cjs');
+const { runGlobalFactsAdjustmentTask } = require('./tasks/globalFactsAdjustmentTask.cjs');
 const { OUTLINE_AGENT_TASK_KEY, TEMPLATE_EXTRACTION_AGENT_TASK_KEY, GLOBAL_FACTS_AGENT_TASK_KEY, FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
 
 
-const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
+const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./tasks/rejectionCheckTask.cjs');
 const { originalPlanDownstreamTaskTypes } = require('./stores/technicalPlanStore.cjs');
 const {
   clearContent,
@@ -18,8 +18,8 @@ const {
   runFeasibilityContentTask,
   runFeasibilityHumanWritingTask,
 } = require('./feasibilityReportTasks.cjs');
-const { runFeasibilityOutlineTask } = require('./feasibilityOutlineTask.cjs');
-const { runFeasibilityOutlineAdjustmentTask } = require('./feasibilityOutlineAdjustmentTask.cjs');
+const { runFeasibilityOutlineTask } = require('./tasks/feasibilityOutlineTask.cjs');
+const { runFeasibilityOutlineAdjustmentTask } = require('./tasks/feasibilityOutlineAdjustmentTask.cjs');
 const { normalizeLogs } = require('./stores/taskLogStore.cjs');
 const { runComplianceCheckTask } = require('./compliance/complianceCheckTask.cjs');
 const perfTrace = require('../utils/perfTrace.cjs');

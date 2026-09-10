@@ -1,6 +1,6 @@
 const {
   TEMPLATE_EXTRACTION_AGENT_TASK_KEY,
-} = require('./agentTaskKeys.cjs');
+} = require('./../agentTaskKeys.cjs');
 
 const TEMPLATE_FIELDS_OUTPUT_FILE = 'bid-template-fields.json';
 const TEMPLATE_OUTLINE_INPUT_FILE = '已确认一级目录.json';

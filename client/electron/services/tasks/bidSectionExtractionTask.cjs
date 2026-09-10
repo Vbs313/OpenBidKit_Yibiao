@@ -1,4 +1,4 @@
-const { splitUserTextByContextLimit } = require('../utils/userTextSplitter.cjs');
+const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
 
 function pushLog(logs, message) {
   logs.push(message);

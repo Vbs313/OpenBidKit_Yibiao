@@ -1,8 +1,8 @@
-const { FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
+const { FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./../agentTaskKeys.cjs');
 const {
   buildOutlineTemplateMarkdown,
   formatProjectInfo,
-} = require('./feasibilityReportPrompts.cjs');
+} = require('./../feasibilityReportPrompts.cjs');
 
 const OUTLINE_OUTPUT_FILE = 'outline.json';
 const TITLE_PREFIX_PATTERN = /^第?[一二三四五六七八九十百零〇\d.、\s]+[章节篇]?\s*/;

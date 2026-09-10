@@ -1,10 +1,10 @@
-const { GLOBAL_FACTS_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
+const { GLOBAL_FACTS_AGENT_TASK_KEY } = require('./../agentTaskKeys.cjs');
 const {
   GLOBAL_FACTS_OUTPUT_FILE,
   GLOBAL_FACTS_JSON_SCHEMA,
   readJson,
   formatProgressTitle,
-} = require('./globalFactsTaskV2.cjs');
+} = require('./../globalFactsTaskV2.cjs');
 const {
   normalizeGlobalFactsResponse,
   validateGlobalFactsResponse,
