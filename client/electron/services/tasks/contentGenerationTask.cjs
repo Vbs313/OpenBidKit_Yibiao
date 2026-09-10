@@ -67,7 +67,6 @@ const {
 } = require('./generation/originalCoverage.cjs');
 
 const {
-  hasFactSelection,
   collectLeafContexts,
   loadContentKnowledgeReferences,
   resolveKnowledgeContents,
@@ -94,6 +93,14 @@ const {
   createContentDeveloperLogger,
   countContentWords,
 } = require('./generation/aiCallContext.cjs');
+
+const {
+  computeGenerationWordTarget,
+  createStoredContentPlan,
+  normalizeStoredContentPlan,
+  isStoredContentPlanReusableForTableRequirement,
+  pruneContentGenerationPlans,
+} = require('./generation/storedPlan.cjs');
 
 const {
   buildContentFactCompletenessInstruction,
@@ -175,7 +182,6 @@ const TOTAL_WORD_ADJUSTMENT_BATCH_SIZE = 10;
 const DEFAULT_SECTION_WORD_GUIDANCE = 3000;
 const TOTAL_WORD_SHRINK_SECTION_RATIO = 0.25;
 // 生成阶段按全文上限倒推每小节目标字数时使用的折扣系数，预留 AI 系统性偏高的缓冲，降低初稿超量概率。
-const GENERATION_WORD_TARGET_RATIO = 0.8;
 // 全文缩写阶段筛选候选小节时，可缩空间至少要达到本轮单节平均预算的比例，低于此值的小节直接跳过以免空占批次名额。
 const TOTAL_WORD_SHRINK_MIN_CAPACITY_RATIO = 0.3;
 const CONTENT_WORD_CONTROL_WARNING = '经多轮修复，字数仍未达预期，请您人工核对';
@@ -183,7 +189,6 @@ const SECTION_WORD_CONTROL_WARNING = '字数未达预期，请您人工核对';
 const CONSISTENCY_AUDIT_GROUP_WORD_LIMIT = 300000;
 const CONSISTENCY_REPAIR_MAX_ATTEMPTS = 2;
 const CONTENT_GENERATION_PAUSED = 'CONTENT_GENERATION_PAUSED';
-const CONTENT_PLAN_VERSION = 4;
 const TABLE_REQUIREMENT_LABELS = {
   none: '不要',
   light: '少量',
@@ -212,91 +217,6 @@ function createContentGenerationPausedError() {
 
 // 按全文上限倒推每小节生成目标：留出折扣缓冲，避免所有小节都顶着预设字数生成导致初稿总量系统性超上限。
 // 仅在启用强控小节字数且设置了全文上限时生效，其余情况返回 0 表示沿用预设字数。
-function computeGenerationWordTarget(wordControl, leafCount) {
-  if (!wordControl.strictSectionWords) return 0;
-  if (!(wordControl.maximumWords > 0) || !(leafCount > 0)) return 0;
-  const derived = Math.floor((wordControl.maximumWords * GENERATION_WORD_TARGET_RATIO) / leafCount);
-  // 不低于小节下限，避免倒推目标把 AI 引导到强控范围之外。
-  return Math.max(wordControl.sectionMinimumWords, derived);
-}
-
-
-function createStoredContentPlan(plan, tableRequirement) {
-  const normalizedTableRequirement = tableRequirement ? normalizeTableRequirement(tableRequirement) : '';
-  return {
-    plan_version: CONTENT_PLAN_VERSION,
-    plan: normalizeContentPlan(plan),
-    ...(normalizedTableRequirement ? { table_requirement: normalizedTableRequirement } : {}),
-    updated_at: now(),
-  };
-}
-
-function normalizeStoredContentPlan(value) {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  if (Number(value.plan_version ?? value.planVersion ?? 0) !== CONTENT_PLAN_VERSION) {
-    return null;
-  }
-
-  if (!hasFactSelection(value)) {
-    return null;
-  }
-
-  const plan = normalizeContentPlan(value.plan || value.contentPlan || value);
-  if (!plan.writing_focus) {
-    return null;
-  }
-  try {
-    validateContentPlan(plan);
-  } catch {
-    return null;
-  }
-  const tableRequirement = value.table_requirement || value.tableRequirement
-    ? normalizeTableRequirement(value.table_requirement || value.tableRequirement)
-    : '';
-  return {
-    plan_version: CONTENT_PLAN_VERSION,
-    plan,
-    ...(tableRequirement ? { table_requirement: tableRequirement } : {}),
-    updated_at: value.updated_at || value.updatedAt || now(),
-  };
-}
-
-function isStoredContentPlanReusableForTableRequirement(storedContentPlan, tableRequirement) {
-  const currentRequirement = normalizeTableRequirement(tableRequirement);
-  const storedRequirement = storedContentPlan?.table_requirement || '';
-  if (storedRequirement) {
-    return storedRequirement === currentRequirement;
-  }
-  return currentRequirement === 'none';
-}
-
-function originalMaterialFromStoredPlan(value) {
-  const storedPlan = normalizeStoredContentPlan(value);
-  return normalizeOriginalMaterial(storedPlan?.plan?.original_material);
-}
-
-function needsOriginalMaterialOptimization(value) {
-  const originalMaterial = originalMaterialFromStoredPlan(value);
-  return originalMaterial.restored && !originalMaterial.optimized;
-}
-
-function pruneContentGenerationPlans(plans, leaves) {
-  const leafIds = new Set(leaves.map(({ item }) => item.id));
-  const next = {};
-  for (const [itemId, value] of Object.entries(plans || {})) {
-    if (!leafIds.has(itemId)) {
-      continue;
-    }
-    const storedPlan = normalizeStoredContentPlan(value);
-    if (storedPlan) {
-      next[itemId] = storedPlan;
-    }
-  }
-  return next;
-}
 
 
 function renderKnowledgeItemsForPrompt(items) {
