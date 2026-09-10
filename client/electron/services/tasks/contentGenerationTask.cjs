@@ -123,6 +123,11 @@ const {
   buildAgentConsistencyRepairPrompt,
   validateAgentConsistencySections,
 } = require('./generation/agentWorkspace.cjs');
+const {
+  isSectionWordsOutsideRange,
+  getTotalWordDirection,
+  buildTotalWordAdjustmentBatch,
+} = require('./generation/wordBatching.cjs');
 
 const { TABLE_REQUIREMENT_LABELS } = require('./generation/markdownTables.cjs');
 const {
@@ -211,8 +216,6 @@ const MAX_WORD_ADJUSTMENT_ROUNDS = 3;
 // 全文扩写不限制有效轮数，仅在连续多轮没有增加字数时退出。
 const MAX_EXPANSION_NO_PROGRESS_ROUNDS = 3;
 const TOTAL_WORD_ADJUSTMENT_BATCH_SIZE = 10;
-const DEFAULT_SECTION_WORD_GUIDANCE = 3000;
-const TOTAL_WORD_SHRINK_SECTION_RATIO = 0.25;
 // 生成阶段按全文上限倒推每小节目标字数时使用的折扣系数，预留 AI 系统性偏高的缓冲，降低初稿超量概率。
 // 全文缩写阶段筛选候选小节时，可缩空间至少要达到本轮单节平均预算的比例，低于此值的小节直接跳过以免空占批次名额。
 const TOTAL_WORD_SHRINK_MIN_CAPACITY_RATIO = 0.3;
@@ -1778,17 +1781,13 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     return { currentWords, nextWords };
   }
 
-  function isSectionWordsOutsideRange(words) {
-    return wordControl.strictSectionWords
-      && (words < wordControl.sectionMinimumWords || words > wordControl.sectionMaximumWords);
-  }
 
   async function adjustSectionToRange(context, stage, itemRounds, completedItemIds) {
     const { item } = context;
     let rounds = Math.min(MAX_WORD_ADJUSTMENT_ROUNDS, Math.max(0, Number(itemRounds[item.id]) || 0));
     while (rounds < MAX_WORD_ADJUSTMENT_ROUNDS) {
       const currentWords = getLeafWordCount(item);
-      if (!isSectionWordsOutsideRange(currentWords)) return true;
+      if (!isSectionWordsOutsideRange(wordControl, currentWords)) return true;
       rounds += 1;
       const mode = currentWords < wordControl.sectionMinimumWords ? 'expand' : 'shrink';
       const differenceRatio = Math.abs(currentWords - wordControl.sectionWords) / wordControl.sectionWords;
@@ -1816,13 +1815,13 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
       setWordAdjustmentRuntime(stage, item.id, rounds, completedItemIds, itemRounds);
       pauseIfRequested('正文生成已在字数调整结果处理后暂停，可稍后继续。');
     }
-    return !isSectionWordsOutsideRange(getLeafWordCount(item));
+    return !isSectionWordsOutsideRange(wordControl, getLeafWordCount(item));
   }
 
   async function runSectionWordAdjustments(targets, stage) {
     if (!wordControl.strictSectionWords) return [];
     const candidates = (targets || []).filter(({ item }) => sections[item.id]?.status === 'success' && getLeafWordCount(item) > 0);
-    const violations = candidates.filter(({ item }) => isSectionWordsOutsideRange(getLeafWordCount(item)));
+    const violations = candidates.filter(({ item }) => isSectionWordsOutsideRange(wordControl, getLeafWordCount(item)));
     const resumingStage = resume && contentRuntime.word_adjustment_stage === stage;
     const completedItemIds = resumingStage ? [...contentRuntime.word_adjustment_completed_item_ids] : [];
     const completedItemIdSet = new Set(completedItemIds);
@@ -1860,115 +1859,12 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     return [...unresolved];
   }
 
-  function getTotalWordDirection() {
-    if (!wordControl.minimumWords && !wordControl.maximumWords) return null;
-    const currentWords = countTotalContentWords();
-    if (wordControl.minimumWords > 0 && currentWords < wordControl.minimumWords) {
-      return { mode: 'expand', currentWords, targetWords: wordControl.minimumWords };
-    }
-    if (wordControl.maximumWords > 0 && currentWords > wordControl.maximumWords) {
-      return { mode: 'shrink', currentWords, targetWords: wordControl.maximumWords };
-    }
-    return null;
-  }
 
   // 扩写先按小节指导缺口分配，剩余额度再均摊；3000 仅是 sectionWords 为 0 时的内部指导值，不构成小节上限。
-  function buildTotalWordExpansionBatch(selected, direction) {
-    const guidanceWords = wordControl.sectionWords > 0 ? wordControl.sectionWords : DEFAULT_SECTION_WORD_GUIDANCE;
-    const entries = selected.map((candidate, index) => {
-      const capacity = wordControl.strictSectionWords
-        ? Math.max(0, wordControl.sectionMaximumWords - candidate.words)
-        : Number.POSITIVE_INFINITY;
-      return {
-        context: candidate,
-        index,
-        guidanceWords,
-        guidanceGap: Math.min(Math.max(0, guidanceWords - candidate.words), capacity),
-        capacity,
-        budget: 0,
-      };
-    });
-    let unallocatedWords = Math.abs(direction.currentWords - direction.targetWords);
-    const totalGuidanceGap = entries.reduce((sum, entry) => sum + entry.guidanceGap, 0);
-    const guidanceBudget = Math.min(unallocatedWords, totalGuidanceGap);
-
-    if (guidanceBudget > 0 && totalGuidanceGap > 0) {
-      const allocations = entries.map((entry) => {
-        const rawBudget = (guidanceBudget * entry.guidanceGap) / totalGuidanceGap;
-        return {
-          entry,
-          budget: Math.floor(rawBudget),
-          remainder: rawBudget - Math.floor(rawBudget),
-        };
-      });
-      let remainderWords = guidanceBudget - allocations.reduce((sum, allocation) => sum + allocation.budget, 0);
-      const remainderOrder = [...allocations]
-        .filter((allocation) => allocation.budget < allocation.entry.guidanceGap)
-        .sort((left, right) => right.remainder - left.remainder || left.entry.index - right.entry.index);
-      for (const allocation of remainderOrder) {
-        if (remainderWords <= 0) break;
-        allocation.budget += 1;
-        remainderWords -= 1;
-      }
-      for (const allocation of allocations) {
-        allocation.entry.budget = allocation.budget;
-      }
-      unallocatedWords -= guidanceBudget;
-    }
-
-    while (unallocatedWords > 0) {
-      const available = entries.filter((entry) => entry.budget < entry.capacity);
-      if (!available.length) break;
-      const fairShare = Math.ceil(unallocatedWords / available.length);
-      let allocatedThisPass = 0;
-      for (const entry of available) {
-        const capacity = entry.capacity - entry.budget;
-        const addition = Math.max(0, Math.min(unallocatedWords, fairShare, capacity));
-        if (addition <= 0) continue;
-        entry.budget += addition;
-        unallocatedWords -= addition;
-        allocatedThisPass += addition;
-      }
-      if (!allocatedThisPass) break;
-    }
-
-    return entries
-      .filter((entry) => entry.budget > 0)
-      .map(({ context, budget, guidanceWords: itemGuidanceWords }) => ({
-        context,
-        budget,
-        guidanceWords: itemGuidanceWords,
-      }));
-  }
 
   // 强控缩写限制单次最多减少 25%；非强控只受全文差额和正文可读空间限制。
-  function buildTotalWordShrinkBatch(selected, direction) {
-    let unallocatedWords = Math.abs(direction.currentWords - direction.targetWords);
-    const batch = [];
-    for (let index = 0; index < selected.length && unallocatedWords > 0; index += 1) {
-      const candidate = selected[index];
-      const remainingSlots = selected.length - index;
-      const fairShare = Math.ceil(unallocatedWords / remainingSlots);
-      const ratioCapacity = Math.max(1, Math.floor(candidate.words * TOTAL_WORD_SHRINK_SECTION_RATIO));
-      const readableCapacity = Math.max(0, candidate.words - 1);
-      const sectionCapacity = wordControl.strictSectionWords
-        ? Math.min(ratioCapacity, candidate.words - wordControl.sectionMinimumWords, readableCapacity)
-        : readableCapacity;
-      const budget = Math.max(0, Math.min(unallocatedWords, fairShare, sectionCapacity));
-      if (budget <= 0) continue;
-      batch.push({ context: candidate, budget, guidanceWords: 0 });
-      unallocatedWords -= budget;
-    }
-    return batch;
-  }
 
   // 每轮最多选择十个小节，批次总预算不超过当前全文差额。
-  function buildTotalWordAdjustmentBatch(candidates, direction, slotCount) {
-    const selected = candidates.slice(0, slotCount);
-    return direction.mode === 'expand'
-      ? buildTotalWordExpansionBatch(selected, direction)
-      : buildTotalWordShrinkBatch(selected, direction);
-  }
 
   async function runTotalWordAdjustments() {
     if (!wordControl.minimumWords && !wordControl.maximumWords || targetItemId || runOnlyIllustrationStage) return;
@@ -1984,7 +1880,7 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
       : 0;
     let round = initialRound;
     while (true) {
-      let direction = getTotalWordDirection();
+      let direction = getTotalWordDirection(wordControl, countTotalContentWords());
       if (!direction) return;
       const isExpansion = direction.mode === 'expand';
       if (!isExpansion && round > MAX_WORD_ADJUSTMENT_ROUNDS) return;
@@ -2016,7 +1912,7 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
       }).sort((left, right) => direction.mode === 'expand' ? left.words - right.words : right.words - left.words);
       if (candidates.length > 1 && candidates[0].item.id === lastItemId) candidates = [...candidates.slice(1), candidates[0]];
       const remainingSlots = Math.max(0, TOTAL_WORD_ADJUSTMENT_BATCH_SIZE - completedItemIds.length);
-      const batch = buildTotalWordAdjustmentBatch(candidates, direction, remainingSlots);
+      const batch = buildTotalWordAdjustmentBatch(wordControl, candidates, direction, remainingSlots);
       const previousContentStats = storedPlan.contentGenerationTask?.stats?.content;
       contentStats.total_adjustment_batch_total = completedItemIds.length + batch.length;
       contentStats.total_adjustment_batch_completed = completedItemIds.length;
@@ -2070,7 +1966,7 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
           completedItemIdSet.add(candidate.item.id);
           activeItemIds.delete(candidate.item.id);
           const nextActiveItemId = activeItemIds.values().next().value || '';
-          const nextDirection = getTotalWordDirection();
+          const nextDirection = getTotalWordDirection(wordControl, countTotalContentWords());
           contentStats.total_adjustment_batch_completed = completedItemIds.length;
           if (failed) contentStats.total_adjustment_batch_failed += 1;
           contentStats.total_adjustment_active_count = activeItemIds.size;
@@ -2095,7 +1991,7 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
           logs = [...logs, `全文扩写第 ${round} 轮未增加有效字数，连续无进展 ${noProgressRounds}/${MAX_EXPANSION_NO_PROGRESS_ROUNDS} 轮。`];
         }
       }
-      const nextDirection = getTotalWordDirection();
+      const nextDirection = getTotalWordDirection(wordControl, countTotalContentWords());
       contentStats.total_adjustment_remaining_words = nextDirection
         ? Math.abs(nextDirection.currentWords - nextDirection.targetWords)
         : 0;
@@ -3652,7 +3548,7 @@ workspace 文件说明：
       }
       pauseIfRequested('正文生成已在去表格阶段暂停，可导出当前已完成内容，稍后继续。');
       const unresolvedSections = completedStages.has('final-section-word-adjusting')
-        ? leaves.filter(({ item }) => sections[item.id]?.status === 'success' && isSectionWordsOutsideRange(getLeafWordCount(item))).map(({ item }) => item.id)
+        ? leaves.filter(({ item }) => sections[item.id]?.status === 'success' && isSectionWordsOutsideRange(wordControl, getLeafWordCount(item))).map(({ item }) => item.id)
         : await runSectionWordAdjustments(leaves, 'final-section');
       markStageCompleted('final-section-word-adjusting');
       if (!completedStages.has('total-word-adjusting')) {
@@ -3660,7 +3556,7 @@ workspace 文件说明：
         markStageCompleted('total-word-adjusting');
       }
       const postAdjustmentSectionViolations = wordControl.strictSectionWords
-        ? leaves.filter(({ item }) => sections[item.id]?.status === 'success' && isSectionWordsOutsideRange(getLeafWordCount(item)))
+        ? leaves.filter(({ item }) => sections[item.id]?.status === 'success' && isSectionWordsOutsideRange(wordControl, getLeafWordCount(item)))
         : [];
       if (unresolvedSections.length && !postAdjustmentSectionViolations.length) {
         logs = [...logs, '全文调整已同时修复此前未达标的小节字数。'];
@@ -3743,9 +3639,9 @@ workspace 文件说明：
     }
     rebuildContentWordCounts();
     const finalSectionViolations = wordControl.strictSectionWords
-      ? statusLeaves.filter(({ item }) => sections[item.id]?.status === 'success' && isSectionWordsOutsideRange(getLeafWordCount(item)))
+      ? statusLeaves.filter(({ item }) => sections[item.id]?.status === 'success' && isSectionWordsOutsideRange(wordControl, getLeafWordCount(item)))
       : [];
-    const finalTotalDirection = targetItemId ? null : getTotalWordDirection();
+    const finalTotalDirection = targetItemId ? null : getTotalWordDirection(wordControl, countTotalContentWords());
     contentStats.word_control_warning = finalSectionViolations.length || finalTotalDirection
       ? (targetItemId ? SECTION_WORD_CONTROL_WARNING : CONTENT_WORD_CONTROL_WARNING)
       : undefined;
