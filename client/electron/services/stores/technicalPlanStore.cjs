@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { getBidAnalysisTasks } = require('./bidAnalysisTask.cjs');
+const { getBidAnalysisTasks } = require('./../bidAnalysisTask.cjs');
 const {
   getTechnicalPlanBidTemplatePath,
   getTechnicalPlanBidTemplateSourcePath,
@@ -13,13 +13,13 @@ const {
   getTechnicalPlanTenderOriginalsDir,
   getGeneratedImagesDir,
   getWorkspaceTrashDir,
-} = require('../utils/paths.cjs');
-const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
-const { clearMermaidCache } = require('../utils/mermaidCache.cjs');
-const { detectBidSections } = require('../utils/bidSectionDetector.cjs');
-const { compactLogError, createDeveloperLogger } = require('../utils/developerLog.cjs');
-const { forceRemoveSync, isFileLockError } = require('../utils/forceRemove.cjs');
-const { OUTLINE_AGENT_TASK_KEY, TEMPLATE_EXTRACTION_AGENT_TASK_KEY, GLOBAL_FACTS_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
+} = require('./../../utils/paths.cjs');
+const { deleteImportedImageBatches } = require('./../../utils/importedImages.cjs');
+const { clearMermaidCache } = require('./../../utils/mermaidCache.cjs');
+const { detectBidSections } = require('./../../utils/bidSectionDetector.cjs');
+const { compactLogError, createDeveloperLogger } = require('./../../utils/developerLog.cjs');
+const { forceRemoveSync, isFileLockError } = require('./../../utils/forceRemove.cjs');
+const { OUTLINE_AGENT_TASK_KEY, TEMPLATE_EXTRACTION_AGENT_TASK_KEY, GLOBAL_FACTS_AGENT_TASK_KEY } = require('./../agentTaskKeys.cjs');
 
 const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 

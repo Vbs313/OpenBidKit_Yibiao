@@ -1,12 +1,12 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { getRejectionCheckDir, getRejectionCheckDocumentMarkdownPath } = require('../utils/paths.cjs');
+const { getRejectionCheckDir, getRejectionCheckDocumentMarkdownPath } = require('./../../utils/paths.cjs');
 const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 const {
   deleteImportedImageBatchesAsync,
   deleteImportedImageBatchesForExactScopeAsync,
-} = require('../utils/importedImages.cjs');
+} = require('./../../utils/importedImages.cjs');
 
 const initialState = {
   tenderDocument: null,

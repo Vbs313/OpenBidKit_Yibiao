@@ -10,7 +10,7 @@ const {
 const {
   emitAiHttpErrorToWindows,
 } = require('../../utils/aiHttpError.cjs');
-const { normalizeTokenUsage } = require('../textTokenStatsStore.cjs');
+const { normalizeTokenUsage } = require('./../stores/textTokenStatsStore.cjs');
 
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const DEFAULT_NORMAL_REQUEST_TIMEOUT_MS = 15 * 60 * 1000;

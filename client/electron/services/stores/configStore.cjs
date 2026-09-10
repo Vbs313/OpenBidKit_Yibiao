@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { getConfigFilePath } = require('../utils/paths.cjs');
-const { createAnalyticsClientId } = require('../utils/machineIdentity.cjs');
+const { getConfigFilePath } = require('./../../utils/paths.cjs');
+const { createAnalyticsClientId } = require('./../../utils/machineIdentity.cjs');
 
 const textModelProviders = ['jinlong', 'volcengine', 'deepseek', 'agnes', 'custom'];
 const imageModelProviders = ['jinlong', 'volcengine', 'google-ai-studio', 'agnes', 'custom', 'comfyui'];

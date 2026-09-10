@@ -3,7 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const { createKnowledgeBaseStore } = require('./knowledgeBaseStore.cjs');
+const { createKnowledgeBaseStore } = require('./stores/knowledgeBaseStore.cjs');
 
 function createFixture(t) {
   const db = new Database(':memory:');

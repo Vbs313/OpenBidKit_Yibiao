@@ -10,7 +10,7 @@ const { OUTLINE_AGENT_TASK_KEY, TEMPLATE_EXTRACTION_AGENT_TASK_KEY, GLOBAL_FACTS
 
 
 const { runRejectionCheckTask, runRejectionItemsExtractionTask } = require('./rejectionCheckTask.cjs');
-const { originalPlanDownstreamTaskTypes } = require('./technicalPlanStore.cjs');
+const { originalPlanDownstreamTaskTypes } = require('./stores/technicalPlanStore.cjs');
 const {
   clearContent,
   runFeasibilityAnalysisTask,
@@ -20,7 +20,7 @@ const {
 } = require('./feasibilityReportTasks.cjs');
 const { runFeasibilityOutlineTask } = require('./feasibilityOutlineTask.cjs');
 const { runFeasibilityOutlineAdjustmentTask } = require('./feasibilityOutlineAdjustmentTask.cjs');
-const { normalizeLogs } = require('./taskLogStore.cjs');
+const { normalizeLogs } = require('./stores/taskLogStore.cjs');
 const { runComplianceCheckTask } = require('./compliance/complianceCheckTask.cjs');
 const perfTrace = require('../utils/perfTrace.cjs');
 

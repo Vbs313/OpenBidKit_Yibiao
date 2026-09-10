@@ -22,7 +22,7 @@ const {
   resolveAiLogTitle,
   writeAiLog,
 } = require('../utils/aiLog.cjs');
-const textTokenStatsStore = require('./textTokenStatsStore.cjs');
+const textTokenStatsStore = require('./stores/textTokenStatsStore.cjs');
 const { normalizeTokenUsage } = textTokenStatsStore;
 const perfTrace = require('../utils/perfTrace.cjs');
 

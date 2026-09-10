@@ -1,9 +1,9 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { getWorkspaceDir } = require('../utils/paths.cjs');
-const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
-const { FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
+const { getWorkspaceDir } = require('./../../utils/paths.cjs');
+const { deleteImportedImageBatches } = require('./../../utils/importedImages.cjs');
+const { FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./../agentTaskKeys.cjs');
 const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 
 const SOURCE_FILES_RELATIVE_DIR = path.join('feasibility-report', 'sources').replace(/\\/g, '/');

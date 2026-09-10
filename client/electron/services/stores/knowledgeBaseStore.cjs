@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { getKnowledgeBaseDir } = require('../utils/paths.cjs');
+const { getKnowledgeBaseDir } = require('./../../utils/paths.cjs');
 const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 
 const documentStatuses = ['pending', 'copying', 'converting', 'extracting', 'ready_for_matching', 'matching', 'recovering', 'analyzing', 'saving', 'success', 'error'];

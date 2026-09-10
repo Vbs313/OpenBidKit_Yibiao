@@ -1,8 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { getDuplicateCheckContentDir, getDuplicateCheckDir } = require('../utils/paths.cjs');
-const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
+const { getDuplicateCheckContentDir, getDuplicateCheckDir } = require('./../../utils/paths.cjs');
+const { deleteImportedImageBatches } = require('./../../utils/importedImages.cjs');
 const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 
 const initialState = {
