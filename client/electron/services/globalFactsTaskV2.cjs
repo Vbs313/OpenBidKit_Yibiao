@@ -1,5 +1,5 @@
 const { buildBidSectionContextHint } = require('../utils/bidSectionContext.cjs');
-const { GLOBAL_FACTS_AGENT_TASK_KEY } = require('./globalFactsAgentV2Config.cjs');
+const { GLOBAL_FACTS_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
 const {
   formatBidAnalysisFactsForPrompt,
   formatOutlineForPrompt,

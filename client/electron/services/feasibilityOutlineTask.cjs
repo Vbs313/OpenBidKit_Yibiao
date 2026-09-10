@@ -1,4 +1,4 @@
-const { FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./feasibilityOutlineAgentConfig.cjs');
+const { FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
 const {
   buildOutlineTemplateMarkdown,
   formatProjectInfo,

@@ -1,7 +1,7 @@
 const {
   OUTLINE_AGENT_TASK_KEY,
   TEMPLATE_EXTRACTION_AGENT_TASK_KEY,
-} = require('./outlineGenerationAgentV2Config.cjs');
+} = require('./agentTaskKeys.cjs');
 const { runTemplateExtractionTask } = require('./templateExtractionTask.cjs');
 
 const DEFAULT_ESTIMATED_SECTION_WORDS = 3000;

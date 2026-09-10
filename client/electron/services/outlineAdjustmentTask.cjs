@@ -1,4 +1,4 @@
-const { OUTLINE_AGENT_TASK_KEY } = require('./outlineGenerationAgentV2Config.cjs');
+const { OUTLINE_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
 const {
   OUTLINE_OUTPUT_FILE,
   OUTLINE_JSON_SCHEMA,
