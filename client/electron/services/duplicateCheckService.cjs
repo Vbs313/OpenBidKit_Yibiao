@@ -12,6 +12,13 @@ const { compactLogError, createDeveloperLogger, textMetrics } = require('../util
 const { normalizeDocumentParseError } = require('./documentParseErrors.cjs');
 const { parseDocumentWithConfig } = require('./fileService.cjs');
 const {
+  intersectSize,
+  lcsSimilarity,
+  riskFromScore,
+  charBigramsFromLooseText,
+  diceSimilarityFromShared,
+} = require('./duplicates/similarity.cjs');
+const {
   normalizeValue,
   stripMarkdownForOutline,
   inferOutlineLevel,
@@ -1252,11 +1259,6 @@ function buildOutlineItems(markdown, tenderSentences = []) {
   return { items, source: selected[0]?.source, confidence: selected.length ? Number((selected.reduce((sum, item) => sum + item.confidence, 0) / selected.length).toFixed(2)) : 0 };
 }
 
-function intersectSize(a, b) {
-  let count = 0;
-  for (const item of a) if (b.has(item)) count += 1;
-  return count;
-}
 
 function bigramSimilarity(a, b) {
   const left = String(a || '');
@@ -1274,23 +1276,7 @@ function bigramSimilarity(a, b) {
   return (2 * shared) / (leftSet.size + rightSet.size || 1);
 }
 
-function lcsSimilarity(left, right) {
-  if (!left.length || !right.length) return 0;
-  const dp = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
-  for (let i = 1; i <= left.length; i += 1) {
-    for (let j = 1; j <= right.length; j += 1) {
-      dp[i][j] = left[i - 1] === right[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-  return dp[left.length][right.length] / Math.max(left.length, right.length);
-}
 
-function riskFromScore(score) {
-  if (score >= 0.75) return 'high';
-  if (score >= 0.55) return 'medium';
-  if (score >= 0.35) return 'low';
-  return 'none';
-}
 
 function buildOutlineComparison(files) {
   const groups = [];
@@ -1713,18 +1699,7 @@ function isSafeTenderFieldTail(value) {
   return tail.length <= 36 && /(天津港保税区消防救援支队|消防装备管理系统项目|天津众信招标咨询有限公司)/.test(tail);
 }
 
-function charBigramsFromLooseText(value) {
-  const text = String(value || '');
-  if (!text) return new Set();
-  if (text.length === 1) return new Set([text]);
-  const grams = new Set();
-  for (let index = 0; index < text.length - 1; index += 1) grams.add(text.slice(index, index + 2));
-  return grams;
-}
 
-function diceSimilarityFromShared(shared, leftSize, rightSize) {
-  return (2 * shared) / Math.max(leftSize + rightSize, 1);
-}
 
 function shouldApplyNearTenderMatch(value, looseText) {
   if (looseText.length >= 12) return true;
