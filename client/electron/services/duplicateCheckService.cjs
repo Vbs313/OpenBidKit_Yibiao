@@ -11,6 +11,21 @@ const { getDuplicateCheckContentDir, getGeneratedImagesDir, getImportedImagesDir
 const { compactLogError, createDeveloperLogger, textMetrics } = require('../utils/developerLog.cjs');
 const { normalizeDocumentParseError } = require('./documentParseErrors.cjs');
 const { parseDocumentWithConfig } = require('./fileService.cjs');
+const {
+  decodeXml,
+  readZipText,
+  align4,
+  readUInt16LE,
+  readInt16LE,
+  readUInt32LE,
+  readInt32LE,
+  codePageToEncoding,
+  cleanOleString,
+  isOlePropertySetStreamName,
+  canonicalPdfXmpKey,
+  decodeUtf16Be,
+  decodePdfName,
+} = require('./duplicates/metadataDecoders.cjs');
 
 const metadataLabels = {
   file_name: '文件名',
@@ -299,21 +314,7 @@ function xmlText(xml, tagName) {
   return match ? decodeXml(match[1]) : '';
 }
 
-function decodeXml(value) {
-  return String(value || '')
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-    .trim();
-}
 
-function readZipText(zip, entryName) {
-  const entry = zip.getEntry(entryName);
-  return entry ? entry.getData().toString('utf8') : '';
-}
 
 function formatDocxTotalTime(value) {
   const text = normalizeValue(value);
@@ -394,37 +395,11 @@ const DOC_SUMMARY_PROPERTY_MAP = {
   0x1d: { key: 'document_version' },
 };
 
-function align4(value) {
-  return value + ((4 - (value % 4)) % 4);
-}
 
-function readUInt16LE(buffer, offset) {
-  return offset + 2 <= buffer.length ? buffer.readUInt16LE(offset) : 0;
-}
 
-function readInt16LE(buffer, offset) {
-  return offset + 2 <= buffer.length ? buffer.readInt16LE(offset) : 0;
-}
 
-function readUInt32LE(buffer, offset) {
-  return offset + 4 <= buffer.length ? buffer.readUInt32LE(offset) : 0;
-}
 
-function readInt32LE(buffer, offset) {
-  return offset + 4 <= buffer.length ? buffer.readInt32LE(offset) : 0;
-}
 
-function codePageToEncoding(codePage) {
-  const value = Number(codePage) || 1252;
-  if (value === 936 || value === 54936) return 'gb18030';
-  if (value === 950) return 'big5';
-  if (value === 932) return 'shift_jis';
-  if (value === 949) return 'euc-kr';
-  if (value === 65001) return 'utf8';
-  if (value === 1200 || value === 1201) return 'utf16le';
-  if (value >= 1250 && value <= 1258) return `windows${value}`;
-  return 'latin1';
-}
 
 function decodeCodePageBuffer(buffer, codePage) {
   const encoding = codePageToEncoding(codePage);
@@ -435,9 +410,6 @@ function decodeCodePageBuffer(buffer, codePage) {
   }
 }
 
-function cleanOleString(value) {
-  return String(value || '').replace(/\u0000+$/g, '').replace(/\u0000/g, '').trim();
-}
 
 function parseFileTimeValue(buffer, offset) {
   const low = readUInt32LE(buffer, offset);
@@ -686,9 +658,6 @@ function addOleStructureFields(fields, cfb) {
   addField(fields, 'ole_macro_paths', summarizeValues(macroPaths, 40));
 }
 
-function isOlePropertySetStreamName(value) {
-  return /(?:summaryinformation|documentsummaryinformation)$/i.test(String(value || '').replace(/^.*[\\/]/, '').replace(/^\u0005|^!/, ''));
-}
 
 function addWpsSignalFields(fields) {
   const entries = Array.from(fields.entries());
@@ -841,19 +810,6 @@ function getPdfMetadataEntries(metadata) {
   return Object.entries(metadata).filter(([, value]) => normalizeValue(value));
 }
 
-function canonicalPdfXmpKey(rawKey) {
-  const key = String(rawKey || '').toLowerCase();
-  if (/(^|:)title$/.test(key)) return 'title';
-  if (/(^|:)creator$/.test(key)) return 'author';
-  if (/creatortool$/.test(key)) return 'creator';
-  if (/producer$/.test(key)) return 'producer';
-  if (/(^|:)subject$/.test(key)) return 'subject';
-  if (/keywords$/.test(key)) return 'keywords';
-  if (/description$/.test(key)) return 'description';
-  if (/createdate$/.test(key)) return 'created';
-  if (/(modifydate|metadatadate)$/.test(key)) return 'modified';
-  return '';
-}
 
 function addPdfInfoFields(fields, info) {
   for (const [rawKey, value] of Object.entries(info || {})) {
@@ -877,14 +833,6 @@ function addPdfXmpFields(fields, metadata) {
   for (const snippet of collectSignalSnippets(raw, 5)) addListField(fields, 'pdf_xmp:raw_signals', snippet);
 }
 
-function decodeUtf16Be(buffer) {
-  const chars = [];
-  for (let offset = 0; offset + 1 < buffer.length; offset += 2) {
-    const code = buffer.readUInt16BE(offset);
-    if (code) chars.push(String.fromCharCode(code));
-  }
-  return chars.join('');
-}
 
 function decodePdfStringBuffer(buffer) {
   if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) return decodeUtf16Be(buffer.subarray(2));
@@ -942,9 +890,6 @@ function addPdfRawFields(fields, buffer) {
   for (const snippet of collectBinarySignalSnippets(buffer)) addListField(fields, 'pdf_raw:signals', snippet);
 }
 
-function decodePdfName(value) {
-  return String(value || '').replace(/#([0-9a-fA-F]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
-}
 
 function decodePdfTokenString(token) {
   const value = String(token || '').trim();
