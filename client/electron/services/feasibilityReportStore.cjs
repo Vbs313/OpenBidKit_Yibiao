@@ -4,6 +4,7 @@ const path = require('node:path');
 const { getWorkspaceDir } = require('../utils/paths.cjs');
 const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
 const { FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./feasibilityOutlineAgentConfig.cjs');
+const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 
 const SOURCE_FILES_RELATIVE_DIR = path.join('feasibility-report', 'sources').replace(/\\/g, '/');
 const TASK_FIELD_TYPES = {
@@ -40,27 +41,6 @@ const emptyProjectInfo = Object.freeze({
   totalInvestment: '',
   fundingSource: '',
 });
-
-function now() {
-  return new Date().toISOString();
-}
-
-function hasOwn(value, field) {
-  return Object.prototype.hasOwnProperty.call(value || {}, field);
-}
-
-function safeJsonParse(value, fallback) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function jsonOrNull(value) {
-  return value === undefined || value === null ? null : JSON.stringify(value);
-}
 
 function stableHash(content) {
   return crypto.createHash('sha1').update(String(content || ''), 'utf8').digest('hex');

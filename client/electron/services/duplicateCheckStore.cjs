@@ -3,6 +3,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { getDuplicateCheckContentDir, getDuplicateCheckDir } = require('../utils/paths.cjs');
 const { deleteImportedImageBatches } = require('../utils/importedImages.cjs');
+const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 
 const initialState = {
   tenderFile: null,
@@ -25,27 +26,6 @@ const sectionFields = {
 };
 
 const fieldSections = Object.fromEntries(Object.entries(sectionFields).map(([section, field]) => [field, section]));
-
-function now() {
-  return new Date().toISOString();
-}
-
-function hasOwn(value, field) {
-  return Object.prototype.hasOwnProperty.call(value || {}, field);
-}
-
-function safeJsonParse(value, fallback) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function jsonOrNull(value) {
-  return value === undefined || value === null ? null : JSON.stringify(value);
-}
 
 function toDbBool(value) {
   return value ? 1 : 0;

@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { getRejectionCheckDir, getRejectionCheckDocumentMarkdownPath } = require('../utils/paths.cjs');
+const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 const {
   deleteImportedImageBatchesAsync,
   deleteImportedImageBatchesForExactScopeAsync,
@@ -49,27 +50,6 @@ function appendImportFailureParts(messageParts, errors) {
   if (!failed.length) return;
   messageParts.push(`失败 ${failed.length} 份`);
   messageParts.push(failed.join('；'));
-}
-
-function now() {
-  return new Date().toISOString();
-}
-
-function hasOwn(value, field) {
-  return Object.prototype.hasOwnProperty.call(value || {}, field);
-}
-
-function safeJsonParse(value, fallback) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function jsonOrNull(value) {
-  return value === undefined || value === null ? null : JSON.stringify(value);
 }
 
 function stableHash(content) {

@@ -2,13 +2,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { getKnowledgeBaseDir } = require('../utils/paths.cjs');
+const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 
 const documentStatuses = ['pending', 'copying', 'converting', 'extracting', 'ready_for_matching', 'matching', 'recovering', 'analyzing', 'saving', 'success', 'error'];
 const documentStepKeys = ['copy_source', 'convert_markdown', 'build_blocks', 'extract_first_items', 'extract_supplement_items', 'merge_candidates', 'match_batches', 'recover_missing', 'save_result'];
 const stepStatuses = ['idle', 'running', 'success', 'error'];
-function now() {
-  return new Date().toISOString();
-}
 
 function createId(prefix) {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -28,23 +26,6 @@ function normalizeStepStatus(value) {
 
 function normalizeDropPosition(value) {
   return value === 'before' ? 'before' : 'after';
-}
-
-function safeJsonParse(value, fallback) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function jsonOrNull(value) {
-  return value === undefined || value === null ? null : JSON.stringify(value);
-}
-
-function hasOwn(object, key) {
-  return Object.prototype.hasOwnProperty.call(object || {}, key);
 }
 
 function stableHash(content) {

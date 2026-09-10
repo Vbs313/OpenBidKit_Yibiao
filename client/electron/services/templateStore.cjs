@@ -1,8 +1,5 @@
 const crypto = require('node:crypto');
-
-function now() {
-  return new Date().toISOString();
-}
+const { now } = require('./storeUtils.cjs');
 
 function createTemplateId() {
   return `tpl-${crypto.randomUUID()}`;

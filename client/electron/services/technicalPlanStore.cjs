@@ -24,6 +24,7 @@ const {
   TEMPLATE_EXTRACTION_AGENT_TASK_KEY,
 } = require('./outlineGenerationAgentV2Config.cjs');
 const { GLOBAL_FACTS_AGENT_TASK_KEY } = require('./globalFactsAgentV2Config.cjs');
+const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
 
 const tenderMarkdownRelativePath = path.join('technical-plan', 'tender.md').replace(/\\/g, '/');
 const tenderOriginalMarkdownRelativePath = path.join('technical-plan', 'tender-original.md').replace(/\\/g, '/');
@@ -107,29 +108,8 @@ function appendImportFailureParts(messageParts, errors) {
   messageParts.push(failed.join('；'));
 }
 
-function now() {
-  return new Date().toISOString();
-}
-
-function hasOwn(value, field) {
-  return Object.prototype.hasOwnProperty.call(value || {}, field);
-}
-
 function isEmptyObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0);
-}
-
-function safeJsonParse(value, fallback) {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function jsonOrNull(value) {
-  return value === undefined || value === null ? null : JSON.stringify(value);
 }
 
 function stableHash(content) {
