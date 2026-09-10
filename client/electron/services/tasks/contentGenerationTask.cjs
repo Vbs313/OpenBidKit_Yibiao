@@ -1,6 +1,5 @@
 const crypto = require('node:crypto');
 const { AI_QUEUE_SCOPE_PAUSED } = require('./../../utils/aiRequestQueue.cjs');
-const { createNoopDeveloperLogger } = require('./../../utils/developerLog.cjs');
 const {
   ILLUSTRATION_PLAN_VERSION,
   buildIllustrationPlanningContext,
@@ -17,7 +16,6 @@ const {
   stripGeneratedIllustrationsFromDocument,
 } = require('./../contentIllustrationGeneration.cjs');
 const { applyRangeEdits, findTextMatches } = require('./../../utils/textEdit.cjs');
-const { countReadableWords } = require('./../../utils/wordCount.cjs');
 const {
   validateContentPlan,
   validateOriginalRestoreAssignments,
@@ -86,6 +84,18 @@ const {
 } = require('./generation/tableExtraction.cjs');
 
 const {
+  AGENT_CONTEXT_THRESHOLD_RATIO,
+  getMessagesContentLength,
+  getTextContextLengthLimit,
+  shouldUseAgentForMessages,
+  normalizeContentConcurrency,
+  normalizeImageConcurrency,
+  isDeveloperModeEnabled,
+  createContentDeveloperLogger,
+  countContentWords,
+} = require('./generation/aiCallContext.cjs');
+
+const {
   buildContentFactCompletenessInstruction,
   appendSelectedFactsMessage,
   buildTableCleanupMessages,
@@ -119,7 +129,6 @@ const {
   normalizeConsistencyRepairMode,
   normalizeOriginalPlanCoverageRepairMode,
   normalizeOutlineWordControlSnapshot,
-  normalizePositiveInteger,
   normalizeOriginalMaterial,
   normalizeContentPlan,
   normalizeTableCleanupResponse,
@@ -158,10 +167,6 @@ const {
   pickDistributedTableTargets,
 } = require('./generation/markdownTables.cjs');
 
-const DEFAULT_CONTEXT_LENGTH_LIMIT = 400000;
-const AGENT_CONTEXT_THRESHOLD_RATIO = 0.7;
-const DEFAULT_TEXT_CONCURRENCY_LIMIT = 10;
-const DEFAULT_IMAGE_CONCURRENCY_LIMIT = 2;
 const INTERRUPTED_SECTION_ERROR = '上次生成被中断，请继续生成。';
 const MAX_WORD_ADJUSTMENT_ROUNDS = 3;
 // 全文扩写不限制有效轮数，仅在连续多轮没有增加字数时退出。
@@ -213,72 +218,6 @@ function computeGenerationWordTarget(wordControl, leafCount) {
   const derived = Math.floor((wordControl.maximumWords * GENERATION_WORD_TARGET_RATIO) / leafCount);
   // 不低于小节下限，避免倒推目标把 AI 引导到强控范围之外。
   return Math.max(wordControl.sectionMinimumWords, derived);
-}
-
-
-function getMessageContentLength(content) {
-  if (typeof content === 'string') {
-    return content.length;
-  }
-  if (Array.isArray(content)) {
-    return content.reduce((sum, item) => sum + getMessageContentLength(item?.text ?? item?.content ?? item), 0);
-  }
-  if (content === undefined || content === null) {
-    return 0;
-  }
-  return JSON.stringify(content).length;
-}
-
-function getMessagesContentLength(messages) {
-  return (Array.isArray(messages) ? messages : []).reduce((sum, message) => (
-    sum + String(message?.role || '').length + getMessageContentLength(message?.content)
-  ), 0);
-}
-
-function getTextContextLengthLimit(aiService) {
-  let config = {};
-  try {
-    config = aiService?.getConfig?.() || {};
-  } catch {
-    config = {};
-  }
-  return normalizePositiveInteger(config.context_length_limit, DEFAULT_CONTEXT_LENGTH_LIMIT);
-}
-
-function shouldUseAgentForMessages(aiService, messages) {
-  const contextLengthLimit = getTextContextLengthLimit(aiService);
-  return getMessagesContentLength(messages) > Math.floor(contextLengthLimit * AGENT_CONTEXT_THRESHOLD_RATIO);
-}
-
-function normalizeContentConcurrency(value) {
-  const concurrency = Number(value);
-  return Math.max(1, Number.isFinite(concurrency) ? Math.round(concurrency) : DEFAULT_TEXT_CONCURRENCY_LIMIT);
-}
-
-function normalizeImageConcurrency(value) {
-  const concurrency = Number(value);
-  return Math.max(1, Number.isFinite(concurrency) ? Math.round(concurrency) : DEFAULT_IMAGE_CONCURRENCY_LIMIT);
-}
-
-function isDeveloperModeEnabled(aiService) {
-  try {
-    return Boolean(aiService?.isDeveloperMode?.());
-  } catch {
-    return false;
-  }
-}
-
-
-function createContentDeveloperLogger(aiService, request) {
-  try {
-    return aiService?.createTechnicalPlanDeveloperLogger?.(request) || createNoopDeveloperLogger();
-  } catch {
-    return createNoopDeveloperLogger();
-  }
-}
-
-function countContentWords(content) {
-  return countReadableWords(String(content || ''));
 }
 
 
