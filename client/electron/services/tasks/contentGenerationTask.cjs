@@ -128,6 +128,7 @@ const {
   getTotalWordDirection,
   buildTotalWordAdjustmentBatch,
 } = require('./generation/wordBatching.cjs');
+const { createContentWordStats } = require('./generation/contentWordStats.cjs');
 
 const { TABLE_REQUIREMENT_LABELS } = require('./generation/markdownTables.cjs');
 const {
@@ -752,64 +753,37 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
   allowedKnowledgeItemIds = new Set(knowledgeItems.map((item) => item.id));
   knowledgeContentMap = knowledgeReferences.contentMap;
 
-  function getLeafContentForWords(item) {
-    const section = sections[item.id];
-    if (section?.status === 'ignored') return '';
-    return section && Object.prototype.hasOwnProperty.call(section, 'content')
-      ? section.content || ''
-      : item.content || '';
-  }
 
   const contentWordCounts = new Map();
   const generationCompletedItemIds = new Set();
   let totalContentWords = 0;
 
+  // 正文可读字数统计：状态与读取入口显式注入，实现见 generation/contentWordStats.cjs。
+  const {
+    getLeafContentForWords,
+    updateContentWordCount,
+    rebuildContentWordCounts,
+    getLeafWordCount,
+    countTotalContentWords,
+    leafWordStats,
+    statsSnapshot,
+  } = createContentWordStats({
+    contentStats,
+    wordControl,
+    contentWordCounts,
+    generationCompletedItemIds,
+    getLeaves: () => leaves,
+    getSections: () => sections,
+    getTotalContentWords: () => totalContentWords,
+    setTotalContentWords: (value) => {
+      totalContentWords = value;
+    },
+  });
+
   // 更新单个小节字数及全文累计字数。
-  function updateContentWordCount(itemId, content) {
-    const previousWords = contentWordCounts.get(itemId) || 0;
-    const nextWords = countContentWords(content);
-    contentWordCounts.set(itemId, nextWords);
-    totalContentWords += nextWords - previousWords;
-    return nextWords;
-  }
 
   // 正文整体替换后重建内存字数索引。
-  function rebuildContentWordCounts() {
-    contentWordCounts.clear();
-    totalContentWords = 0;
-    for (const { item } of leaves) {
-      updateContentWordCount(item.id, getLeafContentForWords(item));
-    }
-  }
 
-  function getLeafWordCount(item) {
-    return contentWordCounts.get(item.id) || 0;
-  }
-
-  rebuildContentWordCounts();
-
-  function countTotalContentWords() {
-    return totalContentWords;
-  }
-
-  function leafWordStats() {
-    return leaves.map((context) => ({
-      ...context,
-      content: getLeafContentForWords(context.item),
-      words: getLeafWordCount(context.item),
-    }));
-  }
-
-  function statsSnapshot() {
-    contentStats.generation_completed = generationCompletedItemIds.size;
-    contentStats.current_words = countTotalContentWords();
-    contentStats.minimum_words = wordControl.minimumWords;
-    contentStats.maximum_words = wordControl.maximumWords;
-    contentStats.section_words = wordControl.sectionWords;
-    contentStats.strict_section_words = wordControl.strictSectionWords;
-    contentStats.ignored_section_count = leaves.filter(({ item }) => sections[item.id]?.status === 'ignored').length;
-    return { content: { ...contentStats } };
-  }
 
   function markGenerationCompleted(itemId) {
     if (itemId) generationCompletedItemIds.add(itemId);
