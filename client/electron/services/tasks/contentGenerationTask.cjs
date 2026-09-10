@@ -27,6 +27,16 @@ const {
 } = require('./generation/validators.cjs');
 
 const {
+  progressFor,
+  clampPercentage,
+  percentageFor,
+  buildContentPhaseProgress,
+  buildContentOverallProgress,
+  taskStatusFor,
+  isUnresolvedContentSection,
+} = require('./generation/progress.cjs');
+
+const {
   buildContentFactCompletenessInstruction,
   appendSelectedFactsMessage,
   buildSectionWordRequirement,
@@ -165,27 +175,10 @@ function createContentGenerationPausedError() {
 }
 
 
-
-
 function withFactCompletenessInstruction(text, mode) {
   const extra = buildContentFactCompletenessInstruction(mode);
   return extra ? `${text}\n\n${extra}` : text;
 }
-
-
-function appendGlobalFactsMessage(messages, globalFactsText) {
-  const content = String(globalFactsText || '').trim();
-  if (!content) return;
-  messages.push({
-    role: 'user',
-    content: `全局事实变量（正文涉及时优先使用这些变量值，避免各章节随机变化）：\n${content}`,
-  });
-}
-
-
-
-
-
 
 
 function resolveGlobalFactsByTitles(titles, globalFacts) {
@@ -205,7 +198,6 @@ function hasFactSelection(value) {
     || Object.prototype.hasOwnProperty.call(source || {}, 'global_fact_titles')
     || Object.prototype.hasOwnProperty.call(source || {}, 'globalFactTitles');
 }
-
 
 
 function collectFencedCodeRanges(content) {
@@ -239,7 +231,6 @@ function collectFencedCodeRanges(content) {
   }
   return ranges;
 }
-
 
 
 function isMarkdownTableSeparator(line) {
@@ -341,10 +332,6 @@ function createTableCleanupBatches(tables) {
 }
 
 
-
-
-
-
 // 按全文上限倒推每小节生成目标：留出折扣缓冲，避免所有小节都顶着预设字数生成导致初稿总量系统性超上限。
 // 仅在启用强控小节字数且设置了全文上限时生效，其余情况返回 0 表示沿用预设字数。
 function computeGenerationWordTarget(wordControl, leafCount) {
@@ -354,7 +341,6 @@ function computeGenerationWordTarget(wordControl, leafCount) {
   // 不低于小节下限，避免倒推目标把 AI 引导到强控范围之外。
   return Math.max(wordControl.sectionMinimumWords, derived);
 }
-
 
 
 function getMessageContentLength(content) {
@@ -434,10 +420,6 @@ function countContentWords(content) {
 }
 
 
-
-
-
-
 function createStoredContentPlan(plan, tableRequirement) {
   const normalizedTableRequirement = tableRequirement ? normalizeTableRequirement(tableRequirement) : '';
   return {
@@ -514,11 +496,6 @@ function pruneContentGenerationPlans(plans, leaves) {
   }
   return next;
 }
-
-
-
-
-
 
 
 function renderKnowledgeItemsForPrompt(items) {
@@ -619,8 +596,6 @@ JSON 格式：
 }
 
 
-
-
 function splitLongOriginalSegment(segment) {
   const content = String(segment.content || '').trim();
   if (!content) return [];
@@ -678,8 +653,6 @@ function splitOriginalPlanSegments(markdown) {
 
   return segments;
 }
-
-
 
 
 function buildAgentOriginalMaterialRestorePrompt() {
@@ -793,14 +766,6 @@ ${buildSectionWordRequirement(wordControl, true, generationTarget) || '不控制
 }
 
 
-
-
-
-
-
-
-
-
 function parseAgentJsonContent(content) {
   const normalized = String(content || '').replace(/^\uFEFF/, '').trim();
   const candidates = [
@@ -821,8 +786,6 @@ function parseAgentJsonContent(content) {
 
   throw new Error(`Agent 未返回可解析的 JSON：${lastError?.message || '内容为空'}`);
 }
-
-
 
 
 function formatContentWithLineNumbers(content) {
@@ -1019,10 +982,6 @@ function applyConsistencyRepairPatches(content, patches) {
 }
 
 
-
-
-
-
 function buildConsistencyRepairMessages({ context, conflicts, globalFactsText, bidAnalysisFactsText, currentContent, attempt, failures, tableRequirement, globalFactsMode }) {
   const { item } = context;
   const tableAllowed = normalizeTableRequirement(tableRequirement) !== 'none';
@@ -1071,8 +1030,6 @@ function buildConsistencyRepairMessages({ context, conflicts, globalFactsText, b
 }
 
 
-
-
 const ORIGINAL_COVERAGE_STATUSES = new Set(['covered', 'partial', 'missing', 'conflict']);
 
 function normalizeOriginalCoverageStatus(value) {
@@ -1084,7 +1041,6 @@ function normalizeOriginalCoverageStatus(value) {
   if (['冲突', '矛盾', '不一致'].includes(text)) return 'conflict';
   return text;
 }
-
 
 
 function normalizeOriginalCoverageAuditResponse(value, context = {}) {
@@ -1397,11 +1353,6 @@ function applyContentExpansionPatch(content, patch) {
 }
 
 
-
-
-
-
-
 function validateWordAdjustmentResponse(value) {
   if (!['expand', 'shrink'].includes(value?.mode)) throw new Error('字数调整 mode 只能是 expand 或 shrink');
   if (!['paragraph', 'sentence'].includes(value?.granularity)) throw new Error('字数调整 granularity 只能是 paragraph 或 sentence');
@@ -1421,7 +1372,6 @@ function validateWordAdjustmentResponse(value) {
     }
   }
 }
-
 
 
 function collectProtectedContentRanges(content) {
@@ -1516,23 +1466,6 @@ function selectRandomItemIds(itemIds, count) {
 }
 
 
-function orderExpansionCandidates(candidates) {
-  if (!candidates.length) return [];
-
-  const middle = Math.floor(candidates.length / 2);
-  const ordered = [candidates[middle]];
-  const maxOffset = Math.max(middle, candidates.length - 1 - middle);
-  for (let offset = 1; offset <= maxOffset; offset += 1) {
-    if (middle - offset >= 0) {
-      ordered.push(candidates[middle - offset]);
-    }
-    if (middle + offset < candidates.length) {
-      ordered.push(candidates[middle + offset]);
-    }
-  }
-  return ordered;
-}
-
 async function runWorkerPool({ limit, getNextItem, worker, shouldStop, onItemStart, onItemComplete }) {
   const workerCount = Math.max(1, Math.floor(Number(limit) || 1));
   let activeCount = 0;
@@ -1617,215 +1550,13 @@ function createInitialSections(leaves, existingSections) {
   return next;
 }
 
-function progressFor(leaves, sections) {
-  if (!leaves.length) {
-    return 0;
-  }
-
-  const done = leaves.filter(({ item }) => ['success', 'error', 'ignored'].includes(sections[item.id]?.status)).length;
-  return Math.round((done / leaves.length) * 100);
-}
-
-const CONTENT_PHASE_LABELS = {
-  planning: '正文编排',
-  restoring: '原方案还原',
-  generating: '正文生成',
-  'section-word-adjusting': '小节字数调整',
-  'original-auditing': '原方案覆盖检查',
-  auditing: '全文一致性检查',
-  'table-cleaning': '表格清理',
-  'final-section-word-adjusting': '最终小节复核',
-  'total-word-adjusting': '全文字数调整',
-  'illustration-planning': '全文图片编排',
-  'illustration-generating': '全文图片生成',
-  done: '已完成',
-};
-
-const CONTENT_PROGRESS_PROFILES = {
-  full: {
-    planning: [0, 12],
-    restoring: [12, 18],
-    generating: [18, 58],
-    'section-word-adjusting': [58, 66],
-    'original-auditing': [66, 73],
-    auditing: [73, 81],
-    'table-cleaning': [81, 85],
-    'final-section-word-adjusting': [85, 90],
-    'total-word-adjusting': [90, 95],
-    'illustration-planning': [95, 98],
-    'illustration-generating': [98, 99],
-    done: [100, 100],
-  },
-  single: {
-    planning: [0, 15],
-    restoring: [15, 25],
-    generating: [25, 65],
-    'original-auditing': [65, 75],
-    auditing: [75, 85],
-    'table-cleaning': [85, 90],
-    'section-word-adjusting': [90, 99],
-    done: [100, 100],
-  },
-  correction: {
-    'original-auditing': [0, 18],
-    auditing: [18, 42],
-    'table-cleaning': [42, 50],
-    'final-section-word-adjusting': [50, 68],
-    'total-word-adjusting': [68, 85],
-    'illustration-planning': [85, 94],
-    'illustration-generating': [94, 99],
-    done: [100, 100],
-  },
-  illustration: {
-    'illustration-planning': [0, 65],
-    'illustration-generating': [65, 99],
-    done: [100, 100],
-  },
-  'illustration-generation': {
-    'illustration-generating': [0, 99],
-    done: [100, 100],
-  },
-};
-
-function clampPercentage(value) {
-  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
-}
-
-function percentageFor(completed, total) {
-  const normalizedTotal = Math.max(0, Number(total) || 0);
-  if (!normalizedTotal) return 0;
-  return clampPercentage((Math.max(0, Number(completed) || 0) / normalizedTotal) * 100);
-}
 
 // 将当前正文子阶段的计数统一为插件和 Renderer 可直接消费的进度明细。
-function buildContentPhaseProgress(contentStats, latestLog = '', progressMode = 'full') {
-  const stats = contentStats || {};
-  const phase = stats.phase || 'planning';
-  const phaseLabel = CONTENT_PHASE_LABELS[phase] || '正文生成';
-  let step = phase;
-  let stepLabel = latestLog || phaseLabel;
-  let completed = 0;
-  let total = 0;
-  let phaseProgress = 0;
-
-  if (phase === 'planning') {
-    completed = stats.planning_completed;
-    total = stats.planning_total;
-    phaseProgress = percentageFor(completed, total);
-  } else if (phase === 'restoring') {
-    completed = stats.restoration_completed;
-    total = stats.restoration_total;
-    phaseProgress = percentageFor(completed, total);
-  } else if (phase === 'generating') {
-    completed = stats.generation_completed;
-    total = stats.generation_total;
-    phaseProgress = percentageFor(completed, total);
-  } else if (phase === 'section-word-adjusting' || phase === 'final-section-word-adjusting') {
-    completed = Math.max(0, Number(stats.section_adjustment_completed) || 0);
-    total = Math.max(0, Number(stats.section_adjustment_total) || 0);
-    const activeCount = Math.min(Math.max(0, total - completed), Math.max(0, Number(stats.section_adjustment_active_count) || 0));
-    const roundProgress = percentageFor(stats.section_adjustment_round, stats.section_adjustment_round_total) / 100;
-    phaseProgress = total ? percentageFor(completed + activeCount * roundProgress, total) : 0;
-    step = 'adjusting';
-  } else if (phase === 'original-auditing' || phase === 'auditing') {
-    const agentTotal = Math.max(0, Number(stats.audit_agent_step_total) || 0);
-    const fixTotal = Math.max(0, Number(stats.audit_fix_total) || 0);
-    if (stats.audit_step === 'done') {
-      completed = 1;
-      total = 1;
-      phaseProgress = 100;
-      step = 'done';
-    } else if (agentTotal || stats.audit_step === 'agent') {
-      completed = stats.audit_agent_step_completed;
-      total = agentTotal;
-      phaseProgress = percentageFor(completed, total);
-      step = 'agent';
-      stepLabel = stats.audit_agent_step_label || stepLabel;
-    } else if (stats.audit_step === 'fixing') {
-      completed = stats.audit_fix_completed;
-      total = fixTotal;
-      phaseProgress = fixTotal ? clampPercentage(45 + percentageFor(completed, total) * 0.55) : 100;
-      step = 'fixing';
-    } else {
-      completed = stats.audit_group_completed;
-      total = stats.audit_group_total;
-      phaseProgress = clampPercentage(percentageFor(completed, total) * 0.45);
-      step = 'checking';
-    }
-  } else if (phase === 'table-cleaning') {
-    completed = stats.table_cleanup_completed;
-    total = stats.table_cleanup_total;
-    phaseProgress = percentageFor(completed, total);
-    step = 'cleaning';
-  } else if (phase === 'total-word-adjusting') {
-    if (stats.total_adjustment_mode === 'expand') {
-      const minimumWords = Math.max(0, Number(stats.minimum_words) || 0);
-      const currentWords = Math.max(0, Number(stats.current_words) || 0);
-      completed = Math.min(currentWords, minimumWords);
-      total = minimumWords;
-      phaseProgress = percentageFor(completed, total);
-    } else {
-      const round = Math.max(1, Number(stats.total_adjustment_round) || 1);
-      const roundTotal = Math.max(1, Number(stats.total_adjustment_round_total) || 1);
-      completed = stats.total_adjustment_batch_completed;
-      total = stats.total_adjustment_batch_total;
-      const batchProgress = total ? Math.max(0, Number(completed) || 0) / Math.max(1, Number(total) || 1) : 0;
-      phaseProgress = clampPercentage((((round - 1) + batchProgress) / roundTotal) * 100);
-    }
-    step = 'adjusting';
-  } else if (phase === 'illustration-planning') {
-    completed = stats.illustration_planning_step_completed;
-    total = stats.illustration_planning_step_total;
-    phaseProgress = percentageFor(completed, total);
-    step = 'planning';
-    stepLabel = stats.illustration_planning_step_label || stepLabel;
-  } else if (phase === 'illustration-generating') {
-    completed = stats.illustration_generation_completed;
-    total = stats.illustration_generation_total;
-    phaseProgress = percentageFor(completed, total);
-    step = 'generating';
-    stepLabel = stats.illustration_generation_step_label || stepLabel;
-  } else if (phase === 'done') {
-    completed = 1;
-    total = 1;
-    phaseProgress = 100;
-    step = 'done';
-  }
-
-  return {
-    mode: progressMode,
-    phase,
-    phase_label: phaseLabel,
-    phase_progress: phaseProgress,
-    completed: Math.max(0, Number(completed) || 0),
-    total: Math.max(0, Number(total) || 0),
-    step,
-    step_label: stepLabel,
-  };
-}
 
 // 按当前任务模式把阶段内进度映射为单调递增的 Step05 累计进度。
-function buildContentOverallProgress(progressMode, detail, status) {
-  if (status === 'success' || detail.phase === 'done') return 100;
-  const profile = CONTENT_PROGRESS_PROFILES[progressMode] || CONTENT_PROGRESS_PROFILES.full;
-  const range = profile[detail.phase];
-  if (!range) return 0;
-  const [start, end] = range;
-  return Math.min(99, Math.round(start + ((end - start) * detail.phase_progress) / 100));
-}
 
-function taskStatusFor(leaves, sections) {
-  if (leaves.some(({ item }) => isUnresolvedContentSection(sections[item.id]))) {
-    return 'error';
-  }
-
-  return 'success';
-}
 
 // 后续流程开始前，正文小节只能是已成功或用户明确忽略。
-function isUnresolvedContentSection(section) {
-  return section?.status !== 'success' && section?.status !== 'ignored';
-}
 
 
 function withSection(sections, item, partial) {
