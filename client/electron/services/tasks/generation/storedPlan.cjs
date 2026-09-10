@@ -10,6 +10,8 @@ const GENERATION_WORD_TARGET_RATIO = 0.8;
 
 const CONTENT_PLAN_VERSION = 4;
 
+// 按全文上限倒推每小节生成目标：留出折扣缓冲，避免所有小节都顶着预设字数生成导致初稿总量系统性超上限。
+// 仅在启用强控小节字数且设置了全文上限时生效，其余情况返回 0 表示沿用预设字数。
 function computeGenerationWordTarget(wordControl, leafCount) {
   if (!wordControl.strictSectionWords) return 0;
   if (!(wordControl.maximumWords > 0) || !(leafCount > 0)) return 0;

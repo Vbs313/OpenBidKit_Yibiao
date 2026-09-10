@@ -81,6 +81,7 @@ function percentageFor(completed, total) {
   return clampPercentage((Math.max(0, Number(completed) || 0) / normalizedTotal) * 100);
 }
 
+// 将当前正文子阶段的计数统一为插件和 Renderer 可直接消费的进度明细。
 function buildContentPhaseProgress(contentStats, latestLog = '', progressMode = 'full') {
   const stats = contentStats || {};
   const phase = stats.phase || 'planning';
@@ -187,6 +188,7 @@ function buildContentPhaseProgress(contentStats, latestLog = '', progressMode = 
   };
 }
 
+// 按当前任务模式把阶段内进度映射为单调递增的 Step05 累计进度。
 function buildContentOverallProgress(progressMode, detail, status) {
   if (status === 'success' || detail.phase === 'done') return 100;
   const profile = CONTENT_PROGRESS_PROFILES[progressMode] || CONTENT_PROGRESS_PROFILES.full;
@@ -204,6 +206,7 @@ function taskStatusFor(leaves, sections) {
   return 'success';
 }
 
+// 后续流程开始前，正文小节只能是已成功或用户明确忽略。
 function isUnresolvedContentSection(section) {
   return section?.status !== 'success' && section?.status !== 'ignored';
 }

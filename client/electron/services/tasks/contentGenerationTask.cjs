@@ -1,5 +1,3 @@
-const crypto = require('node:crypto');
-const { AI_QUEUE_SCOPE_PAUSED } = require('./../../utils/aiRequestQueue.cjs');
 const {
   ILLUSTRATION_PLAN_VERSION,
   buildIllustrationPlanningContext,
@@ -108,6 +106,17 @@ const {
 } = require('./generation/wordAdjustment.cjs');
 
 const {
+  isAiQueueScopePausedError,
+  isContentGenerationPausedError,
+  isPauseLikeError,
+  createContentGenerationPausedError,
+  selectRandomItemIds,
+  runItemsWithWorkerPool,
+  createInitialSections,
+  withSection,
+} = require('./generation/taskRuntime.cjs');
+
+const {
   buildContentFactCompletenessInstruction,
   appendSelectedFactsMessage,
   buildTableCleanupMessages,
@@ -178,7 +187,6 @@ const {
   pickDistributedTableTargets,
 } = require('./generation/markdownTables.cjs');
 
-const INTERRUPTED_SECTION_ERROR = '上次生成被中断，请继续生成。';
 const MAX_WORD_ADJUSTMENT_ROUNDS = 3;
 // 全文扩写不限制有效轮数，仅在连续多轮没有增加字数时退出。
 const MAX_EXPANSION_NO_PROGRESS_ROUNDS = 3;
@@ -192,35 +200,12 @@ const CONTENT_WORD_CONTROL_WARNING = '经多轮修复，字数仍未达预期，
 const SECTION_WORD_CONTROL_WARNING = '字数未达预期，请您人工核对';
 const CONSISTENCY_AUDIT_GROUP_WORD_LIMIT = 300000;
 const CONSISTENCY_REPAIR_MAX_ATTEMPTS = 2;
-const CONTENT_GENERATION_PAUSED = 'CONTENT_GENERATION_PAUSED';
 const TABLE_REQUIREMENT_LABELS = {
   none: '不要',
   light: '少量',
   moderate: '适中',
   heavy: '大量',
 };
-
-function isAiQueueScopePausedError(error) {
-  return error?.code === AI_QUEUE_SCOPE_PAUSED;
-}
-
-function isContentGenerationPausedError(error) {
-  return error?.code === CONTENT_GENERATION_PAUSED;
-}
-
-function isPauseLikeError(error) {
-  return isContentGenerationPausedError(error) || isAiQueueScopePausedError(error);
-}
-
-function createContentGenerationPausedError() {
-  const error = new Error(CONTENT_GENERATION_PAUSED);
-  error.code = CONTENT_GENERATION_PAUSED;
-  return error;
-}
-
-
-// 按全文上限倒推每小节生成目标：留出折扣缓冲，避免所有小节都顶着预设字数生成导致初稿总量系统性超上限。
-// 仅在启用强控小节字数且设置了全文上限时生效，其余情况返回 0 表示沿用预设字数。
 
 
 function renderKnowledgeItemsForPrompt(items) {
@@ -385,123 +370,7 @@ function countRetainedTablePlans(plans, excludedItemIds) {
 
 
 // 从待生成小节中无放回随机选取开发者模拟失败目标。
-function selectRandomItemIds(itemIds, count) {
-  const candidates = [...itemIds];
-  for (let index = candidates.length - 1; index > 0; index -= 1) {
-    const targetIndex = crypto.randomInt(index + 1);
-    [candidates[index], candidates[targetIndex]] = [candidates[targetIndex], candidates[index]];
-  }
-  return candidates.slice(0, count);
-}
 
-
-async function runWorkerPool({ limit, getNextItem, worker, shouldStop, onItemStart, onItemComplete }) {
-  const workerCount = Math.max(1, Math.floor(Number(limit) || 1));
-  let activeCount = 0;
-  let firstError = null;
-
-  async function runWorker() {
-    while (true) {
-      if (firstError || shouldStop?.()) {
-        return;
-      }
-      const item = getNextItem();
-      if (!item) {
-        return;
-      }
-
-      activeCount += 1;
-      onItemStart?.(item, activeCount);
-      try {
-        const result = await worker(item);
-        activeCount -= 1;
-        await onItemComplete?.(item, result, activeCount);
-      } catch (error) {
-        activeCount -= 1;
-        if (!firstError) {
-          firstError = error;
-        }
-        return;
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: workerCount }, runWorker));
-  if (firstError) {
-    throw firstError;
-  }
-}
-
-async function runItemsWithWorkerPool(items, limit, worker, shouldStop) {
-  const workerCount = Math.min(Math.max(1, Math.floor(Number(limit) || 1)), Math.max(1, items.length));
-  let nextIndex = 0;
-
-  await runWorkerPool({
-    limit: workerCount,
-    shouldStop,
-    getNextItem() {
-      if (nextIndex >= items.length) {
-        return null;
-      }
-      const item = items[nextIndex];
-      nextIndex += 1;
-      return item;
-    },
-    worker,
-  });
-}
-
-function createInitialSections(leaves, existingSections) {
-  const next = { ...(existingSections || {}) };
-  const leafIds = new Set(leaves.map(({ item }) => item.id));
-
-  for (const key of Object.keys(next)) {
-    if (!leafIds.has(key)) {
-      delete next[key];
-    }
-  }
-
-  for (const { item } of leaves) {
-    const existing = next[item.id];
-    const interrupted = existing?.status === 'running';
-    const content = interrupted ? '' : existing?.content || item.content || '';
-    const existingStatus = interrupted ? 'error' : existing?.status;
-    next[item.id] = {
-      id: item.id,
-      title: item.title || '未命名章节',
-      status: existingStatus || (content.trim() ? 'success' : 'idle'),
-      content,
-      error: interrupted ? INTERRUPTED_SECTION_ERROR : existing?.error,
-      updated_at: existing?.updated_at,
-    };
-  }
-
-  return next;
-}
-
-
-// 将当前正文子阶段的计数统一为插件和 Renderer 可直接消费的进度明细。
-
-// 按当前任务模式把阶段内进度映射为单调递增的 Step05 累计进度。
-
-
-// 后续流程开始前，正文小节只能是已成功或用户明确忽略。
-
-
-function withSection(sections, item, partial) {
-  return {
-    ...(sections || {}),
-    [item.id]: {
-      id: item.id,
-      title: item.title || '未命名章节',
-      status: 'idle',
-      content: '',
-      ...(sections || {})[item.id],
-      ...partial,
-      updated_at: now(),
-    },
-  };
-}
 
 async function runContentGenerationTask({ aiService, agentService, workspaceStore, knowledgeBaseService, updateTask: updateManagedTask, checkpointTask: checkpointManagedTask, payload, taskControl, previousState }) {
   const resume = Boolean(payload.resume);
