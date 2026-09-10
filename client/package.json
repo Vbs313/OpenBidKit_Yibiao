@@ -22,6 +22,7 @@
     "smoke:electron-native": "electron scripts/electron-native-smoke.cjs",
     "smoke:compliance-checker": "electron scripts/compliance-checker-smoke.cjs",
     "smoke:compliance-ui": "electron scripts/compliance-ui-smoke.cjs",
+    "smoke:content-generation": "electron scripts/content-generation-smoke.cjs",
     "start": "electron ."
   },
   "build": {
