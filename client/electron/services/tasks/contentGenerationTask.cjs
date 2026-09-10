@@ -3129,18 +3129,54 @@ workspace 文件说明：
     return { ran: true, fixedCount, failedCount: contentStats.audit_fix_failed };
   }
 
+  // 阶段模块的注入门面：把会被重新赋值的闭包变量暴露成 getter/setter，
+  // 编排函数内部继续使用原来的裸变量，两者始终指向同一份状态。
+  // 后续把阶段搬到 generation/stages/ 时直接传 ctx 即可，不必改动上面的代码。
+  const ctx = {
+    get outlineData() { return outlineData; },
+    set outlineData(value) { outlineData = value; },
+    get originalPlanMarkdown() { return originalPlanMarkdown; },
+    set originalPlanMarkdown(value) { originalPlanMarkdown = value; },
+    get originalPlanSegments() { return originalPlanSegments; },
+    set originalPlanSegments(value) { originalPlanSegments = value; },
+    get contentRuntime() { return contentRuntime; },
+    set contentRuntime(value) { contentRuntime = value; },
+    get leaves() { return leaves; },
+    set leaves(value) { leaves = value; },
+    get maxTables() { return maxTables; },
+    set maxTables(value) { maxTables = value; },
+    get storedContentPlans() { return storedContentPlans; },
+    set storedContentPlans(value) { storedContentPlans = value; },
+    get knowledgeItems() { return knowledgeItems; },
+    set knowledgeItems(value) { knowledgeItems = value; },
+    get allowedKnowledgeItemIds() { return allowedKnowledgeItemIds; },
+    set allowedKnowledgeItemIds(value) { allowedKnowledgeItemIds = value; },
+    get knowledgeContentMap() { return knowledgeContentMap; },
+    set knowledgeContentMap(value) { knowledgeContentMap = value; },
+    get sections() { return sections; },
+    set sections(value) { sections = value; },
+    get tasksToRun() { return tasksToRun; },
+    set tasksToRun(value) { tasksToRun = value; },
+    get runLimits() { return runLimits; },
+    set runLimits(value) { runLimits = value; },
+    get logs() { return logs; },
+    set logs(value) { logs = value; },
+    get lastTaskProgress() { return lastTaskProgress; },
+    set lastTaskProgress(value) { lastTaskProgress = value; },
+    get totalContentWords() { return totalContentWords; },
+    set totalContentWords(value) { totalContentWords = value; },
+    appendLog(message) {
+      logs = [...logs, message];
+    },
+  };
+
   // 正文去表格子阶段：状态与副作用显式注入，实现见 generation/stages/tableCleanup.cjs。
   const { removeTablesBeforeIllustration } = createTableCleanupStage({
+    state: ctx,
     aiService,
     contentStats,
     tableRequirement,
     targetItemId,
-    getLeaves: () => leaves,
-    getSections: () => sections,
-    getLogs: () => logs,
-    appendLog: (message) => {
-      logs = [...logs, message];
-    },
     publishTaskUpdate,
     checkpointTask,
     syncRuntime,

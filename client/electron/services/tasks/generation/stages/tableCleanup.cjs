@@ -4,8 +4,8 @@
 //
 // deps 约定：
 //   aiService / contentStats / tableRequirement / targetItemId  直接读的对象或常量
-//   getLeaves() / getSections() / getLogs()                     读取会被重新赋值的闭包变量
-//   appendLog(message)                                          追加一行任务日志
+//   state.leaves / state.sections / state.logs                     读取会被重新赋值的闭包变量
+//   state.appendLog(message)                                          追加一行任务日志
 //   其余为任务运行时回调（进度、检查点、开发者日志、暂停、落盘）
 
 const { applyRangeEdits } = require('./../../../../utils/textEdit.cjs');
@@ -27,10 +27,7 @@ function createTableCleanupStage(deps) {
     contentStats,
     tableRequirement,
     targetItemId,
-    getLeaves,
-    getSections,
-    getLogs,
-    appendLog,
+
     publishTaskUpdate,
     checkpointTask,
     syncRuntime,
@@ -40,15 +37,16 @@ function createTableCleanupStage(deps) {
     rememberTouchedItem,
     saveSection,
   } = deps;
+  const { state } = deps;
 
   function getCurrentSuccessfulContent(item) {
-    const section = getSections()[item.id] || {};
+    const section = state.sections[item.id] || {};
     return section.status === 'success' ? String(section.content || '') : '';
   }
 
   function buildTableCleanupTargets(cleanupTargetItemId = '') {
     const normalizedTargetId = String(cleanupTargetItemId || '').trim();
-    return getLeaves()
+    return state.leaves
       .filter(({ item }) => !normalizedTargetId || item.id === normalizedTargetId)
       .map((context) => {
         const content = getCurrentSuccessfulContent(context.item);
@@ -119,7 +117,7 @@ function createTableCleanupStage(deps) {
         skippedCount += missingCount;
         if (!edits.length) {
           contentStats.table_cleanup_completed += batch.length;
-          publishTaskUpdate({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() });
+          publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
           continue;
         }
 
@@ -136,7 +134,7 @@ function createTableCleanupStage(deps) {
           rewrittenCount += editResult.edits.length;
           contentStats.table_cleanup_rewritten += editResult.edits.length;
           rememberTouchedItem(item.id);
-          saveSection(item, { status: 'success', content: currentContent, error: undefined }, currentContent, { logs: getLogs() });
+          saveSection(item, { status: 'success', content: currentContent, error: undefined }, currentContent, { logs: state.logs });
           writeDeveloperLog('table_cleanup.apply.success', {
             section_id: item.id,
             applied_count: editResult.edits.length,
@@ -145,14 +143,14 @@ function createTableCleanupStage(deps) {
           });
         }
         contentStats.table_cleanup_completed += batch.length;
-        publishTaskUpdate({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() });
+        publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
       } catch (error) {
         if (isPauseLikeError(error)) {
           throw error;
         }
         skippedCount += batch.length;
         contentStats.table_cleanup_completed += batch.length;
-        appendLog(`正文去表格跳过：${item.id} ${item.title || '未命名章节'}，${error.message || '模型返回无效'}。`);
+        state.appendLog(`正文去表格跳过：${item.id} ${item.title || '未命名章节'}，${error.message || '模型返回无效'}。`);
         writeDeveloperLog('table_cleanup.batch.error', {
           section_id: item.id,
           title: item.title || '未命名章节',
@@ -160,7 +158,7 @@ function createTableCleanupStage(deps) {
           error: error.message || '模型返回无效',
           stack: error.stack || '',
         });
-        publishTaskUpdate({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() });
+        publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
       }
     }
 
@@ -186,7 +184,7 @@ function createTableCleanupStage(deps) {
     contentStats.table_cleanup_rewritten = 0;
     contentStats.table_cleanup_skipped = 0;
     const runtime = syncRuntime({ phase: 'table-cleaning' });
-    checkpointTask({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() }, {
+    checkpointTask({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() }, {
       contentGenerationRuntime: runtime,
     }, { contentRuntime: runtime });
 
@@ -195,19 +193,19 @@ function createTableCleanupStage(deps) {
     contentStats.table_cleanup_total = tableTotal;
 
     if (!tableTotal) {
-      appendLog('正文去表格检查完成：未发现需要转换的表格。');
-      publishTaskUpdate({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() });
+      state.appendLog('正文去表格检查完成：未发现需要转换的表格。');
+      publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
       return { ran: true, rewrittenCount: 0, skippedCount: 0 };
     }
 
-    appendLog(`开始正文去表格：发现 ${targets.length} 个小节、${tableTotal} 个表格，将按小节并发转换为普通文字描述。`);
+    state.appendLog(`开始正文去表格：发现 ${targets.length} 个小节、${tableTotal} 个表格，将按小节并发转换为普通文字描述。`);
     writeDeveloperLog('table_cleanup.start', {
       target_item_id: options.targetItemId || targetItemId || '',
       section_count: targets.length,
       table_count: tableTotal,
       sections: targets.map(({ item, tables }) => ({ id: item.id, title: item.title || '未命名章节', table_count: tables.length })),
     });
-    publishTaskUpdate({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() });
+    publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
 
     let rewrittenCount = 0;
     let skippedCount = 0;
@@ -217,19 +215,19 @@ function createTableCleanupStage(deps) {
       rewrittenCount += result.rewrittenCount;
       skippedCount += result.skippedCount;
       contentStats.table_cleanup_skipped = skippedCount;
-      publishTaskUpdate({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() });
+      publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
     }));
     const rejected = settled.find((result) => result.status === 'rejected');
     if (rejected) throw rejected.reason;
 
     pauseIfRequested('正文生成已在去表格阶段暂停，可导出当前已完成内容，稍后继续。');
-    appendLog(`正文去表格完成：成功转换 ${rewrittenCount} 个表格，跳过 ${skippedCount} 个。`);
+    state.appendLog(`正文去表格完成：成功转换 ${rewrittenCount} 个表格，跳过 ${skippedCount} 个。`);
     writeDeveloperLog('table_cleanup.done', {
       table_count: tableTotal,
       rewritten_count: rewrittenCount,
       skipped_count: skippedCount,
     });
-    publishTaskUpdate({ status: 'running', progress: progressFor(getLeaves(), getSections()), logs: getLogs(), stats: statsSnapshot() });
+    publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
     return { ran: true, rewrittenCount, skippedCount };
   }
 

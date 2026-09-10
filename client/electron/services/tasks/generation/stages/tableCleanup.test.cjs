@@ -15,15 +15,19 @@ function makeStage(overrides = {}) {
     published: [],
     checkpoints: [],
   };
+  // 与编排函数里的 ctx 门面同形：每次属性访问都取当前值，不缓存快照。
+  const liveState = {
+    get leaves() { return state.leaves; },
+    get sections() { return state.sections; },
+    get logs() { return state.logs; },
+    appendLog: (message) => { state.logs.push(message); },
+  };
   const deps = {
+    state: liveState,
     aiService: { collectJsonResponse: async () => ({ replacements: [] }) },
     contentStats: {},
     tableRequirement: 'none',
     targetItemId: '',
-    getLeaves: () => state.leaves,
-    getSections: () => state.sections,
-    getLogs: () => state.logs,
-    appendLog: (message) => { state.logs.push(message); },
     publishTaskUpdate: (partial) => { state.published.push(partial); },
     checkpointTask: (...args) => { state.checkpoints.push(args); },
     syncRuntime: (partial) => ({ ...partial }),
