@@ -87,7 +87,22 @@ function pruneContentGenerationPlans(plans, leaves) {
   return next;
 }
 
+function countRetainedTablePlans(plans, excludedItemIds) {
+  let count = 0;
+  for (const [itemId, value] of Object.entries(plans || {})) {
+    if (excludedItemIds?.has(itemId)) {
+      continue;
+    }
+    const storedPlan = normalizeStoredContentPlan(value);
+    if (storedPlan?.plan?.table?.needed) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 module.exports = {
+  countRetainedTablePlans,
   computeGenerationWordTarget,
   createStoredContentPlan,
   normalizeStoredContentPlan,

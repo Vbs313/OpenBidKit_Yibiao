@@ -1,5 +1,7 @@
 // 章节内容/审计提示词构造：把章节、事实、知识等数据渲染成模型消息，纯函数，可单独测试。
+const { TABLE_REQUIREMENT_LABELS } = require('./markdownTables.cjs');
 const { formatTablesForCleanupPrompt } = require('./markdownTables.cjs');
+const { renderKnowledgeItemsForPrompt } = require('./promptBuilders.cjs');
 const { formatKnowledgeContentsForPrompt, formatContentPlanForPrompt, formatBidKeyInfoForPrompt, formatRestoreTargetsForPrompt, formatOriginalSegmentsForPrompt } = require('./promptBuilders.cjs');
 
 function buildContentFactCompletenessInstruction(mode) {
@@ -376,7 +378,97 @@ ${operationRules}
   ];
 }
 
+function buildChapterContentPlanMessages({ chapter, parentChapters, siblingChapters, projectOverview, bidAnalysisFactsText, globalFactTitlesText, regenerateRequirement, tableRequirement, maxTables, tableTotalSections, knowledgeItems }) {
+  const chapterId = chapter.id || 'unknown';
+  const chapterTitle = chapter.title || '未命名章节';
+  const chapterDescription = chapter.description || '';
+  const tableRequirementLabel = TABLE_REQUIREMENT_LABELS[tableRequirement] || TABLE_REQUIREMENT_LABELS.heavy;
+  const tablePlanningAllowed = tableRequirement !== 'none';
+  const tableLimitInstruction = tableRequirement === 'heavy'
+    ? '表格需求为“大量”，保持现有编排逻辑；仍然只有明显适合表格的小节才将 table.needed 设为 true。'
+    : tableRequirement === 'none'
+      ? '表格需求为“不要”，table.needed 必须为 false，table.purpose 留空。'
+      : `表格需求为“${tableRequirementLabel}”，table.needed 表示进入表格候选池，不代表最终一定生成；全文表格上限为 ${maxTables || 0} 个，共 ${tableTotalSections || 0} 个叶子小节，系统后续会全局择优。`;
+  const messages = [
+    {
+      role: 'system',
+      content: `你是投标技术方案正文编排助手。请根据章节上下文判断本小节最适合的表达方式。
+
+要求：
+1. 只返回 JSON，不要输出解释、总结或 Markdown。
+2. ${tablePlanningAllowed ? '由你自行判断是否适合使用表格，判断要克制、合情合理，不要为了形式而硬插。' : '本次不编排表格，table.needed 必须为 false。'}
+3. ${tableLimitInstruction}
+4. ${tablePlanningAllowed ? '表格仅在能明显提升表达清晰度时使用，例如归纳职责、步骤、参数、风险、措施、成果等。' : '不要为了满足 JSON 格式而编造表格目的。'}
+5. knowledge.item_ids 只能从参考知识库轻量条目的 id 中选择；可以多选，可以为空数组；不要编造 id，不要输出 reason。
+6. facts.titles 只能从全局事实变量标题清单中选择；请选择编写本章节正文时会用到的变量组标题，可以多选，可以为空数组；不要编造标题，不要输出具体变量内容。
+7. writing_focus 用 1-2 句话概括本节正文重点，只围绕当前章节标题和描述，不展开成正文，不编造具体承诺、参数、周期、品牌或型号。
+8. 编排判断必须结合招标文件关键信息和全局事实变量标题，不要规划会造成时间、地点、人员、设备、标准或服务承诺前后不一致的表达。`,
+    },
+  ];
+
+  messages.push({
+    role: 'user',
+    content: `参考知识库轻量条目（只包含 id、标题和简介，不包含正文；如无合适条目，knowledge.item_ids 返回空数组）：
+${renderKnowledgeItemsForPrompt(knowledgeItems)}`,
+  });
+
+  messages.push({ role: 'user', content: `招标文件关键信息（用于判断正文需要引用哪些事实）：\n${formatBidKeyInfoForPrompt(projectOverview, bidAnalysisFactsText)}` });
+  if (String(globalFactTitlesText || '').trim()) {
+    messages.push({ role: 'user', content: `Step04 全局事实变量标题清单（编排时只能选择标题，不要输出具体变量内容）：\n${globalFactTitlesText}` });
+  }
+
+  if (parentChapters?.length) {
+    messages.push({
+      role: 'user',
+      content: ['上级章节信息：', ...parentChapters.map((parent) => `- ${parent.id || 'unknown'} ${parent.title || '未命名章节'}\n  ${parent.description || ''}`)].join('\n'),
+    });
+  }
+
+  if (siblingChapters?.length) {
+    const siblingLines = ['同级章节信息：'];
+    for (const sibling of siblingChapters) {
+      if (sibling.id !== chapterId) {
+        siblingLines.push(`- ${sibling.id || 'unknown'} ${sibling.title || '未命名章节'}\n  ${sibling.description || ''}`);
+      }
+    }
+    if (siblingLines.length > 1) {
+      messages.push({ role: 'user', content: siblingLines.join('\n') });
+    }
+  }
+
+  if (String(regenerateRequirement || '').trim()) {
+    messages.push({ role: 'user', content: `用户对本次重新生成的额外要求：\n${regenerateRequirement}` });
+  }
+
+  messages.push({
+    role: 'user',
+    content: `请为以下章节返回正文编排 JSON：
+
+章节ID: ${chapterId}
+章节标题: ${chapterTitle}
+章节描述: ${chapterDescription}
+
+JSON 格式：
+{
+  "writing_focus": "1-2 句话说明本节正文重点展开什么，只聚焦当前章节，不写成正文",
+  "knowledge": {
+    "item_ids": ["从参考知识库轻量条目中选择的 id；没有合适条目时返回空数组"]
+  },
+  "facts": {
+    "titles": ["从全局事实变量标题清单中选择正文会用到的变量组标题；没有需要引用的变量时返回空数组"]
+  },
+  "table": {
+    "needed": true,
+    "purpose": "说明表格在本小节中要表达什么；不需要表格时留空"
+  }
+}`,
+  });
+
+  return messages;
+}
+
 module.exports = {
+  buildChapterContentPlanMessages,
   buildContentFactCompletenessInstruction,
   appendSelectedFactsMessage,
   buildSectionWordRequirement,

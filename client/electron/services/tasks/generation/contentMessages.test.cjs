@@ -83,3 +83,54 @@ test('表格转换 / 一致性审计 / 覆盖审计 / 字数调整消息结构�
   const adjust = M.buildWordAdjustmentMessages({ context: entry, currentContent: '正文', currentWords: 10, targetWords: 100, mode: 'expand', granularity: 'section', selectedFactsText: 'f', maximumChangeWords: 50, totalRemainingWords: 100, totalWords: 200, minimumWords: 100, maximumWords: 300, globalFactsMode: 'fabricate' });
   assertMessages(adjust, ['user'], /扩写/);
 });
+
+test('buildChapterContentPlanMessages 组装编排提示词', () => {
+  const messages = M.buildChapterContentPlanMessages({
+    chapter: { id: '1.1', title: '小节', description: '描述' },
+    parentChapters: [{ id: '1', title: '父章', description: '父描述' }],
+    siblingChapters: [{ id: '1.1', title: '小节' }, { id: '1.2', title: '同级' }],
+    projectOverview: '项目概述',
+    bidAnalysisFactsText: '事实',
+    globalFactTitlesText: '标题清单',
+    regenerateRequirement: '',
+    tableRequirement: 'moderate',
+    maxTables: 5,
+    tableTotalSections: 10,
+    knowledgeItems: [{ id: 'd1::i1', title: 'T1', resume: 'R1' }],
+  });
+  assert.equal(messages[0].role, 'system');
+  assert.ok(messages[0].content.includes('正文编排助手'));
+  const joined = messages.map((m) => m.content).join('\n');
+  assert.ok(joined.includes('全文表格上限为 5 个，共 10 个叶子小节'));
+  assert.ok(joined.includes('d1::i1'));
+  assert.ok(joined.includes('标题清单'));
+  assert.ok(joined.includes('同级'));
+  assert.ok(joined.includes('章节ID: 1.1'));
+});
+
+test('buildChapterContentPlanMessages 在 tableTotalSections 缺失时不再引用未定义变量', () => {
+  // 旧代码写成 tableTotalSections || totalSections || 0，而 totalSections 从未定义；
+  // 这里的 0 会走到那个分支，修复前必然抛 ReferenceError。
+  const build = (tableTotalSections) => M.buildChapterContentPlanMessages({
+    chapter: { id: '1.1', title: '小节' },
+    projectOverview: '',
+    bidAnalysisFactsText: '',
+    tableRequirement: 'moderate',
+    maxTables: 3,
+    tableTotalSections,
+    knowledgeItems: [],
+  });
+  assert.doesNotThrow(() => build(0));
+  assert.ok(build(0).map((m) => m.content).join('\n').includes('共 0 个叶子小节'));
+  assert.doesNotThrow(() => build(undefined));
+  assert.ok(build(undefined).map((m) => m.content).join('\n').includes('共 0 个叶子小节'));
+});
+
+test('buildChapterContentPlanMessages 大量/不要两种需求给出不同指令', () => {
+  const base = { chapter: { id: '1.1', title: '小节' }, projectOverview: '', bidAnalysisFactsText: '', knowledgeItems: [] };
+  const heavy = M.buildChapterContentPlanMessages({ ...base, tableRequirement: 'heavy', maxTables: 3, tableTotalSections: 3 });
+  assert.ok(heavy[0].content.includes('表格需求为“大量”'));
+  const none = M.buildChapterContentPlanMessages({ ...base, tableRequirement: 'none', maxTables: 0, tableTotalSections: 3 });
+  assert.ok(none[0].content.includes('表格需求为“不要”'));
+  assert.ok(none[0].content.includes('table.needed 必须为 false'));
+});

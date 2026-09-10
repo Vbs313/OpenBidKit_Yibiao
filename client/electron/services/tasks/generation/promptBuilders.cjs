@@ -222,7 +222,16 @@ function buildWordAdjustmentRepairMessages({ invalidContent, issues }, expectedM
   ];
 }
 
+function renderKnowledgeItemsForPrompt(items) {
+  return JSON.stringify((items || []).map((item) => ({
+    id: String(item.id || '').trim(),
+    title: String(item.title || '').trim(),
+    resume: String(item.resume || '').trim(),
+  })).filter((item) => item.id && item.title && item.resume), null, 2);
+}
+
 module.exports = {
+  renderKnowledgeItemsForPrompt,
   formatGlobalFactsForPrompt,
   formatGlobalFactTitlesForPrompt,
   formatBidAnalysisFactForPrompt,

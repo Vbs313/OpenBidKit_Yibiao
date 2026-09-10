@@ -121,7 +121,15 @@ function pickDistributedTableTargets(plannedItems, limit) {
   return new Set(selected.keys());
 }
 
+const TABLE_REQUIREMENT_LABELS = {
+  none: '不要',
+  light: '少量',
+  moderate: '适中',
+  heavy: '大量',
+};
+
 module.exports = {
+  TABLE_REQUIREMENT_LABELS,
   normalizeGeneratedMarkdown,
   isMarkdownTableRow,
   normalizeTableRequirement,

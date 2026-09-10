@@ -99,3 +99,15 @@ test('修复提示词构造器返回 user 消息，带上错误清单与待修�
     assert.match(joined, /1\. /, '包含编号后的错误清单');
   }
 });
+
+test('renderKnowledgeItemsForPrompt 只保留 id/title/resume 齐全的条目', () => {
+  const P = require('./promptBuilders.cjs');
+  const rows = JSON.parse(P.renderKnowledgeItemsForPrompt([
+    { id: 'd1::i1', title: 'T1', resume: 'R1', content: 'C1' },
+    { id: 'd1::i2', title: 'T2' },
+    { id: '', title: 'T3', resume: 'R3' },
+  ]));
+  assert.deepEqual(rows, [{ id: 'd1::i1', title: 'T1', resume: 'R1' }]);
+  assert.deepEqual(JSON.parse(P.renderKnowledgeItemsForPrompt([])), []);
+  assert.deepEqual(JSON.parse(P.renderKnowledgeItemsForPrompt()), []);
+});

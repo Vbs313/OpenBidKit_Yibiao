@@ -116,6 +116,18 @@ const {
   withSection,
 } = require('./generation/taskRuntime.cjs');
 
+const { TABLE_REQUIREMENT_LABELS } = require('./generation/markdownTables.cjs');
+const {
+  buildChapterContentPlanMessages,
+} = require('./generation/contentMessages.cjs');
+const {
+  countRetainedTablePlans,
+} = require('./generation/storedPlan.cjs');
+const {
+  CONSISTENCY_REPAIR_MAX_ATTEMPTS,
+  buildConsistencyRepairMessages,
+} = require('./generation/consistencyRepair.cjs');
+
 const {
   buildContentFactCompletenessInstruction,
   appendSelectedFactsMessage,
@@ -199,174 +211,6 @@ const TOTAL_WORD_SHRINK_MIN_CAPACITY_RATIO = 0.3;
 const CONTENT_WORD_CONTROL_WARNING = '经多轮修复，字数仍未达预期，请您人工核对';
 const SECTION_WORD_CONTROL_WARNING = '字数未达预期，请您人工核对';
 const CONSISTENCY_AUDIT_GROUP_WORD_LIMIT = 300000;
-const CONSISTENCY_REPAIR_MAX_ATTEMPTS = 2;
-const TABLE_REQUIREMENT_LABELS = {
-  none: '不要',
-  light: '少量',
-  moderate: '适中',
-  heavy: '大量',
-};
-
-
-function renderKnowledgeItemsForPrompt(items) {
-  return JSON.stringify((items || []).map((item) => ({
-    id: String(item.id || '').trim(),
-    title: String(item.title || '').trim(),
-    resume: String(item.resume || '').trim(),
-  })).filter((item) => item.id && item.title && item.resume), null, 2);
-}
-
-function buildChapterContentPlanMessages({ chapter, parentChapters, siblingChapters, projectOverview, bidAnalysisFactsText, globalFactTitlesText, regenerateRequirement, tableRequirement, maxTables, tableTotalSections, knowledgeItems }) {
-  const chapterId = chapter.id || 'unknown';
-  const chapterTitle = chapter.title || '未命名章节';
-  const chapterDescription = chapter.description || '';
-  const tableRequirementLabel = TABLE_REQUIREMENT_LABELS[tableRequirement] || TABLE_REQUIREMENT_LABELS.heavy;
-  const tablePlanningAllowed = tableRequirement !== 'none';
-  const tableLimitInstruction = tableRequirement === 'heavy'
-    ? '表格需求为“大量”，保持现有编排逻辑；仍然只有明显适合表格的小节才将 table.needed 设为 true。'
-    : tableRequirement === 'none'
-      ? '表格需求为“不要”，table.needed 必须为 false，table.purpose 留空。'
-      : `表格需求为“${tableRequirementLabel}”，table.needed 表示进入表格候选池，不代表最终一定生成；全文表格上限为 ${maxTables || 0} 个，共 ${tableTotalSections || totalSections || 0} 个叶子小节，系统后续会全局择优。`;
-  const messages = [
-    {
-      role: 'system',
-      content: `你是投标技术方案正文编排助手。请根据章节上下文判断本小节最适合的表达方式。
-
-要求：
-1. 只返回 JSON，不要输出解释、总结或 Markdown。
-2. ${tablePlanningAllowed ? '由你自行判断是否适合使用表格，判断要克制、合情合理，不要为了形式而硬插。' : '本次不编排表格，table.needed 必须为 false。'}
-3. ${tableLimitInstruction}
-4. ${tablePlanningAllowed ? '表格仅在能明显提升表达清晰度时使用，例如归纳职责、步骤、参数、风险、措施、成果等。' : '不要为了满足 JSON 格式而编造表格目的。'}
-5. knowledge.item_ids 只能从参考知识库轻量条目的 id 中选择；可以多选，可以为空数组；不要编造 id，不要输出 reason。
-6. facts.titles 只能从全局事实变量标题清单中选择；请选择编写本章节正文时会用到的变量组标题，可以多选，可以为空数组；不要编造标题，不要输出具体变量内容。
-7. writing_focus 用 1-2 句话概括本节正文重点，只围绕当前章节标题和描述，不展开成正文，不编造具体承诺、参数、周期、品牌或型号。
-8. 编排判断必须结合招标文件关键信息和全局事实变量标题，不要规划会造成时间、地点、人员、设备、标准或服务承诺前后不一致的表达。`,
-    },
-  ];
-
-  messages.push({
-    role: 'user',
-    content: `参考知识库轻量条目（只包含 id、标题和简介，不包含正文；如无合适条目，knowledge.item_ids 返回空数组）：
-${renderKnowledgeItemsForPrompt(knowledgeItems)}`,
-  });
-
-  messages.push({ role: 'user', content: `招标文件关键信息（用于判断正文需要引用哪些事实）：\n${formatBidKeyInfoForPrompt(projectOverview, bidAnalysisFactsText)}` });
-  if (String(globalFactTitlesText || '').trim()) {
-    messages.push({ role: 'user', content: `Step04 全局事实变量标题清单（编排时只能选择标题，不要输出具体变量内容）：\n${globalFactTitlesText}` });
-  }
-
-  if (parentChapters?.length) {
-    messages.push({
-      role: 'user',
-      content: ['上级章节信息：', ...parentChapters.map((parent) => `- ${parent.id || 'unknown'} ${parent.title || '未命名章节'}\n  ${parent.description || ''}`)].join('\n'),
-    });
-  }
-
-  if (siblingChapters?.length) {
-    const siblingLines = ['同级章节信息：'];
-    for (const sibling of siblingChapters) {
-      if (sibling.id !== chapterId) {
-        siblingLines.push(`- ${sibling.id || 'unknown'} ${sibling.title || '未命名章节'}\n  ${sibling.description || ''}`);
-      }
-    }
-    if (siblingLines.length > 1) {
-      messages.push({ role: 'user', content: siblingLines.join('\n') });
-    }
-  }
-
-  if (String(regenerateRequirement || '').trim()) {
-    messages.push({ role: 'user', content: `用户对本次重新生成的额外要求：\n${regenerateRequirement}` });
-  }
-
-  messages.push({
-    role: 'user',
-    content: `请为以下章节返回正文编排 JSON：
-
-章节ID: ${chapterId}
-章节标题: ${chapterTitle}
-章节描述: ${chapterDescription}
-
-JSON 格式：
-{
-  "writing_focus": "1-2 句话说明本节正文重点展开什么，只聚焦当前章节，不写成正文",
-  "knowledge": {
-    "item_ids": ["从参考知识库轻量条目中选择的 id；没有合适条目时返回空数组"]
-  },
-  "facts": {
-    "titles": ["从全局事实变量标题清单中选择正文会用到的变量组标题；没有需要引用的变量时返回空数组"]
-  },
-  "table": {
-    "needed": true,
-    "purpose": "说明表格在本小节中要表达什么；不需要表格时留空"
-  }
-}`,
-  });
-
-  return messages;
-}
-
-
-function buildConsistencyRepairMessages({ context, conflicts, globalFactsText, bidAnalysisFactsText, currentContent, attempt, failures, tableRequirement, globalFactsMode }) {
-  const { item } = context;
-  const tableAllowed = normalizeTableRequirement(tableRequirement) !== 'none';
-  const failureBlock = (failures || []).length
-    ? `\n上次修复应用失败原因：\n${failures.map((failure, index) => `${index + 1}. ${failure}`).join('\n')}\n请重新返回能够在当前正文中唯一定位的 old_text。`
-    : '';
-
-  return [
-    {
-      role: 'user',
-      content: `你是投标技术方案正文一致性修复助手。请只针对当前小节返回局部精确替换 patch。
-
-要求：
-1. 只返回 JSON，不要输出解释、总结或 Markdown 代码围栏。
-2. 不要返回完整正文，只返回需要局部替换的 patches。
-3. 事实输入比当前小节实际需要的更多；正文没有涉及的事实必须忽略。
-4. 目标只修正正文中与事实冲突的内容，不要参照事实重写或扩充正文。
-5. 不要优化文风，不要新增无关事实，不要新增新的承诺。
-6. old_text 必须是当前小节正文中逐字存在的原文块，建议包含足够前后上下文，确保只出现一次。
-7. ${tableAllowed ? '如果修改表格，old_text 必须包含完整表格行或完整表格块，不要只返回单元格碎片。' : '本次配置为不要表格；如果冲突位于表格中，new_text 必须把相关内容改为普通文字或普通列表，不得继续返回 Markdown 表格或 HTML 表格。'}
-8. new_text 是替换后的正文块，不要包含章节标题，不要包含行号。
-9. ${tableAllowed ? '保留 Markdown 表格、列表、代码块、图片和 Mermaid 块结构。' : '保留普通列表、代码块、图片和 Mermaid 块结构；不得新增或保留 Markdown 表格、HTML 表格。'}
-10. start_line/end_line 使用下方带行号正文中的 1-based 行号；如果不确定也必须提供可唯一匹配的 old_text。${buildContentFactCompletenessInstruction(globalFactsMode) ? `\n\n${buildContentFactCompletenessInstruction(globalFactsMode)}\n不得把【待填写】改成具体值，也不得为缺失项杜撰事实。` : ''}
-
-返回格式：
-{
-  "patches": [
-    {
-      "section_id": "当前小节编号",
-      "start_line": 2,
-      "end_line": 4,
-      "old_text": "当前正文中逐字存在且唯一的原文块，不包含行号",
-      "new_text": "替换后的正文块，不包含行号",
-      "reason": "修复了哪个事实冲突"
-    }
-  ]
-}`,
-    },
-    { role: 'user', content: `Step04 全局事实变量：\n${globalFactsText || '未提供'}` },
-    { role: 'user', content: `Step02 关键解析结果（项目信息、甲方信息、交货和服务要求）：\n${bidAnalysisFactsText || '未提供'}` },
-    { role: 'user', content: `当前小节：${item.id || 'unknown'} ${item.title || '未命名章节'}\n路径：${formatChapterPath(context)}\n描述：${item.description || ''}` },
-    { role: 'user', content: `审计发现的冲突：\n${JSON.stringify(conflicts || [], null, 2)}` },
-    { role: 'user', content: `当前小节正文（带行号；patch 的 old_text/new_text 不要包含这些行号）：\n${formatContentWithLineNumbers(currentContent)}` },
-    { role: 'user', content: `patches[*].section_id 必须是 ${item.id || 'unknown'}。修复尝试次数：${attempt}/${CONSISTENCY_REPAIR_MAX_ATTEMPTS}${failureBlock}\n请只返回 JSON。` },
-  ];
-}
-
-
-function countRetainedTablePlans(plans, excludedItemIds) {
-  let count = 0;
-  for (const [itemId, value] of Object.entries(plans || {})) {
-    if (excludedItemIds?.has(itemId)) {
-      continue;
-    }
-    const storedPlan = normalizeStoredContentPlan(value);
-    if (storedPlan?.plan?.table?.needed) {
-      count += 1;
-    }
-  }
-  return count;
-}
 
 
 // 从待生成小节中无放回随机选取开发者模拟失败目标。

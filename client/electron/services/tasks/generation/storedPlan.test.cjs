@@ -67,3 +67,12 @@ test('pruneContentGenerationPlans 丢掉非叶子与失效的存盘', () => {
   assert.deepEqual(S.pruneContentGenerationPlans(null, leaves), {});
   assert.deepEqual(S.pruneContentGenerationPlans(plans, []), {});
 });
+test('countRetainedTablePlans 只数仍需要表格且未被排除的存盘', () => {
+  const withTable = S.createStoredContentPlan({ writing_focus: 'x', knowledge: { item_ids: [] }, facts: { titles: [] }, table: { needed: true } }, 'light');
+  const withoutTable = S.createStoredContentPlan({ writing_focus: 'x', knowledge: { item_ids: [] }, facts: { titles: [] }, table: { needed: false } }, 'light');
+  const plans = { a: withTable, b: withTable, c: withoutTable, d: { plan_version: 1 } };
+  assert.equal(S.countRetainedTablePlans(plans, new Set()), 2);
+  assert.equal(S.countRetainedTablePlans(plans, new Set(['a'])), 1);
+  assert.equal(S.countRetainedTablePlans(plans, new Set(['a', 'b'])), 0);
+  assert.equal(S.countRetainedTablePlans(null, new Set()), 0);
+});
