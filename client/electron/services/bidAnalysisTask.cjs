@@ -462,11 +462,8 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, check
 
 module.exports = {
   buildInvalidBidAndRejectionItemsPrompt,
-  buildTenderContextMessages,
   getBidAnalysisTaskById,
   getBidAnalysisTasks,
   runInvalidBidAndRejectionItemsExtraction,
   runBidAnalysisTask,
-  runBidAnalysisPromptTask,
-  runSingleBidAnalysisPromptTask,
 };

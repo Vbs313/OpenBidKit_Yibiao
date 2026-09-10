@@ -194,6 +194,5 @@ function createComplianceModelProxy({ app, aiService, configStore } = {}) {
 
 module.exports = {
   MODEL_TOKEN_ENV,
-  RUNTIME,
   createComplianceModelProxy,
 };

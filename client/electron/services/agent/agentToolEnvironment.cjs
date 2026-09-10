@@ -981,6 +981,4 @@ module.exports = {
   applyAgentToolEnvironment,
   ensureAgentToolEnvironment,
   getAgentWorkspaceInstructions,
-  getRuntimeToolsBinDir,
-  writeAgentInstructionsFile,
 };

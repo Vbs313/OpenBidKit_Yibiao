@@ -16,15 +16,6 @@ try {
   validateWithAjv = null;
 }
 
-function createProtocolError(code, message, detail) {
-  return {
-    version: PROTOCOL_VERSION,
-    job_id: '',
-    status: 'error',
-    results: [],
-    error: { code, message, ...(detail ? { detail } : {}) },
-  };
-}
 
 function formatValidationErrors(errors = []) {
   return errors.map((error) => `${error.instancePath || '/'} ${error.message || '不符合协议'}`).join('; ');
@@ -167,12 +158,8 @@ module.exports = {
   MODEL_CONFIG_FIELDS,
   PROTOCOL_VERSION,
   assertNoCredentialFields,
-  createProtocolError,
   createRequest,
-  findCredentialField,
-  isLoopbackBaseUrl,
   isProgressMessage,
-  normalizeModelConfig,
   stripCredentialFields,
   validateResponse,
 };
