@@ -7,13 +7,16 @@ const PROTOCOL_VERSION = '1.0';
 const MODEL_CONFIG_FIELDS = ['base_url', 'model', 'reasoning_effort'];
 const CREDENTIAL_FIELD_PATTERN = /^(api[-_ ]?key|apikey|access[-_ ]?key|secret[-_ ]?key|authorization|auth|token|bearer|x-api-key|openai[-_ ]?api[-_ ]?key)$/i;
 
-let validateWithAjv = null;
+// ajv 是硬依赖。以前加载失败会退回一份手写的弱校验，那等于让不合规响应静默通过；
+// 现在改为加载即失败，坏安装会在启动时暴露，而不是在检查结果里以“看起来正常”出现。
+let validateWithAjv;
 try {
   const Ajv = require('ajv');
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  validateWithAjv = ajv.compile(RESPONSE_SCHEMA);
-} catch {
-  validateWithAjv = null;
+  validateWithAjv = new Ajv({ allErrors: true, strict: false }).compile(RESPONSE_SCHEMA);
+} catch (error) {
+  const failure = new Error(`合规检查响应校验器初始化失败：${error && error.message ? error.message : error}`);
+  failure.code = 'COMPLIANCE_VALIDATOR_UNAVAILABLE';
+  throw failure;
 }
 
 
@@ -21,24 +24,9 @@ function formatValidationErrors(errors = []) {
   return errors.map((error) => `${error.instancePath || '/'} ${error.message || '不符合协议'}`).join('; ');
 }
 
-function validateResponseFallback(message) {
-  const errors = [];
-  if (!message || typeof message !== 'object' || Array.isArray(message)) {
-    return { valid: false, errors: ['响应必须是 JSON 对象'] };
-  }
-  if (message.version !== PROTOCOL_VERSION) errors.push(`version 必须为 ${PROTOCOL_VERSION}`);
-  if (typeof message.job_id !== 'string' || !message.job_id.trim()) errors.push('缺少 job_id');
-  if (!['success', 'error'].includes(message.status)) errors.push('status 必须为 success 或 error');
-  if (!Array.isArray(message.results)) errors.push('results 必须是数组');
-  return { valid: errors.length === 0, errors };
-}
-
 function validateResponse(message) {
-  if (validateWithAjv) {
-    const valid = validateWithAjv(message);
-    return { valid, errors: valid ? [] : formatValidationErrors(validateWithAjv.errors) };
-  }
-  return validateResponseFallback(message);
+  const valid = validateWithAjv(message);
+  return { valid, errors: valid ? [] : formatValidationErrors(validateWithAjv.errors) };
 }
 
 function findCredentialField(value, path = 'root', seen = new Set()) {
