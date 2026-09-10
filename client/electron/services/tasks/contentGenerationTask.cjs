@@ -20,6 +20,19 @@ const { applyRangeEdits, findTextMatches } = require('./../../utils/textEdit.cjs
 const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
 const { countReadableWords } = require('./../../utils/wordCount.cjs');
 
+const {
+  normalizeGeneratedMarkdown,
+  isMarkdownTableRow,
+  normalizeTableRequirement,
+  maxTablesForRequirement,
+  clearContentPlanTable,
+  formatTablesForCleanupPrompt,
+  validateTableCleanupResponse,
+  unwrapMarkdownTitle,
+  stripMarkdownHeadingsFromLeafContent,
+  pickDistributedTableTargets,
+} = require('./generation/markdownTables.cjs');
+
 const DEFAULT_CONTEXT_LENGTH_LIMIT = 400000;
 const AGENT_CONTEXT_THRESHOLD_RATIO = 0.7;
 const DEFAULT_TEXT_CONCURRENCY_LIMIT = 10;
@@ -196,18 +209,6 @@ function hasFactSelection(value) {
     || Object.prototype.hasOwnProperty.call(source || {}, 'globalFactTitles');
 }
 
-function normalizeGeneratedMarkdown(content) {
-  return String(content || '')
-    .split(/\r?\n/)
-    .map((line) => {
-      const normalizedLine = line.replace(/<br\s*\/?\s*>/gi, '<br />');
-      if (normalizedLine.trim().startsWith('|')) {
-        return normalizedLine;
-      }
-      return normalizedLine.replace(/\s*<br \/>\s*/g, '  \n');
-    })
-    .join('\n');
-}
 
 function splitLinesWithRanges(content) {
   const text = String(content || '');
@@ -268,10 +269,6 @@ function rangeOverlaps(start, end, ranges) {
   return (ranges || []).some((range) => start < range.end && end > range.start);
 }
 
-function isMarkdownTableRow(line) {
-  const trimmed = String(line || '').trim();
-  return trimmed.includes('|') && trimmed.replace(/\\\|/g, '').includes('|');
-}
 
 function isMarkdownTableSeparator(line) {
   const trimmed = String(line || '').trim();
@@ -376,17 +373,6 @@ function compactError(value, maxLength = 220) {
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
-function normalizeTableRequirement(value) {
-  const text = String(value || '').trim();
-  if (['none', 'light', 'moderate', 'heavy'].includes(text)) {
-    return text;
-  }
-  if (text === '不要') return 'none';
-  if (text === '少量') return 'light';
-  if (text === '适中') return 'moderate';
-  if (text === '大量') return 'heavy';
-  return 'heavy';
-}
 
 function normalizeConsistencyRepairMode(value) {
   return String(value || '').trim() === 'normal' ? 'normal' : 'agent';
@@ -517,22 +503,7 @@ function countContentWords(content) {
   return countReadableWords(String(content || ''));
 }
 
-function maxTablesForRequirement(requirement, leafCount) {
-  if (requirement === 'none') return 0;
-  if (requirement === 'light') return Math.floor(Math.max(0, leafCount) * 0.2);
-  if (requirement === 'moderate') return Math.floor(Math.max(0, leafCount) * 0.4);
-  return null;
-}
 
-function clearContentPlanTable(contentPlan) {
-  return {
-    ...contentPlan,
-    table: {
-      needed: false,
-      purpose: '',
-    },
-  };
-}
 
 function normalizeKnowledgeItemIds(value, allowedKnowledgeItemIds) {
   const source = Array.isArray(value) ? value : [];
@@ -703,18 +674,6 @@ function formatContentPlanForPrompt(plan) {
   return lines.join('\n');
 }
 
-function formatTablesForCleanupPrompt(tables) {
-  return (tables || []).map((table) => `<table_block id="${table.id}" type="${table.type}">
-上文片段：
-${table.before || '无'}
-
-待转换表格：
-${table.text || ''}
-
-下文片段：
-${table.after || '无'}
-</table_block>`).join('\n\n');
-}
 
 function buildTableCleanupMessages({ chapter, tables }) {
   const allowedIds = (tables || []).map((table) => table.id).join('、') || '无';
@@ -776,11 +735,6 @@ function normalizeTableCleanupResponse(value, allowedTableIds) {
   return { replacements };
 }
 
-function validateTableCleanupResponse(value) {
-  if (!value || !Array.isArray(value.replacements)) {
-    throw new Error('表格转换结果缺少 replacements 数组');
-  }
-}
 
 function renderKnowledgeItemsForPrompt(items) {
   return JSON.stringify((items || []).map((item) => ({
@@ -2280,13 +2234,6 @@ function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function unwrapMarkdownTitle(line) {
-  let normalized = String(line || '').trim();
-  normalized = normalized.replace(/^#{1,6}\s+/, '').trim();
-  normalized = normalized.replace(/^\*\*(.+)\*\*$/, '$1').trim();
-  normalized = normalized.replace(/^__(.+)__$/, '$1').trim();
-  return normalized.replace(/[：:：。\s]+$/, '').trim();
-}
 
 function stripRepeatedChapterTitle(content, chapter) {
   const title = String(chapter?.title || '').trim();
@@ -2320,30 +2267,6 @@ function stripRepeatedChapterTitle(content, chapter) {
   return [...rawLines.slice(0, firstContentLine), ...nextLines].join('\n').trimStart();
 }
 
-function stripMarkdownHeadingsFromLeafContent(content) {
-  let inFence = false;
-  return String(content || '').split(/\r?\n/).map((line) => {
-    if (/^\s*(?:```|~~~)/.test(line)) {
-      inFence = !inFence;
-      return line;
-    }
-    if (inFence) {
-      return line;
-    }
-
-    const match = /^(\s*)#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
-    if (!match) {
-      return line;
-    }
-
-    const text = match[2].trim();
-    const unwrapped = text
-      .replace(/^\*\*(.+)\*\*$/, '$1')
-      .replace(/^__(.+)__$/, '$1')
-      .trim();
-    return `${match[1]}**${unwrapped || text}**`;
-  }).join('\n');
-}
 
 function normalizeLeafContentForSave(content, chapter) {
   return stripMarkdownHeadingsFromLeafContent(
@@ -2513,26 +2436,6 @@ function applyWordAdjustmentOperations(content, adjustment) {
   return result.content;
 }
 
-function pickDistributedTableTargets(plannedItems, limit) {
-  if (limit <= 0 || !plannedItems.length) {
-    return new Set();
-  }
-
-  if (plannedItems.length <= limit) {
-    return new Set(plannedItems.map(({ item }) => item.id));
-  }
-
-  const selected = new Map();
-  for (let slot = 0; slot < limit; slot += 1) {
-    const start = Math.floor((slot * plannedItems.length) / limit);
-    const end = Math.floor(((slot + 1) * plannedItems.length) / limit);
-    const group = plannedItems.slice(start, Math.max(start + 1, end));
-    const candidate = group[Math.floor(group.length / 2)] || group[0];
-    selected.set(candidate.item.id, candidate);
-  }
-
-  return new Set(selected.keys());
-}
 
 function countRetainedTablePlans(plans, excludedItemIds) {
   let count = 0;
