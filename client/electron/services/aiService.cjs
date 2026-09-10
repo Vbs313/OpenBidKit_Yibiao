@@ -25,6 +25,16 @@ const {
 const textTokenStatsStore = require('./stores/textTokenStatsStore.cjs');
 const { normalizeTokenUsage } = textTokenStatsStore;
 const perfTrace = require('../utils/perfTrace.cjs');
+const {
+  extractOpenAIUsage,
+  extractGoogleUsage,
+  extractJsonContent,
+  extractFencedJsonBlocks,
+  extractBalancedJsonCandidates,
+  extractGoogleCandidateParts,
+  extractComfyUIHistoryWorkflow,
+  extractComfyUIImages,
+} = require('./ai/providerParsers.cjs');
 
 const AI_REQUEST_TIMEOUT_MS = 600000;
 const MULTIMODAL_IMAGE_MAX_EDGE = 2048;
@@ -139,13 +149,7 @@ function normalizeAnalyticsEndpointHost(baseUrl) {
   return '';
 }
 
-function extractOpenAIUsage(responseData) {
-  return normalizeTokenUsage(responseData?.usage);
-}
 
-function extractGoogleUsage(responseData) {
-  return normalizeTokenUsage(responseData?.usageMetadata || responseData?.usage_metadata);
-}
 
 function normalizeRequestTimeoutMs(request) {
   const timeoutMs = Number(request?.timeout_ms);
@@ -522,98 +526,8 @@ async function fetchOpenAICompatibleImageResponse(baseUrl, apiKey, requestBody, 
   throw error;
 }
 
-function extractJsonContent(content) {
-  const normalized = String(content || '').trim();
-  if (!normalized.startsWith('```')) {
-    return normalized;
-  }
 
-  const lines = normalized.split(/\r?\n/);
-  const firstLine = (lines[0] || '').trim().toLowerCase();
-  const lastLine = (lines[lines.length - 1] || '').trim();
-  if ((firstLine === '```' || firstLine === '```json') && lastLine.startsWith('```')) {
-    return lines.slice(1, -1).join('\n').trim();
-  }
 
-  return normalized;
-}
-
-function extractFencedJsonBlocks(content) {
-  const blocks = [];
-  const normalized = String(content || '').trim();
-  const fenceRegex = /```(?:json)?\s*([\s\S]*?)```/gi;
-  let match = fenceRegex.exec(normalized);
-
-  while (match) {
-    const block = String(match[1] || '').trim();
-    if (block) {
-      blocks.push(block);
-    }
-    match = fenceRegex.exec(normalized);
-  }
-
-  return blocks;
-}
-
-function extractBalancedJsonCandidates(content) {
-  const text = String(content || '');
-  const candidates = [];
-
-  for (let start = 0; start < text.length; start += 1) {
-    const firstChar = text[start];
-    if (firstChar !== '{' && firstChar !== '[') {
-      continue;
-    }
-
-    const stack = [firstChar];
-    let inString = false;
-    let escaped = false;
-
-    for (let index = start + 1; index < text.length; index += 1) {
-      const char = text[index];
-
-      if (inString) {
-        if (escaped) {
-          escaped = false;
-        } else if (char === '\\') {
-          escaped = true;
-        } else if (char === '"') {
-          inString = false;
-        }
-        continue;
-      }
-
-      if (char === '"') {
-        inString = true;
-        continue;
-      }
-
-      if (char === '{' || char === '[') {
-        stack.push(char);
-        continue;
-      }
-
-      if (char === '}' || char === ']') {
-        const expectedOpen = char === '}' ? '{' : '[';
-        if (stack[stack.length - 1] !== expectedOpen) {
-          break;
-        }
-
-        stack.pop();
-        if (!stack.length) {
-          const candidate = text.slice(start, index + 1).trim();
-          if (candidate) {
-            candidates.push(candidate);
-          }
-          start = index;
-          break;
-        }
-      }
-    }
-  }
-
-  return candidates;
-}
 
 const jsonEscapeChars = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't']);
 const markdownEscapeChars = new Set(['.', '(', ')', '[', ']', '{', '}', '#', '*', '+', '-', '_', '!', '<', '>', '|', '`']);
@@ -1279,12 +1193,6 @@ function createGoogleHeaders(apiKey) {
   };
 }
 
-function extractGoogleCandidateParts(responseData) {
-  const candidates = Array.isArray(responseData?.candidates) ? responseData.candidates : [];
-  return candidates.flatMap((candidate) => (
-    Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []
-  ));
-}
 
 function appendGoogleImagePayload(payload, state) {
   if (payload?.usageMetadata || payload?.usage_metadata) {
@@ -1982,17 +1890,6 @@ function isComfyUITextToImageWorkflow(workflow) {
 
 // 历史条目的 prompt 元组在不同版本里布局不同（[prio, workflow, ...] 或 [prio, id, workflow, ...]），
 // 取第一个"值为节点对象"的元素即为工作流
-function extractComfyUIHistoryWorkflow(promptTuple) {
-  if (!Array.isArray(promptTuple)) return null;
-  for (const item of promptTuple) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const values = Object.values(item);
-    if (values.length > 0 && values.some((node) => node && typeof node === 'object' && typeof node.class_type === 'string')) {
-      return item;
-    }
-  }
-  return null;
-}
 
 // 从执行消息中取时间戳（execution_start/execution_success），用于排序
 function getComfyUIHistoryEntryTimestamp(entry) {
@@ -2167,15 +2064,6 @@ async function submitComfyUIPrompt(baseUrl, workflow, options = {}) {
   }
 }
 
-function extractComfyUIImages(entry) {
-  const images = [];
-  for (const output of Object.values(entry?.outputs || {})) {
-    if (Array.isArray(output?.images)) {
-      images.push(...output.images.filter((image) => image?.filename));
-    }
-  }
-  return images;
-}
 
 function getComfyUIExecutionError(entry) {
   const messages = Array.isArray(entry?.status?.messages) ? entry.status.messages : [];
