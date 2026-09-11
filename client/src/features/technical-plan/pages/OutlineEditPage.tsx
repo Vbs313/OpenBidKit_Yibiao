@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent } from 'react';
+import type { CSSProperties } from 'react';
 import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { AppSwitch, ProgressBar, useToast } from '../../../shared/ui';
 import type { BackgroundTaskState, OutlineSelectionItem, SaveOutlineRequest, SaveOutlineSelectionRequest, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
@@ -13,19 +13,16 @@ import {
   assertLeafContentModes,
   collectOutlineIds,
   collectRootIds,
-  composeIdMap,
-  createIdentityIdMap,
   deleteOutlineItem,
   findOutlineItem,
-  findOutlineLocation,
   normalizeOutlineContentModes,
   renumberOutlineItemsWithIdMap,
-  reorderOutlineSiblings,
   updateOutlineItem,
 } from '../outlineTree';
 import { areWordControlOptionsEqual, formatWordCountDraft, getEstimatedPages, normalizeWordControlDraft, parseWordCountDraft } from '../outlineWordControl';
 import { formatOutlineTitle } from '../../../shared/utils/outlineNumbering';
 import OutlineSelectionDialog from '../components/OutlineSelectionDialog';
+import { useOutlineSorting } from '../hooks/useOutlineSorting';
 
 interface OutlineEditPageProps {
   workflowKind: TechnicalPlanWorkflowKind;
@@ -54,12 +51,6 @@ interface OutlineSortGuard {
 }
 
 
-
-interface DropTargetState {
-  itemId: string;
-  position: 'before' | 'after';
-  valid: boolean;
-}
 
 const emptyKnowledgeIndex: KnowledgeBaseIndex = { folders: [], documents: [] };
 const outlineExpansionModeLabels: Record<OutlineExpansionMode, string> = {
@@ -172,21 +163,12 @@ function OutlineEditPage({
   const [loadingKnowledge, setLoadingKnowledge] = useState(false);
   const [localStartAt, setLocalStartAt] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [sorting, setSorting] = useState(false);
-  const [draftOutlineData, setDraftOutlineData] = useState<OutlineData | null>(null);
   const [exportFormat, setExportFormat] = useState<ExportFormatConfig>(DEFAULT_EXPORT_FORMAT);
-  const [sortDirty, setSortDirty] = useState(false);
-  const [savingSort, setSavingSort] = useState(false);
   const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
   const [savingOutlineSelection, setSavingOutlineSelection] = useState(false);
-  const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<DropTargetState | null>(null);
   const logListRef = useRef<HTMLDivElement | null>(null);
-  const sortIdMapRef = useRef<Record<string, string>>({});
   const shownTaskErrorIdRef = useRef<string | null>(null);
   const { showToast } = useToast();
-  const activeOutlineData = sorting ? draftOutlineData : outlineData;
-  const selectedItem = activeOutlineData && selectedItemId ? findOutlineItem(activeOutlineData.outline, selectedItemId) : null;
   const taskRunning = task?.status === 'running';
   const taskFailed = task?.status === 'error';
   const outlineSelection = task?.stats?.outline_selection;
@@ -196,6 +178,39 @@ function OutlineEditPage({
   const isExpansionWorkflow = workflowKind === 'existing-plan-expansion';
   const knowledgePickingDisabled = generating;
   const contentMutationLocked = contentTaskStatus === 'running' || contentTaskStatus === 'pausing' || contentTaskStatus === 'paused';
+
+  const getMutationLockMessage = () => {
+    if (generating) return '目录生成任务正在运行，当前目录暂不可编辑';
+    if (contentMutationLocked) return '正文生成任务正在运行或暂停中，请结束后再调整目录';
+    return '';
+  };
+
+  const {
+    sorting,
+    draftOutlineData,
+    sortDirty,
+    savingSort,
+    draggingItemId,
+    dropTarget,
+    activeOutlineData,
+    startSorting,
+    discardSorting,
+    saveSorting,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
+    handleDragEnd,
+  } = useOutlineSorting({
+    outlineData,
+    onOutlineSaved,
+    onSortGuardChange,
+    getMutationLockMessage,
+    onStartSorting: () => setEditingItemId(null),
+    onRemapExpandedIds: (idMap) => setExpandedItems((prev) => new Set([...prev].map((id) => idMap[id] || id))),
+    onRemapSelectedId: (idMap) => setSelectedItemId((prev) => (prev ? idMap[prev] || prev : prev)),
+  });
+
+  const selectedItem = activeOutlineData && selectedItemId ? findOutlineItem(activeOutlineData.outline, selectedItemId) : null;
   const outlineMutationLocked = generating || contentMutationLocked || savingSort || aiAdjustmentRunning;
   const progressLogs = task?.logs || [];
   const latestLog = progressLogs[progressLogs.length - 1];
@@ -510,11 +525,6 @@ function OutlineEditPage({
     setDraftKnowledgeDocumentIds([]);
   };
 
-  const getMutationLockMessage = () => {
-    if (generating) return '目录生成任务正在运行，当前目录暂不可编辑';
-    if (contentMutationLocked) return '正文生成任务正在运行或暂停中，请结束后再调整目录';
-    return '';
-  };
 
   const saveOutlineChange = async (outline: OutlineItem[], reason: SaveOutlineRequest['reason'], affectedNodeIds: string[] = []) => {
     if (!outlineData) {
@@ -670,142 +680,15 @@ function OutlineEditPage({
     setExpandedItems(new Set());
   };
 
-  const startSorting = () => {
-    if (!outlineData?.outline?.length) {
-      return;
-    }
-    const lockMessage = getMutationLockMessage();
-    if (lockMessage) {
-      showToast(lockMessage, 'info');
-      return;
-    }
 
-    setDraftOutlineData(outlineData);
-    sortIdMapRef.current = createIdentityIdMap(outlineData.outline);
-    setSorting(true);
-    setSortDirty(false);
-    setEditingItemId(null);
-    setDraggingItemId(null);
-    setDropTarget(null);
-    showToast('仅支持同级目录排序；拖动只在前端调整，点击保存排序后才会写入数据库。', 'info');
-  };
 
-  const discardSorting = () => {
-    setSorting(false);
-    setDraftOutlineData(null);
-    setSortDirty(false);
-    setSavingSort(false);
-    setDraggingItemId(null);
-    setDropTarget(null);
-    sortIdMapRef.current = {};
-  };
 
-  const saveSorting = async () => {
-    if (!draftOutlineData?.outline?.length) {
-      discardSorting();
-      return;
-    }
-    if (!sortDirty) {
-      discardSorting();
-      return;
-    }
-    const lockMessage = getMutationLockMessage();
-    if (lockMessage) {
-      throw new Error(lockMessage);
-    }
 
-    setSavingSort(true);
-    try {
-      await onOutlineSaved({
-        outlineData: draftOutlineData,
-        reason: 'sort',
-        idMap: sortIdMapRef.current,
-      });
-      discardSorting();
-      showToast('目录排序已保存', 'success');
-    } finally {
-      setSavingSort(false);
-    }
-  };
 
-  useEffect(() => {
-    if (!onSortGuardChange) return;
-    onSortGuardChange({
-      hasUnsavedSort: () => sorting && sortDirty,
-      saveSort: saveSorting,
-      discardSort: discardSorting,
-    });
-    return () => onSortGuardChange(null);
-  }, [onSortGuardChange, sorting, sortDirty, draftOutlineData]);
 
-  const getDropPosition = (event: DragEvent<HTMLElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-  };
 
-  const canDropOnTarget = (draggedId: string, targetId: string) => {
-    if (!activeOutlineData?.outline?.length || draggedId === targetId) return false;
-    const dragged = findOutlineLocation(activeOutlineData.outline, draggedId);
-    const target = findOutlineLocation(activeOutlineData.outline, targetId);
-    return Boolean(dragged && target && dragged.parentId === target.parentId && dragged.level === target.level);
-  };
 
-  const handleDragStart = (event: DragEvent<HTMLDivElement>, item: OutlineItem) => {
-    if (!sorting) {
-      return;
-    }
-    setDraggingItemId(item.id);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', item.id);
-  };
 
-  const handleDragOver = (event: DragEvent<HTMLDivElement>, item: OutlineItem) => {
-    if (!sorting || !draggingItemId) {
-      return;
-    }
-    event.preventDefault();
-    const valid = canDropOnTarget(draggingItemId, item.id);
-    event.dataTransfer.dropEffect = valid ? 'move' : 'none';
-    setDropTarget({ itemId: item.id, position: getDropPosition(event), valid });
-  };
-
-  const handleDrop = (event: DragEvent<HTMLDivElement>, item: OutlineItem) => {
-    event.preventDefault();
-    if (!sorting || !draftOutlineData?.outline?.length || !draggingItemId) {
-      return;
-    }
-
-    const valid = canDropOnTarget(draggingItemId, item.id);
-    if (!valid) {
-      setDraggingItemId(null);
-      setDropTarget(null);
-      showToast('只能同级目录排序', 'info');
-      return;
-    }
-
-    const sourceLocation = findOutlineLocation(draftOutlineData.outline, draggingItemId);
-    if (!sourceLocation) {
-      setDraggingItemId(null);
-      setDropTarget(null);
-      return;
-    }
-
-    const position = dropTarget?.itemId === item.id ? dropTarget.position : getDropPosition(event);
-    const reordered = reorderOutlineSiblings(draftOutlineData.outline, sourceLocation.parentId, draggingItemId, item.id, position);
-    const renumbered = renumberOutlineItemsWithIdMap(reordered);
-    sortIdMapRef.current = composeIdMap(sortIdMapRef.current, renumbered.idMap);
-    setDraftOutlineData({ ...draftOutlineData, outline: renumbered.outline });
-    setExpandedItems((prev) => new Set([...prev].map((id) => renumbered.idMap[id] || id)));
-    setSelectedItemId((prev) => (prev ? renumbered.idMap[prev] || prev : prev));
-    setSortDirty(true);
-    setDraggingItemId(null);
-    setDropTarget(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggingItemId(null);
-    setDropTarget(null);
-  };
 
   const renderItem = (item: OutlineItem, level = 0) => {
     const hasChildren = Boolean(item.children?.length);
