@@ -26,6 +26,7 @@
     "smoke:content-generation": "electron scripts/content-generation-smoke.cjs",
     "smoke:ipc-boot": "electron scripts/ipc-boot-smoke.cjs",
     "smoke:schema": "electron scripts/schema-migration-smoke.cjs",
+    "smoke:settings-ui": "electron scripts/settings-ui-smoke.cjs",
     "start": "electron ."
   },
   "build": {
