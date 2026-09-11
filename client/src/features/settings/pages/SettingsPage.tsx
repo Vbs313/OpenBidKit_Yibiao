@@ -1,3 +1,5 @@
+
+import { useAppUpdate } from '../hooks/useAppUpdate';
 import { useEffect, useState } from 'react';
 import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { AppSwitch, DetailHelpLink, FloatingToolbar, InlineSpinner, InputWithAction, OfflineLicenseActivationDialog, useAutoAnswer, useToast } from '../../../shared/ui';
@@ -619,6 +621,14 @@ interface SettingsPageProps {
 }
 
 function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
+  const {
+    updateStatus,
+    updateVersion,
+    updateBusy,
+    updateStatusText,
+    checkForUpdates,
+    installDownloadedUpdate,
+  } = useAppUpdate();
   const [state, setState] = useState<SettingsPageState>(initialState);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
@@ -632,10 +642,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const textModelBusy = loadingModels === 'text' || loadingModelInfo || testingTextModel;
   const [imageTestPreview, setImageTestPreview] = useState<{ src: string; title: string } | null>(null);
   const [appVersion, setAppVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
-  const [updatePercent, setUpdatePercent] = useState(0);
-  const [updateVersion, setUpdateVersion] = useState('');
-  const [updateError, setUpdateError] = useState('');
   const [licenseStatus, setLicenseStatus] = useState<LicenseRuntimeStatus | null>(null);
   const [offlineLicenseDialogOpen, setOfflineLicenseDialogOpen] = useState(false);
   const [agentSelfCheckStatus, setAgentSelfCheckStatus] = useState<AgentSelfCheckUiStatus>('untested');
@@ -650,29 +656,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     void window.yibiao?.getVersion().then(setAppVersion);
     void window.yibiao?.license?.getStatus().then(setLicenseStatus).catch(() => setLicenseStatus(null));
 
-    const unsubs: Array<() => void> = [];
-    unsubs.push(
-      window.yibiao?.onUpdateProgress(({ percent }) => {
-        setUpdateStatus('downloading');
-        setUpdatePercent(Math.round(percent));
-      }) ?? (() => {})
-    );
-    unsubs.push(
-      window.yibiao?.onUpdateDownloaded(({ version }) => {
-        if (version) {
-          setUpdateVersion(version);
-        }
-        setUpdateStatus('downloaded');
-      }) ?? (() => {})
-    );
-    unsubs.push(
-      window.yibiao?.onUpdateError(({ message }) => {
-        setUpdateStatus('error');
-        setUpdateError(message);
-      }) ?? (() => {})
-    );
-
-    return () => { unsubs.forEach((unsub) => unsub()); };
   }, []);
 
   // 弹窗中的自动确认开关实时保存后，同步刷新设置页草稿和已保存基准。
@@ -774,63 +757,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     };
   };
 
-  const checkForUpdates = async () => {
-    if (updateStatus === 'checking' || updateStatus === 'downloading') {
-      return;
-    }
-
-    try {
-      setUpdateStatus('checking');
-      setUpdatePercent(0);
-      setUpdateError('');
-      const result = await window.yibiao?.checkUpdate();
-      if (!result?.enabled) {
-        setUpdateStatus('disabled');
-        showToast('开发调试模式不执行自动更新', 'info');
-        return;
-      }
-      if (result.failed) {
-        const message = result.message || '检查更新失败';
-        setUpdateStatus('error');
-        setUpdateError(message);
-        showToast(message, 'error');
-        return;
-      }
-      if (!result.updateAvailable) {
-        setUpdateStatus('idle');
-        showToast('已是最新版本', 'success');
-        return;
-      }
-
-      const version = result.version || updateVersion;
-      setUpdateVersion(version);
-      if (result.downloaded) {
-        setUpdateStatus('downloaded');
-        showUpdateReadyToast(showToast, version);
-        return;
-      }
-
-      setUpdateStatus('idle');
-      showToast('发现新版本，但更新包尚未下载完成，请稍后重试', 'info');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '检查更新失败';
-      setUpdateStatus('error');
-      setUpdateError(message);
-      showToast(message, 'error');
-    }
-  };
-
-  const installDownloadedUpdate = async () => {
-    try {
-      const result = await window.yibiao?.quitAndInstall();
-      if (result && !result.success) {
-        showToast(result.message || '安装更新失败', 'error');
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '安装更新失败';
-      showToast(message, 'error');
-    }
-  };
 
   const updateImageModelConfig = (partial: Partial<Omit<SettingsPageState['imageModel'], 'provider'>>, options: { clearModels?: boolean } = {}) => {
     if (options.clearModels) {
@@ -1570,15 +1496,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       ]
     : [];
 
-  const updateBusy = updateStatus === 'checking' || updateStatus === 'downloading';
-  const updateStatusText = (() => {
-    if (updateStatus === 'checking') return '正在检查更新...';
-    if (updateStatus === 'downloading') return `正在下载 ${updatePercent}%`;
-    if (updateStatus === 'downloaded') return updateVersion ? `新版本 ${updateVersion} 已准备好` : '更新已准备好';
-    if (updateStatus === 'error') return `更新失败：${updateError || '未知错误'}`;
-    if (updateStatus === 'disabled') return '开发调试模式不执行自动更新';
-    return '启动后自动检查，每 30 分钟轮询';
-  })();
   const licenseSourceLabel = getLicenseSourceLabel(licenseStatus);
   const currentImageSizeOptions = getImageSizeOptions(state.imageModel.provider, state.imageModel.model_name);
   const currentImageSizeSupported = currentImageSizeOptions.some((option) => option.value === state.imageModel.image_size);
