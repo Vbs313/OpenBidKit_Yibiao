@@ -88,7 +88,7 @@ function compareVersions(a, b) {
 }
 
 function normalizeUpdateChannel(value) {
-  if (value === 'cloudflare' || value === 'atomgit') {
+  if (value === 'github' || value === 'cloudflare' || value === 'atomgit') {
     return value;
   }
   return 'atomgit';
@@ -668,4 +668,5 @@ module.exports = {
   quitAndInstall,
   getLatestVersion,
   getUpdateDownloadUrl,
+  normalizeUpdateChannel,
 };

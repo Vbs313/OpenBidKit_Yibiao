@@ -44,7 +44,7 @@ const defaultAgentModeScenarios: AgentModeScenariosConfig = {
 };
 
 function normalizeUpdateChannel(value?: string): UpdateChannel {
-  if (value === 'cloudflare' || value === 'atomgit') {
+  if (value === 'github' || value === 'cloudflare' || value === 'atomgit') {
     return value;
   }
   return 'atomgit';
