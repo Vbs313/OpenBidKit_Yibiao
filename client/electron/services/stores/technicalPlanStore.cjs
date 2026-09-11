@@ -21,11 +21,21 @@ const { compactLogError, createDeveloperLogger } = require('./../../utils/develo
 const { forceRemoveSync, isFileLockError } = require('./../../utils/forceRemove.cjs');
 const { OUTLINE_AGENT_TASK_KEY, TEMPLATE_EXTRACTION_AGENT_TASK_KEY, GLOBAL_FACTS_AGENT_TASK_KEY } = require('./../agentTaskKeys.cjs');
 
-const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
+const {
+  now,
+  hasOwn,
+  safeJsonParse,
+  jsonOrNull,
+  stableHash,
+  safeFileNamePart,
+  filePathKey,
+  createTenderSourceId,
+} = require('./storeUtils.cjs');
 const { createIllustrationFiles } = require('./illustrationFiles.cjs');
 const { createTenderMeta } = require('./tenderMeta.cjs');
 const { createTaskPersistence } = require('./taskPersistence.cjs');
 const { createContentPersistence } = require('./contentPersistence.cjs');
+const { createTenderSourceFiles } = require('./tenderSourceFiles.cjs');
 
 const tenderMarkdownRelativePath = path.join('technical-plan', 'tender.md').replace(/\\/g, '/');
 const tenderOriginalMarkdownRelativePath = path.join('technical-plan', 'tender-original.md').replace(/\\/g, '/');
@@ -113,24 +123,9 @@ function isEmptyObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0);
 }
 
-function stableHash(content) {
-  return crypto.createHash('sha256').update(String(content || ''), 'utf8').digest('hex');
-}
-
-function safeFileNamePart(value) {
-  return String(value || 'file').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'file';
-}
 
 /** 生成符合当前文件系统大小写规则的路径比较键。 */
-function filePathKey(value) {
-  const resolved = path.resolve(String(value || ''));
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-}
 
-function createTenderSourceId(fileName, markdown, index) {
-  const hash = stableHash(`${fileName}\n${markdown}`).slice(0, 12);
-  return `tender-${String(index + 1).padStart(2, '0')}-${hash}`;
-}
 
 function combineTenderMarkdown(markdowns) {
   return (Array.isArray(markdowns) ? markdowns : [])
@@ -550,71 +545,6 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
   }
 
 
-  function loadTenderSourceFiles(meta = readMetaRow()) {
-    const sourceFiles = safeJsonParse(meta.tender_files_json, []);
-    if (Array.isArray(sourceFiles) && sourceFiles.length) {
-      return sourceFiles.map((file) => ({
-        id: String(file.id || ''),
-        fileName: String(file.fileName || '招标文件'),
-        markdownPath: String(file.markdownPath || ''),
-        markdownChars: Number(file.markdownChars || 0),
-        contentHash: String(file.contentHash || ''),
-        parserLabel: file.parserLabel ? String(file.parserLabel) : undefined,
-        sourceDocxPath: file.sourceDocxPath ? String(file.sourceDocxPath) : undefined,
-        importedAt: file.importedAt ? String(file.importedAt) : undefined,
-        updatedAt: file.updatedAt ? String(file.updatedAt) : meta.updated_at,
-      })).filter((file) => file.id && file.markdownPath);
-    }
-    if (meta.tender_markdown_path) {
-      return [{
-        id: 'tender-legacy-01',
-        fileName: meta.tender_file_name || '技术方案招标文件',
-        markdownPath: meta.tender_markdown_path,
-        markdownChars: Number(meta.tender_markdown_chars || 0),
-        contentHash: meta.tender_markdown_hash || '',
-        parserLabel: meta.tender_parser_label || undefined,
-        importedAt: meta.tender_imported_at || undefined,
-        updatedAt: meta.updated_at,
-      }];
-    }
-    return [];
-  }
-
-  function readTenderSourceMarkdown(sourceId) {
-    const target = loadTenderSourceFiles().find((file) => file.id === String(sourceId || ''));
-    if (!target) return '';
-    const filePath = resolveMarkdownPath(target.markdownPath);
-    if (!fs.existsSync(filePath)) return '';
-    return fs.readFileSync(filePath, 'utf-8');
-  }
-
-  function readOriginalTenderMarkdown() {
-    const meta = readMetaRow();
-    if (!meta.tender_markdown_path) {
-      return '';
-    }
-    const originalPath = meta.tender_original_markdown_path
-      ? resolveMarkdownPath(meta.tender_original_markdown_path)
-      : null;
-    if (originalPath && fs.existsSync(originalPath)) {
-      return fs.readFileSync(originalPath, 'utf-8');
-    }
-    throw new Error('原始招标文件缺失，请重新上传招标文件');
-  }
-
-  function writeMarkdownFile(targetPath, markdown, prefix) {
-    const targetDir = path.dirname(targetPath);
-    const tempPath = path.join(targetDir, `${prefix}-${Date.now()}.tmp.md`);
-    fs.mkdirSync(targetDir, { recursive: true });
-    fs.writeFileSync(tempPath, `${String(markdown || '').trim()}\n`, 'utf-8');
-    try {
-      fs.renameSync(tempPath, targetPath);
-    } catch (error) {
-      if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true });
-      throw error;
-    }
-  }
-
   function checkBidSections() {
     const markdown = readOriginalTenderMarkdown();
     return detectBidSections(markdown);
@@ -629,88 +559,9 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     return fs.readFileSync(filePath, 'utf-8');
   }
 
-  function writeTenderSourceMarkdown(source, index) {
-    const markdown = String(source?.file_content || '').trim();
-    const fileName = source?.file_name || '招标文件';
-    const id = createTenderSourceId(fileName, markdown, index);
-    const relativePath = path.join(tenderSourceFilesDirRelativePath, `${id}-${safeFileNamePart(fileName)}.md`).replace(/\\/g, '/');
-    const targetPath = resolveMarkdownPath(relativePath);
-    writeMarkdownFile(targetPath, markdown, id);
-    const sourceDocxPath = persistExistingTenderOriginal(source, id);
-    return {
-      id,
-      fileName,
-      markdownPath: relativePath,
-      markdownChars: markdown.length,
-      contentHash: stableHash(markdown),
-      parserLabel: source?.parser_label || undefined,
-      sourceDocxPath: sourceDocxPath || undefined,
-      importedAt: now(),
-      updatedAt: now(),
-    };
-  }
 
   /** 把已有或刚落下的招标 Word 原件归到当前源文件编号下。 */
-  function persistExistingTenderOriginal(source, id) {
-    const destRelative = path.join(tenderOriginalsDirRelativePath, `${id}.docx`).replace(/\\/g, '/');
-    const destPath = resolveMarkdownPath(destRelative);
-    const incoming = String(source?.source_docx_path || source?.sourceDocxPath || '').trim();
-    if (!incoming) return '';
-    const sourcePath = path.isAbsolute(incoming) ? incoming : resolveMarkdownPath(incoming);
-    if (!fs.existsSync(sourcePath)) return '';
-    const managedRelativePath = getManagedTenderOriginalRelativePath(sourcePath);
-    if (managedRelativePath) return managedRelativePath;
-    fs.mkdirSync(path.dirname(destPath), { recursive: true });
-    if (filePathKey(sourcePath) !== filePathKey(destPath)) {
-      tenderOriginalLogger.write('tender-original.copy.started', { phase: 'state-rebuild', source_path: sourcePath, dest_path: destPath });
-      try {
-        fs.copyFileSync(sourcePath, destPath);
-        tenderOriginalLogger.write('tender-original.copy.completed', { phase: 'state-rebuild', source_path: sourcePath, dest_path: destPath });
-      } catch (error) {
-        tenderOriginalLogger.write('tender-original.copy.failed', {
-          phase: 'state-rebuild',
-          source_path: sourcePath,
-          dest_path: destPath,
-          code: error?.code,
-          syscall: error?.syscall,
-          error: compactLogError(error),
-        });
-        throw error;
-      }
-    }
-    return destRelative;
-  }
 
-  function pruneTenderOriginals(keptRelativePaths, phase = 'state-rebuild') {
-    const keep = new Set((Array.isArray(keptRelativePaths) ? keptRelativePaths : []).map((item) => filePathKey(resolveMarkdownPath(item))));
-    if (!fs.existsSync(tenderOriginalsDir)) return;
-    for (const name of fs.readdirSync(tenderOriginalsDir)) {
-      const filePath = path.join(tenderOriginalsDir, name);
-      if (!keep.has(filePathKey(filePath))) {
-        tenderOriginalLogger.write('tender-original.delete.started', { phase, file_path: filePath });
-        try {
-          removeWorkspacePathSync(filePath, (event, payload) => tenderOriginalLogger.write(event, { phase, ...payload }));
-          tenderOriginalLogger.write('tender-original.delete.completed', { phase, file_path: filePath });
-        } catch (error) {
-          tenderOriginalLogger.write('tender-original.delete.failed', {
-            phase,
-            file_path: filePath,
-            code: error?.code,
-            syscall: error?.syscall,
-            error: compactLogError(error),
-          });
-          const fileName = path.basename(filePath);
-          const message = isFileLockError(error)
-            ? `无法删除旧招标 Word 原件“${fileName}”，请关闭可能占用该文件的 Word/WPS，并确认文件可写后重试`
-            : `无法清理旧招标 Word 原件“${fileName}”：${error?.message || error}`;
-          const cleanupError = new Error(message);
-          cleanupError.code = 'TENDER_ORIGINAL_CLEANUP_FAILED';
-          cleanupError.cause = error;
-          throw cleanupError;
-        }
-      }
-    }
-  }
 
   function clearBidTemplate() {
     const templateFiles = [bidTemplatePath, bidTemplateSourcePath, bidTemplateFieldsPath];
@@ -743,33 +594,6 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
         }
         throw error;
       }
-    }
-  }
-
-  function clearTenderSourceFiles(phase = 'technical-plan-reset') {
-    clearBidTemplate();
-    if (fs.existsSync(tenderOriginalsDir)) {
-      tenderOriginalLogger.write('tender-original.delete-directory.started', { phase, directory_path: tenderOriginalsDir });
-      try {
-        removeWorkspacePathSync(tenderOriginalsDir, (event, payload) => tenderOriginalLogger.write(event, { phase, ...payload }));
-        tenderOriginalLogger.write('tender-original.delete-directory.completed', { phase, directory_path: tenderOriginalsDir });
-      } catch (error) {
-        tenderOriginalLogger.write('tender-original.delete-directory.failed', {
-          phase,
-          directory_path: tenderOriginalsDir,
-          code: error?.code,
-          syscall: error?.syscall,
-          path: error?.path,
-          error: compactLogError(error),
-        });
-        const resetError = new Error('无法清理招标 Word 原件，请关闭可能占用原件的 Word/WPS，并确认文件可写后重试');
-        resetError.code = 'TENDER_ORIGINAL_CLEANUP_FAILED';
-        resetError.cause = error;
-        throw resetError;
-      }
-    }
-    if (fs.existsSync(tenderSourceFilesDir)) {
-      removeWorkspacePathSync(tenderSourceFilesDir);
     }
   }
 
@@ -1900,6 +1724,26 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     normalizeStatus,
     collectLeafItems,
     updateMeta,
+  });
+  // 招标源文件与原件：实现见 stores/tenderSourceFiles.cjs。
+  const {
+    loadTenderSourceFiles,
+    readTenderSourceMarkdown,
+    readOriginalTenderMarkdown,
+    writeMarkdownFile,
+    writeTenderSourceMarkdown,
+    persistExistingTenderOriginal,
+    pruneTenderOriginals,
+    clearTenderSourceFiles,
+  } = createTenderSourceFiles({
+    tenderSourceFilesDir,
+    tenderOriginalsDir,
+    tenderSourceFilesDirRelativePath,
+    tenderOriginalsDirRelativePath,
+    tenderOriginalLogger,
+    removeWorkspacePathSync,
+    getManagedTenderOriginalRelativePath,
+    clearBidTemplate,
   });
   async function importTenderDocument(filePaths, options = {}) {
     if (!fileService?.importDocument) {
