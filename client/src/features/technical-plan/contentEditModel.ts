@@ -4,7 +4,7 @@
 // 抽出来后可单测；页面只负责把 sections / options 传进来、把状态渲染成树。
 
 import type { OutlineItem } from '../../shared/types';
-import type { ConsistencyRepairMode, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentTableRequirement, OriginalPlanCoverageRepairMode } from '../../shared/types/domains/technical-plan';
+import type { ConsistencyRepairMode, ContentGenerationOptions, ContentGenerationSectionStatus, ContentGenerationSections, ContentIllustrationKind, ContentTableRequirement, OriginalPlanCoverageRepairMode } from '../../shared/types/domains/technical-plan';
 import { countReadableWords } from '../../shared/utils/wordCount';
 
 export type TreeStatus = ContentGenerationSectionStatus | 'partial' | 'planning' | 'pending';
@@ -187,3 +187,5 @@ export function buildOutlineMeta(items: OutlineItem[], sections: ContentGenerati
   items.forEach(visit);
   return meta;
 }
+
+export const illustrationKinds: ContentIllustrationKind[] = ['html', 'mermaid', 'ai'];
