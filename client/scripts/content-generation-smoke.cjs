@@ -16,7 +16,29 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function buildPlan({ expansion, audit }) {
+// 覆盖审计要求「每个允许的 source_id 都必须回一条 items」，从提示词里取其允许清单，
+// 夹具才能对任意分段数都返回合法结果。
+// 还原映射同理：从提示词里取原方案段编号，避免把段编号写死。
+function extractAllowedSourceIds(messages) {
+  const message = (messages || []).find(
+    (item) => String(item?.content || '').startsWith('允许的 source_id：'),
+  );
+  if (!message) return [];
+  const raw = String(message.content).replace('允许的 source_id：', '').trim();
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function extractOriginalSegmentIds(messages) {
+  const text = (messages || []).map((item) => String(item?.content || '')).join('\n');
+  return [...text.matchAll(/<original_segment id="([^"]+)"/g)].map((match) => match[1]);
+}
+
+function buildPlan({ expansion, audit, coverageAudit }) {
   const plan = {
     outlineData: {
       outline: [{ id: 'c1', title: '章节一', description: '章节描述', content_mode: 'ai-generate', children: [] }],
@@ -29,6 +51,9 @@ function buildPlan({ expansion, audit }) {
       tableRequirement: 'none',
       enableConsistencyAudit: Boolean(audit),
       ...(audit ? { consistencyRepairMode: 'normal' } : {}),
+      ...(coverageAudit
+        ? { enableOriginalPlanCoverageAudit: true, originalPlanCoverageRepairMode: 'normal' }
+        : {}),
     },
   };
   if (expansion) {
@@ -38,23 +63,35 @@ function buildPlan({ expansion, audit }) {
   return plan;
 }
 
-async function runScenario({ name, expansion = false, audit = false }) {
+async function runScenario({ name, expansion = false, audit = false, coverageAudit = false }) {
   const { runContentGenerationTask } = require(path.join(__dirname, '..', 'electron', 'services', 'tasks', 'contentGenerationTask.cjs'));
-  const plan = buildPlan({ expansion, audit });
-  const calls = { chat: 0, json: 0, audit: 0, agent: 0, checkpoints: [], updates: [] };
+  const plan = buildPlan({ expansion, audit, coverageAudit });
+  const calls = { chat: 0, json: 0, audit: 0, coverageAudit: 0, agent: 0, checkpoints: [], updates: [] };
 
   const aiService = {
     getConfig: () => ({ concurrency_limit: 1 }),
     getImageModelAvailability: () => ({ available: false }),
-    collectJsonResponse: async ({ logTitle }) => {
+    collectJsonResponse: async ({ logTitle, messages }) => {
       calls.json += 1;
       const title = String(logTitle || '');
       if (audit && title.startsWith('一致性审计')) {
         calls.audit += 1;
         return { conflicts: [] };
       }
+      if (coverageAudit && title.startsWith('原方案覆盖审计')) {
+        calls.coverageAudit += 1;
+        return {
+          items: extractAllowedSourceIds(messages).map((sourceId) => ({
+            source_id: sourceId,
+            node_id: 'c1',
+            status: 'covered',
+          })),
+        };
+      }
+      // 直接返回 normalizer 之后的形状：真实 aiService 会先 normalize 再 validate，
+      // 夹具不能替它包一层 result，否则还原结果会被丢弃、扩写路径静默退化成纯生成。
       if (expansion && title.includes('还原')) {
-        return { result: { assignments: [{ node_id: 'c1', source_ids: ['P001'] }] } };
+        return { assignments: [{ node_id: 'c1', source_ids: extractOriginalSegmentIds(messages) }] };
       }
       // 其余场景：编排决策故意失败，走“按纯正文生成”的回落分支。
       throw new Error('content-generation-smoke: 编排决策回落');
@@ -100,6 +137,9 @@ async function runScenario({ name, expansion = false, audit = false }) {
         tableRequirement: 'none',
         enableConsistencyAudit: audit,
         ...(audit ? { consistencyRepairMode: 'normal' } : {}),
+        ...(coverageAudit
+          ? { enableOriginalPlanCoverageAudit: true, originalPlanCoverageRepairMode: 'normal' }
+          : {}),
       },
     },
     taskControl: {},
@@ -127,15 +167,26 @@ async function runScenario({ name, expansion = false, audit = false }) {
   assert(finalPatch, `${name}：没有收到 status=success 的任务更新`);
   assert(finalPatch.progress === 100, `${name}：成功态进度应为 100，实际 ${finalPatch.progress}`);
   const logs = Array.isArray(finalPatch.logs) ? finalPatch.logs.join('\n') : '';
-  for (const milestone of ['准备生成正文', '开始生成：c1 章节一', '生成完成：c1 章节一']) {
+  // 已还原的小节走「基于原方案优化扩写」，未还原的走普通生成，里程碑不同。
+  const milestones = expansion
+    ? ['准备生成正文', '开始基于原方案优化扩写：c1 章节一', '原方案优化扩写完成：c1 章节一']
+    : ['准备生成正文', '开始生成：c1 章节一', '生成完成：c1 章节一'];
+  for (const milestone of milestones) {
     assert(logs.includes(milestone), `${name}：任务日志缺少里程碑：${milestone}`);
   }
   if (audit) {
     assert(calls.audit >= 1, `${name}：审计阶段没有调用模型`);
     assert(logs.includes('一致性审计'), `${name}：任务日志里没有一致性审计阶段`);
   }
+  if (coverageAudit) {
+    assert(calls.coverageAudit >= 1, `${name}：原方案覆盖审计阶段没有调用模型`);
+    assert(logs.includes('原方案覆盖审计'), `${name}：任务日志里没有原方案覆盖审计阶段`);
+  }
   if (expansion) {
-    assert(logs.includes('还原') || logs.includes('原方案'), `${name}：扩写路径日志里没有提到原方案还原`);
+    assert(
+      logs.includes('原方案还原完成：已还原 1 个小节，未分配原文段 0 个。'),
+      `${name}：扩写路径没有真正完成原方案还原`,
+    );
   }
 
   return { name, ...calls, checkpoints: calls.checkpoints.length };
@@ -147,14 +198,15 @@ async function runSmoke() {
     results.push(await runScenario({ name: '纯 AI 生成' }));
     results.push(await runScenario({ name: '已有方案扩写', expansion: true }));
     results.push(await runScenario({ name: '一致性审计', audit: true }));
+    results.push(await runScenario({ name: '原方案覆盖审计', expansion: true, coverageAudit: true }));
 
     for (const result of results) {
       console.log(
         `[content-generation-smoke] ${result.name}：正文 ${result.chat} 次、模型 JSON ${result.json} 次`
-        + `、审计 ${result.audit} 次、检查点 ${result.checkpoints} 次`,
+        + `、审计 ${result.audit} 次、覆盖审计 ${result.coverageAudit} 次、检查点 ${result.checkpoints} 次`,
       );
     }
-    console.log('[content-generation-smoke] 三条路径的生成正文都已进入 checkpointTask 的状态补丁与方案补丁');
+    console.log('[content-generation-smoke] 四条路径的生成正文都已进入 checkpointTask 的状态补丁与方案补丁');
     console.log('[content-generation-smoke] all checks passed');
     exitWithCode(0);
   } catch (error) {
