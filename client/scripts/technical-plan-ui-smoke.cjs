@@ -6,6 +6,7 @@
  *
  * 覆盖：用真实 IPC 预置一份大纲，再把 5 个子页面（STEP 01~05）逐个真实渲染一遍；
  *       再打开目录生成配置弹窗、保存配置（真实 IPC 落库），覆盖 OutlineEditPage 的生成配置簇；
+ *       最后切一次工作流模式，覆盖 TechnicalPlanHome 的离开守卫与模式切换确认；
  *       全程监听渲染器错误，并用探针自检「监听器真的能收到」。
  *
  * 用法：npm run smoke:technical-plan-ui   （前置：npm run build）
@@ -197,6 +198,27 @@ async function run() {
     console.log('[technical-plan-ui] 目录树：目录排序进入 / 保存往返正常');
   };
 
+  // 离开守卫 + 模式切换：已有目录进度时切到「已有方案扩写」，必须拉起确认弹窗。
+  // 这条路径正好压在 useTechnicalPlanLeaveGuards 的「守卫注册 → 排序确认 → 模式切换确认」链上。
+  const exerciseWorkflowSwitchGuard = async () => {
+    const back = String(await click('标书生成'));
+    assert(back.startsWith('CLICKED'), '侧边栏缺少「标书生成」入口：' + back);
+    await waitFor('回到工作流选择页', async () => (await pageText()).includes('生成技术方案'), { timeoutMs: 15000 });
+
+    const switched = String(await click('已有方案扩写'));
+    assert(switched.startsWith('CLICKED'), '缺少「已有方案扩写」入口：' + switched);
+    await waitFor('模式切换确认弹窗', async () => (await pageText()).includes('确认切换到已有方案扩写'), { timeoutMs: 20000 });
+    console.log('[technical-plan-ui] 离开守卫：带进度切换模式会拉起确认弹窗');
+
+    const cancelled = String(await click('取消'));
+    assert(cancelled.startsWith('CLICKED'), '找不到「取消」按钮：' + cancelled);
+    await waitFor('确认弹窗关闭并回到原模式', async () => {
+      const text = String(await pageText());
+      return !text.includes('确认切换到已有方案扩写');
+    }, { timeoutMs: 15000 });
+    console.log('[technical-plan-ui] 离开守卫：取消切换后回到原工作流');
+  };
+
   try {
     services = registerIpcHandlers({
       app,
@@ -250,6 +272,8 @@ async function run() {
         await exerciseOutlineTree();
       }
     }
+
+    await exerciseWorkflowSwitchGuard();
 
     assert(rendererErrors.length === 0, '渲染器报错：' + rendererErrors.join(' | '));
     console.log(`[technical-plan-ui] ${STEPS.length} 个子页面全部真实渲染，且无渲染器错误`);
