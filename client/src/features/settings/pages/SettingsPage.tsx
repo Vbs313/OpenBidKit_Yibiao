@@ -1,11 +1,12 @@
 
 import { useAppUpdate } from '../hooks/useAppUpdate';
+import { useModelCatalog } from '../hooks/useModelCatalog';
 import { useEffect, useState } from 'react';
 import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { AppSwitch, DetailHelpLink, FloatingToolbar, InlineSpinner, InputWithAction, OfflineLicenseActivationDialog, useAutoAnswer, useToast } from '../../../shared/ui';
 import { showUpdateReadyToast } from '../../../shared/updateToast';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { AgentModeScenariosConfig, AgentSelfCheckResult, AgentSelfCheckStepStatus, AiRequestMode, ClientConfig, ComponentsConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelRatio, ImageModelSize, ImageModelStatus, LicenseRuntimeStatus, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateChannel } from '../../../shared/types';
+import type { AgentModeScenariosConfig, AgentSelfCheckResult, AgentSelfCheckStepStatus, AiRequestMode, ClientConfig, ComponentsConfig, FileParserProvider, ImageModelProfiles, ImageModelProvider, ImageModelRatio, ImageModelSize, ImageModelStatus, LicenseRuntimeStatus, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateChannel } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import { GeneralTab } from '../components/tabs/GeneralTab';
 import { TextModelTab } from '../components/tabs/TextModelTab';
@@ -39,7 +40,6 @@ import {
   getImageSizeOptions,
   imageProviderDefaults,
   imageProviderApiKeyUrls,
-  imageProviderLabels,
   getImageBaseUrlDescription,
   getImageApiKeyDescription,
   getImageModelDescription,
@@ -61,72 +61,6 @@ import {
   initialState,
 } from '../model';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// 归一化文本模型温度。
-
-
-
-// 解析温度滑动条输入。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// 归一化组件转换并发量。
-
-// 解析组件并发输入。
-
-// 归一化组件设置状态。
-
-// 从设置状态生成可保存的组件配置。
-
-
-
-
-
-
-
-
-
-
 function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const {
     updateStatus,
@@ -139,15 +73,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   const [state, setState] = useState<SettingsPageState>(initialState);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [savedConfig, setSavedConfig] = useState<ClientConfig | null>(null);
-  const [textModels, setTextModels] = useState<string[]>([]);
-  const [reasoningEfforts, setReasoningEfforts] = useState<string[]>([]);
-  const [imageModels, setImageModels] = useState<string[]>([]);
-  const [loadingModels, setLoadingModels] = useState<'text' | 'image' | null>(null);
-  const [loadingModelInfo, setLoadingModelInfo] = useState(false);
-  const [testingTextModel, setTestingTextModel] = useState(false);
-  const [testingImageModel, setTestingImageModel] = useState(false);
-  const textModelBusy = loadingModels === 'text' || loadingModelInfo || testingTextModel;
-  const [imageTestPreview, setImageTestPreview] = useState<{ src: string; title: string } | null>(null);
   const [appVersion, setAppVersion] = useState('');
   const [licenseStatus, setLicenseStatus] = useState<LicenseRuntimeStatus | null>(null);
   const [offlineLicenseDialogOpen, setOfflineLicenseDialogOpen] = useState(false);
@@ -264,10 +189,52 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     };
   };
 
+  // 只把文本模型草稿写回 state，不碰模型目录缓存；目录清空由 useModelCatalog 暴露的 clear* 负责。
+  const applyTextModelConfig = (partial: Partial<Omit<SettingsPageState['textModel'], 'provider'>>) => {
+    setState((prev) => ({
+      ...prev,
+      ...(() => {
+        const textModel = { ...prev.textModel, ...partial };
+        return {
+          textModel,
+          textModelProfiles: {
+            ...prev.textModelProfiles,
+            [prev.textModel.provider]: textProfileFromState(textModel),
+          },
+        };
+      })(),
+    }));
+  };
+
+  const {
+    textModels,
+    reasoningEfforts,
+    imageModels,
+    loadingModels,
+    loadingModelInfo,
+    testingTextModel,
+    testingImageModel,
+    imageTestPreview,
+    clearTextModels,
+    clearReasoningEfforts,
+    clearImageModels,
+    resetImageTestPreview,
+    testTextConfig,
+    testImageConfig,
+    fetchTextModels,
+    fetchTextModelInfo,
+    fetchImageModels,
+  } = useModelCatalog({
+    state,
+    setState,
+    createClientConfig,
+    applyTextModelConfig,
+    setSavedConfig,
+  });
 
   const updateImageModelConfig = (partial: Partial<Omit<SettingsPageState['imageModel'], 'provider'>>, options: { clearModels?: boolean } = {}) => {
     if (options.clearModels) {
-      setImageModels([]);
+      clearImageModels();
     }
 
     setState((prev) => ({
@@ -286,8 +253,8 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   };
 
   const updateImageModelProvider = (provider: ImageModelProvider) => {
-    setImageModels([]);
-    setImageTestPreview(null);
+    clearImageModels();
+    resetImageTestPreview();
     setState((prev) => ({
       ...prev,
       imageModelProfiles: {
@@ -370,8 +337,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   };
 
   const updateTextModelProvider = (provider: TextModelProvider) => {
-    setTextModels([]);
-    setReasoningEfforts([]);
+    clearTextModels();
     setState((prev) => ({
       ...prev,
       textModelProfiles: {
@@ -387,27 +353,15 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
 
   const updateTextModelConfig = (partial: Partial<Omit<SettingsPageState['textModel'], 'provider'>>, options: { clearModels?: boolean } = {}) => {
     if (options.clearModels) {
-      setTextModels([]);
+      clearTextModels();
     }
 
-    setState((prev) => ({
-      ...prev,
-      ...(() => {
-        const textModel = { ...prev.textModel, ...partial };
-        return {
-          textModel,
-          textModelProfiles: {
-            ...prev.textModelProfiles,
-            [prev.textModel.provider]: textProfileFromState(textModel),
-          },
-        };
-      })(),
-    }));
+    applyTextModelConfig(partial);
   };
 
   // 更新模型名称，并清空不再适用于新模型的思考强度。
   const updateTextModelName = (modelName: string) => {
-    setReasoningEfforts([]);
+    clearReasoningEfforts();
     setState((prev) => {
       const textModel = prev.textModel.model_name === modelName
         ? prev.textModel
@@ -454,32 +408,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : '打开生图服务 API Key 获取页面失败', 'error');
-    }
-  };
-
-  const testTextConfig = async () => {
-    try {
-      setTestingTextModel(true);
-      const config = createClientConfig();
-      const result = await window.yibiao?.config.save(config);
-      if (result?.success) {
-        setSavedConfig(config);
-      }
-      const content = await window.yibiao?.ai.chat({
-        messages: [{ role: 'user', content: 'hi' }],
-        timeout_ms: 30000,
-        timeout_message: '文本模型测试超时，请检查 Base URL、API Key 或模型名称',
-        logTitle: '文本模型测试',
-      });
-      const reply = (content || '').trim();
-      if (!reply) {
-        throw new Error('文本模型测试失败：模型未返回有效内容');
-      }
-      showToast(`测试成功：${reply.slice(0, 160)}`, 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '测试失败', 'error');
-    } finally {
-      setTestingTextModel(false);
     }
   };
 
@@ -558,80 +486,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     await saveClientConfig(createClientConfig());
   };
 
-  const testImageConfig = async () => {
-    try {
-      setTestingImageModel(true);
-      const config = createClientConfig();
-      const result = await window.yibiao?.ai.testImageModel(config);
-      if (!result?.success) {
-        throw new Error(result?.message || '生图模型测试失败');
-      }
-      const testedImageModel: ImageModelConfig = {
-        ...config.image_model,
-        status: 'available',
-        tested_at: new Date().toISOString(),
-        last_error: '',
-      };
-      const testedConfig: ClientConfig = {
-        ...config,
-        image_model: testedImageModel,
-        image_model_profiles: {
-          ...config.image_model_profiles,
-          [testedImageModel.provider]: testedImageModel,
-        },
-      };
-      await window.yibiao?.config.save(testedConfig);
-      setState((prev) => ({
-        ...prev,
-        imageModel: testedConfig.image_model,
-        imageModelProfiles: {
-          ...prev.imageModelProfiles,
-          [testedConfig.image_model.provider]: imageProfileFromState(testedConfig.image_model),
-        },
-      }));
-      setSavedConfig(testedConfig);
-      trackConfigUsage({}, testedConfig);
-      const previewSrc = result?.image_url || (result?.image_data ? `data:${result.mime_type || 'image/png'};base64,${result.image_data}` : '');
-
-      if (previewSrc) {
-        setImageTestPreview({ src: previewSrc, title: `${imageProviderLabels[state.imageModel.provider]} 测试图片` });
-      }
-
-      showToast(result?.message || '生图模型测试成功', result?.success ? 'success' : 'error');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '生图模型测试失败';
-      const config = createClientConfig();
-      const failedImageModel: ImageModelConfig = {
-        ...config.image_model,
-        status: 'unavailable',
-        tested_at: new Date().toISOString(),
-        last_error: message,
-      };
-      const failedConfig: ClientConfig = {
-        ...config,
-        image_model: failedImageModel,
-        image_model_profiles: {
-          ...config.image_model_profiles,
-          [failedImageModel.provider]: failedImageModel,
-        },
-      };
-      await window.yibiao?.config.save(failedConfig).catch(() => undefined);
-      setState((prev) => ({
-        ...prev,
-        imageModel: failedConfig.image_model,
-        imageModelProfiles: {
-          ...prev.imageModelProfiles,
-          [failedConfig.image_model.provider]: imageProfileFromState(failedConfig.image_model),
-        },
-      }));
-      setSavedConfig(failedConfig);
-      trackConfigUsage({}, failedConfig);
-      showToast(message, 'error');
-    } finally {
-      setTestingImageModel(false);
-    }
-  };
-
   const saveComponentsConfig = async () => {
     await saveClientConfig(createClientConfig());
   };
@@ -645,168 +499,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     }
   };
 
-  const fetchTextModels = async () => {
-    try {
-      setLoadingModels('text');
-      setReasoningEfforts([]);
-      const result = await window.yibiao?.config.listModels(createClientConfig());
-      const models = result?.models || [];
-      setTextModels(models);
-      if (result?.success && models.length > 0) {
-        setState((prev) => ({
-          ...prev,
-          ...(() => {
-            const textModel = models.includes(prev.textModel.model_name)
-              ? prev.textModel
-              : { ...prev.textModel, model_name: models[0], reasoning_effort: '' };
-            return {
-              textModel,
-              textModelProfiles: {
-                ...prev.textModelProfiles,
-                [prev.textModel.provider]: textProfileFromState(textModel),
-              },
-            };
-          })(),
-        }));
-      }
-      showToast(result?.message || `获取到 ${result?.models.length || 0} 个文本模型`, result?.success ? 'success' : 'info');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '获取文本模型失败', 'error');
-    } finally {
-      setLoadingModels(null);
-    }
-  };
-
   // 从云端模型信息缓存一次填充当前模型可确定的高级参数。
-  const fetchTextModelInfo = async () => {
-    const modelName = state.textModel.model_name.trim();
-    if (!modelName) {
-      showToast('请先填写文本模型名称', 'info');
-      return;
-    }
-
-    try {
-      setLoadingModelInfo(true);
-      const result = await window.yibiao?.config.getModelInfo(modelName);
-      if (!result?.success || !result.model) {
-        showToast(result?.message || '未获取到模型信息', 'info');
-        return;
-      }
-
-      const modelInfo = result.model;
-      const efforts = modelInfo.reasoningEfforts || [];
-      const updates: Partial<Omit<SettingsPageState['textModel'], 'provider'>> = {
-        concurrency_limit: modelInfo.concurrencyLimit,
-        request_mode: modelInfo.requestMode,
-      };
-      if (efforts.length && state.textModel.reasoning_effort && !efforts.includes(state.textModel.reasoning_effort)) {
-        updates.reasoning_effort = '';
-      }
-      if (modelInfo.context > 0) {
-        updates.context_length_limit = modelInfo.context;
-      }
-      if (modelInfo.imageInputStatus === 'supported' || modelInfo.imageInputStatus === 'mixed') {
-        updates.multimodal_enabled = true;
-      } else if (modelInfo.imageInputStatus === 'unsupported') {
-        updates.multimodal_enabled = false;
-      }
-      if (modelInfo.temperatureStatus === 'unsupported') {
-        updates.temperature_enabled = false;
-      }
-
-      setReasoningEfforts(efforts);
-      updateTextModelConfig(updates);
-      showToast('已获取并填写模型高级参数', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '获取模型信息失败', 'error');
-    } finally {
-      setLoadingModelInfo(false);
-    }
-  };
-
-  const fetchImageModels = async () => {
-    try {
-      setLoadingModels('image');
-      if (state.imageModel.provider === 'jinlong' || state.imageModel.provider === 'volcengine' || state.imageModel.provider === 'agnes' || state.imageModel.provider === 'custom') {
-        const providerLabel = imageProviderLabels[state.imageModel.provider];
-        const baseUrl = state.imageModel.provider === 'custom'
-          ? state.imageModel.base_url || ''
-          : state.imageModel.base_url || imageProviderDefaults[state.imageModel.provider].base_url || '';
-
-        if (!state.imageModel.api_key.trim()) {
-          setImageModels([]);
-          showToast(`请先填写${providerLabel} API Key`, 'info');
-          return;
-        }
-
-        if (!baseUrl.trim()) {
-          setImageModels([]);
-          showToast(`请先填写${providerLabel} Base URL`, 'info');
-          return;
-        }
-
-        const config = createClientConfig();
-        const result = await window.yibiao?.config.listModels({
-          ...config,
-          api_key: state.imageModel.api_key,
-          base_url: baseUrl,
-          model_name: state.imageModel.model_name,
-        });
-        const models = result?.models || [];
-        setImageModels(models);
-        if (result?.success && models.length > 0) {
-          setState((prev) => ({
-            ...prev,
-            ...(() => {
-              const imageModel = models.includes(prev.imageModel.model_name)
-                ? prev.imageModel
-                : resetImageModelStatus({ ...prev.imageModel, model_name: models[0] });
-              return {
-                imageModel,
-                imageModelProfiles: {
-                  ...prev.imageModelProfiles,
-                  [prev.imageModel.provider]: imageProfileFromState(imageModel),
-                },
-              };
-            })(),
-          }));
-        }
-        showToast(result?.message || `获取到 ${models.length} 个${providerLabel}模型`, result?.success ? 'success' : 'info');
-        return;
-      }
-
-      if (state.imageModel.provider === 'google-ai-studio') {
-        const models = [
-          'gemini-3.1-flash-image-preview',
-          'gemini-3-pro-image-preview',
-          'gemini-2.5-flash-image',
-        ];
-        setImageModels(models);
-        setState((prev) => ({
-          ...prev,
-          ...(() => {
-            const imageModel = models.includes(prev.imageModel.model_name)
-              ? prev.imageModel
-              : resetImageModelStatus({ ...prev.imageModel, model_name: models[0] });
-            return {
-              imageModel,
-              imageModelProfiles: {
-                ...prev.imageModelProfiles,
-                [prev.imageModel.provider]: imageProfileFromState(imageModel),
-              },
-            };
-          })(),
-        }));
-        showToast('已载入 Google AI Studio 生图模型', 'success');
-        return;
-      }
-
-      setImageModels([]);
-      showToast('该服务商模型列表接口暂未接入。');
-    } finally {
-      setLoadingModels(null);
-    }
-  };
 
   const isActiveTabDirty = () => {
     if (!savedConfig) {
