@@ -1,22 +1,21 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { trackPageView } from '../../../shared/analytics/analytics';
-import { AppDialog, AppSwitch, FloatingToolbar, isLibreOfficeRequiredMessage, MarkdownEditor, MarkdownFullscreenViewer, MarkdownRenderer, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, UploadBoard, UploadEmpty, UploadRow, useDocumentParseNotice, useToast } from '../../../shared/ui';
+import { AppDialog, FloatingToolbar, isLibreOfficeRequiredMessage, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import { useRejectionWorkspace } from '../hooks/useRejectionWorkspace';
 import { BidResultFilter, LogicCheckContent, RejectionFindingGroups, TypoCheckContent } from '../components/resultViews';
+import { DocumentsStepView, ItemsStepView } from '../components/stepViews';
+import { CheckConfigDialog } from '../components/CheckConfigDialog';
 import { hasExportableRejectionResults } from '../exportState';
 import { buildCheckRunPlan, buildExtractionErrorState, buildExtractionStartPlan, markBackgroundTaskFailed, markCheckResultFailed } from '../checkRunModel';
 import { deleteResultFinding, filterFindingsByActiveBid, toggleResultFinding } from '../findingModel';
 import {
   steps,
   stepLabels,
-  resultTabs,
   checkResultTabs,
   defaultCheckOptions,
   documentLabels,
-  sourceLabels,
-  extractionStatusLabels,
   checkRunStatusLabels,
   RejectionCheckTabStatus,
   checkTabStatusLabels,
@@ -26,14 +25,9 @@ import {
   getCheckResultTabProgress,
   createDocumentSignature,
   createRejectionCheckInputSignature,
-  getBidDocumentLabel,
-  getTenderDocumentLabel,
   resolveImportToastType,
   createBidDocumentsSignature,
 } from '../model';
-import {
-  DocumentFilePill,
-} from '../components/findingItems';
 import type {
   RejectionCheckStep,
   RejectionCheckOptions,
@@ -807,226 +801,9 @@ function RejectionCheckPage() {
   return (
     <div className={`rejection-check-page is-${step}`}>
       {step === 'documents' ? (
-        <>
-          <UploadBoard kicker="STEP 01" title="选择标书">
-            <UploadRow
-              index="01"
-              title="招标文件"
-              onDropFiles={(files) => {
-                const paths = resolveDroppedFilePaths(files);
-                if (paths.length) void importParsedDocument('tender', paths);
-              }}
-              dropDisabled={documentsLocked}
-              actions={(
-                <>
-                  <button type="button" className="secondary-action" onClick={readTenderFromTechnicalPlan} disabled={documentsLocked}>
-                    {busy === 'technical-plan' ? '读取中...' : '从技术方案读取'}
-                  </button>
-                  <button type="button" className="primary-action" onClick={() => void importParsedDocument('tender')} disabled={documentsLocked}>
-                    {busy === 'tender-upload' ? '解析中...' : tenderDocuments.length ? '继续上传' : '上传'}
-                  </button>
-                </>
-              )}
-            >
-              {tenderDocuments.length ? (
-                <div className="duplicate-file-list rejection-bid-file-list">
-                  {tenderDocuments.map((document, index) => (
-                    <div className="rejection-bid-file-entry" key={document.id}>
-                      <span>{`招标文件${index + 1}`}</span>
-                      <DocumentFilePill document={document} onRemove={() => removeDocument('tender', document.id)} removeDisabled={documentsLocked} />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <UploadEmpty title="等待招标文件" hint="用于识别废标条款、响应格式和强制性要求。">
-                  <button type="button" className="text-button" onClick={() => void importParsedDocument('tender')} disabled={documentsLocked}>选择招标文件</button>
-                </UploadEmpty>
-              )}
-            </UploadRow>
-
-            <UploadRow
-              index="02"
-              title="投标文件"
-              note="必选，可多份"
-              onDropFiles={(files) => {
-                const paths = resolveDroppedFilePaths(files);
-                if (paths.length) void importParsedDocument('bid', paths);
-              }}
-              dropDisabled={documentsLocked}
-              actions={(
-                <button type="button" className="primary-action" onClick={() => void importParsedDocument('bid')} disabled={documentsLocked}>
-                  {busy === 'bid-upload' ? '解析中...' : bidDocuments.length ? '继续上传' : '上传'}
-                </button>
-              )}
-            >
-              {bidDocuments.length ? (
-                <div className="duplicate-file-list rejection-bid-file-list">
-                  {bidDocuments.map((document, index) => (
-                    <div className="rejection-bid-file-entry" key={document.id}>
-                      <span>{`投标文件${index + 1}`}</span>
-                      <DocumentFilePill document={document} onRemove={() => removeDocument('bid', document.id)} removeDisabled={documentsLocked} />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <UploadEmpty title="等待投标文件" hint="可一次选择多份，也可以后续继续追加上传。">
-                  <button type="button" className="text-button" onClick={() => void importParsedDocument('bid')} disabled={documentsLocked}>选择投标文件</button>
-                </UploadEmpty>
-              )}
-            </UploadRow>
-          </UploadBoard>
-
-          <div className="document-switch-tabs" role="tablist" aria-label="废标项检查正文切换">
-            {[
-              ...(tenderDocuments.length > 1 ? [{ id: 'tender', label: '招标文件全文' }] : []),
-              ...(tenderDocuments.length > 1 ? tenderDocuments.map((document, index) => ({ id: document.id, label: `招标文件${index + 1}` })) : [{ id: 'tender', label: '招标文件' }]),
-              ...bidDocuments.map((document, index) => ({ id: document.id, label: `投标文件${index + 1}` })),
-            ].map((tab) => {
-              const isActive = tab.id === activeDocumentTab;
-              return (
-                <button
-                  type="button"
-                  className={`document-switch-tab${isActive ? ' is-active' : ''}`}
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-controls={`rejection-document-panel-${tab.id}`}
-                  id={`document-switch-tab-${tab.id}`}
-                  key={tab.id}
-                  onClick={() => setActiveDocumentTab(tab.id)}
-                >
-                  <strong>{tab.label}</strong>
-                </button>
-              );
-            })}
-          </div>
-
-          <section
-            className="rejection-reader-card analysis-markdown-card"
-            role="tabpanel"
-            id={`rejection-document-panel-${activeDocumentTab}`}
-            aria-labelledby={`document-switch-tab-${activeDocumentTab}`}
-          >
-            <div className="analysis-result-head rejection-reader-head">
-              <strong>{activeDocumentTab === 'tender' ? '招标文件正文' : activeTenderSourceDocument ? `${getTenderDocumentLabel(tenderDocuments, activeDocumentTab)}正文` : `${getBidDocumentLabel(bidDocuments, activeDocumentTab)}正文`}</strong>
-              <span>{activeDocument ? `${activeDocument.fileName} · ${sourceLabels[activeDocument.source]}` : '等待上传'}</span>
-            </div>
-
-            {activeDocument ? (
-              <MarkdownFullscreenViewer className="markdown-viewer rejection-markdown-viewer" title={`${activeDocument.fileName}全屏查看`}>
-                <MarkdownRenderer>
-                  {activeDocument.content}
-                </MarkdownRenderer>
-              </MarkdownFullscreenViewer>
-            ) : (
-              <div className="markdown-empty-state rejection-empty-reader">
-                <strong>尚未准备{activeDocumentTab === 'tender' ? '招标文件' : '投标文件'}</strong>
-                <p>{activeDocumentTab === 'tender' || activeTenderSourceDocument ? '可从技术方案读取招标文件，也可以直接上传并解析成 Markdown。' : '请上传至少一份投标文件，页面会在这里展示解析后的 Markdown 正文。'}</p>
-              </div>
-            )}
-          </section>
-        </>
+        <DocumentsStepView activeDocument={activeDocument} activeDocumentTab={activeDocumentTab} activeTenderSourceDocument={activeTenderSourceDocument} bidDocuments={bidDocuments} busy={busy} documentsLocked={documentsLocked} importParsedDocument={importParsedDocument} readTenderFromTechnicalPlan={readTenderFromTechnicalPlan} removeDocument={removeDocument} resolveDroppedFilePaths={resolveDroppedFilePaths} setActiveDocumentTab={setActiveDocumentTab} tenderDocuments={tenderDocuments} />
       ) : step === 'items' ? (
-        <>
-          <section className="rejection-result-command-bar">
-            <div>
-              <span className="section-kicker">STEP 02</span>
-              <strong>无效与废标项</strong>
-              <p>先提取招标文件中的无效投标和废标项，再补充自定义检查项。</p>
-            </div>
-            <div className={`rejection-result-status is-${visibleExtractionStatus}`}>
-              <span>{extractionStatusLabels[visibleExtractionStatus]}</span>
-              <small>{resultSourceLabel}</small>
-            </div>
-            <button
-              type="button"
-              className="primary-action"
-              onClick={() => void prepareInvalidBidAndRejectionItems(Boolean(visibleExtractionContent.trim()) || visibleExtractionStatus === 'error')}
-              disabled={!tenderDocument || extractionRunning}
-            >
-              {extractionRunning ? '解析中...' : visibleExtractionContent.trim() ? '重新解析' : '开始解析'}
-            </button>
-          </section>
-
-          <div className="document-switch-tabs" role="tablist" aria-label="无效与废标项内容切换">
-            {resultTabs.map((tab) => {
-              const isActive = tab.id === activeResultTab;
-              return (
-                <button
-                  type="button"
-                    className={`document-switch-tab${isActive ? ' is-active' : ''}`}
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-controls={`rejection-result-panel-${tab.id}`}
-                  id={`rejection-result-tab-${tab.id}`}
-                  key={tab.id}
-                  onClick={() => setActiveResultTab(tab.id)}
-                >
-                  <strong>{tab.label}</strong>
-                </button>
-              );
-            })}
-          </div>
-
-          <section
-            className="rejection-reader-card rejection-result-card analysis-markdown-card"
-            role="tabpanel"
-            id={`rejection-result-panel-${activeResultTab}`}
-            aria-labelledby={`rejection-result-tab-${activeResultTab}`}
-          >
-            <div className="analysis-result-head rejection-reader-head">
-              <div className="rejection-reader-heading">
-                <strong>{activeResultTab === 'analysis' ? '解析结果' : '自定义检查项'}</strong>
-                <span>{activeResultTab === 'analysis'
-                  ? `${extractionStatusLabels[visibleExtractionStatus]} · ${resultSourceLabel}`
-                  : customCheckItemsSaving
-                    ? '正在保存自定义检查项'
-                    : extractionRunning || checkRunning
-                      ? '任务运行中暂不能修改自定义检查项，当前检查会使用启动任务时的内容'
-                      : customCheckItemsDirty
-                        ? '内容尚未保存，保存后才用于废标项检查'
-                        : '可填写补充检查口径、人工关注项或项目经验'}</span>
-              </div>
-              {activeResultTab === 'custom' && (
-                <div className="rejection-custom-save-actions">
-                  <span className={`rejection-custom-save-state${customCheckItemsDirty ? ' is-dirty' : ''}`}>
-                    {customCheckItemsDirty ? '有未保存修改' : '已保存'}
-                  </span>
-                  <button
-                    type="button"
-                    className="primary-action"
-                    onClick={() => void saveCustomCheckItems()}
-                    disabled={!customCheckItemsDirty || customCheckItemsDisabled}
-                  >
-                    {customCheckItemsSaving ? '保存中...' : '保存'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {activeResultTab === 'analysis' ? (
-              visibleExtractionContent.trim() ? (
-                <MarkdownFullscreenViewer className="markdown-viewer rejection-markdown-viewer rejection-result-viewer" title="解析结果全屏查看">
-                  <MarkdownRenderer>
-                    {visibleExtractionContent}
-                  </MarkdownRenderer>
-                </MarkdownFullscreenViewer>
-              ) : (
-                <div className="markdown-empty-state rejection-empty-reader">
-                  <strong>{visibleExtractionStatus === 'error' ? invalidBidAndRejectionItems.error || '解析失败' : '等待解析无效与废标项'}</strong>
-                  <p>{extractionRunning ? '正在提取招标文件中的无效投标、废标项和可能风险。' : '进入本步骤后会自动解析；也可以点击上方“开始解析”。'}</p>
-                </div>
-              )
-            ) : (
-              <MarkdownEditor
-                className="rejection-custom-editor"
-                value={customCheckItemsDraft}
-                onChange={updateCustomCheckItemsDraft}
-                disabled={customCheckItemsDisabled}
-                placeholder="输入自定义检查项，例如：\n- 关注报价文件是否存在多处不一致\n- 关注资格证明材料有效期是否覆盖投标截止时间\n- 关注技术偏离表是否遗漏关键参数响应"
-              />
-            )}
-          </section>
-        </>
+        <ItemsStepView activeResultTab={activeResultTab} checkRunning={checkRunning} customCheckItemsDirty={customCheckItemsDirty} customCheckItemsDisabled={customCheckItemsDisabled} customCheckItemsDraft={customCheckItemsDraft} customCheckItemsSaving={customCheckItemsSaving} extractionRunning={extractionRunning} invalidBidAndRejectionItems={invalidBidAndRejectionItems} prepareInvalidBidAndRejectionItems={prepareInvalidBidAndRejectionItems} resultSourceLabel={resultSourceLabel} saveCustomCheckItems={saveCustomCheckItems} setActiveResultTab={setActiveResultTab} tenderDocument={tenderDocument} updateCustomCheckItemsDraft={updateCustomCheckItemsDraft} visibleExtractionContent={visibleExtractionContent} visibleExtractionStatus={visibleExtractionStatus} />
       ) : (
         <>
           <section className="rejection-check-result-panel">
@@ -1144,57 +921,7 @@ function RejectionCheckPage() {
             </div>
           </section>
 
-          <Dialog.Root open={checkConfigDialogOpen} onOpenChange={setCheckConfigDialogOpen}>
-            <Dialog.Portal>
-              <Dialog.Overlay className="content-regenerate-modal" />
-              <Dialog.Content className="content-generation-config-card rejection-check-config-card">
-                <div className="content-regenerate-card-head">
-                  <span className="section-kicker">检查配置</span>
-                  <Dialog.Title>检查结果配置</Dialog.Title>
-                </div>
-
-                <div className="content-generation-config-list">
-                  <label className="content-generation-config-row">
-                    <span>
-                      <strong>废标项检查</strong>
-                      <small>基于招标文件无效与废标项检查投标文件响应风险，默认必选。</small>
-                    </span>
-                    <AppSwitch checked disabled aria-label="废标项检查" />
-                  </label>
-                  <label className="content-generation-config-row">
-                    <span>
-                      <strong>错别字检查</strong>
-                      <small>检查投标文件中的错别字、明显别字和文字疏漏。</small>
-                    </span>
-                    <AppSwitch
-                      checked={draftCheckOptions.typoCheck}
-                      onCheckedChange={(checked) => setDraftCheckOptions((prev) => ({ ...prev, typoCheck: checked }))}
-                      aria-label="错别字检查" />
-                  </label>
-                  <label className="content-generation-config-row">
-                    <span>
-                      <strong>逻辑谬误检查</strong>
-                      <small>检查前后矛盾、逻辑不一致和表述漏洞。</small>
-                    </span>
-                    <AppSwitch
-                      checked={draftCheckOptions.logicCheck}
-                      onCheckedChange={(checked) => setDraftCheckOptions((prev) => ({ ...prev, logicCheck: checked }))}
-                      aria-label="逻辑谬误检查" />
-                  </label>
-                </div>
-
-                <div className="content-regenerate-actions">
-                  <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-                  <button type="button" className="secondary-action" onClick={saveCheckOptions}>
-                    保存配置
-                  </button>
-                  <button type="button" className="primary-action" onClick={startCheckWithOptions} disabled={checkRunning || extractionRunning || !bidDocuments.length || (draftCheckOptions.rejectionCheck && (visibleExtractionStatus !== 'success' || !currentRejectionCheckInputSignature))}>
-                    {checkActionLabel}
-                  </button>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
+          <CheckConfigDialog checkConfigDialogOpen={checkConfigDialogOpen} setCheckConfigDialogOpen={setCheckConfigDialogOpen} draftCheckOptions={draftCheckOptions} setDraftCheckOptions={setDraftCheckOptions} checkRunning={checkRunning} extractionRunning={extractionRunning} bidDocuments={bidDocuments} visibleExtractionStatus={visibleExtractionStatus} currentRejectionCheckInputSignature={currentRejectionCheckInputSignature} checkActionLabel={checkActionLabel} saveCheckOptions={saveCheckOptions} startCheckWithOptions={startCheckWithOptions} />
         </>
       )}
 
