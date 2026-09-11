@@ -1,9 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { trackPageView } from '../../../shared/analytics/analytics';
-import { AppDialog, FloatingToolbar, isLibreOfficeRequiredMessage, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
+import { AppDialog, FloatingToolbar, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import { useRejectionWorkspace } from '../hooks/useRejectionWorkspace';
+import { useRejectionDocumentImport } from '../hooks/useRejectionDocumentImport';
+import type { RejectionDocumentBusyState } from '../hooks/useRejectionDocumentImport';
 import { BidResultFilter, LogicCheckContent, RejectionFindingGroups, TypoCheckContent } from '../components/resultViews';
 import { DocumentsStepView, ItemsStepView } from '../components/stepViews';
 import { CheckConfigDialog } from '../components/CheckConfigDialog';
@@ -15,7 +17,6 @@ import {
   stepLabels,
   checkResultTabs,
   defaultCheckOptions,
-  documentLabels,
   checkRunStatusLabels,
   RejectionCheckTabStatus,
   checkTabStatusLabels,
@@ -25,7 +26,6 @@ import {
   getCheckResultTabProgress,
   createDocumentSignature,
   createRejectionCheckInputSignature,
-  resolveImportToastType,
   createBidDocumentsSignature,
 } from '../model';
 import type {
@@ -33,7 +33,6 @@ import type {
   RejectionCheckOptions,
   RejectionCheckResultTab,
   RejectionCheckRunStatus,
-  RejectionDocumentRole,
   RejectionDocumentTabId,
   RejectionResultTab,
   TypoCheckFinding,
@@ -70,7 +69,7 @@ function RejectionCheckPage() {
   const [activeCheckResultTab, setActiveCheckResultTab] = useState<RejectionCheckResultTab>('rejection');
   const [activeResultBidDocumentId, setActiveResultBidDocumentId] = useState('all');
   const [checkConfigDialogOpen, setCheckConfigDialogOpen] = useState(false);
-  const [busy, setBusy] = useState<'technical-plan' | 'tender-upload' | 'bid-upload' | 'remove' | null>(null);
+  const [busy, setBusy] = useState<RejectionDocumentBusyState>(null);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportedExcelPath, setExportedExcelPath] = useState('');
   const [analyticsReady, setAnalyticsReady] = useState(false);
@@ -213,6 +212,22 @@ function RejectionCheckPage() {
     && (logicCheckResult.findings.length || logicCheckResult.status !== 'idle'),
   );
 
+  const {
+    resolveDroppedFilePaths,
+    importParsedDocument,
+    readTenderFromTechnicalPlan,
+    removeDocument,
+  } = useRejectionDocumentImport({
+    documentsLocked,
+    step,
+    setBusy,
+    setStep,
+    applyWorkspaceState,
+    showToast,
+    showDocumentParseNotice,
+  });
+
+
   useEffect(() => {
     if (!analyticsReady) return;
 
@@ -249,92 +264,6 @@ function RejectionCheckPage() {
 
     void prepareInvalidBidAndRejectionItems(false);
   }, [extractionRunning, invalidBidAndRejectionItems.content, invalidBidAndRejectionItems.source, invalidBidAndRejectionItems.tenderSignature, step, tenderDocument, tenderSignature]);
-
-  const resolveDroppedFilePaths = (files: FileList) =>
-    Array.from(files).map((file) => window.yibiao?.file.getPathForFile(file) || '').filter(Boolean);
-
-  async function importParsedDocument(role: RejectionDocumentRole, filePaths?: string[]) {
-    const documentLabel = documentLabels[role];
-    if (documentsLocked) {
-      return;
-    }
-    try {
-      const importer = window.yibiao?.rejectionCheck.importDocument;
-      if (typeof importer !== 'function') {
-        throw new Error('文件解析接口尚未加载，请重启应用后重试');
-      }
-
-      setBusy(role === 'tender' ? 'tender-upload' : 'bid-upload');
-      const result = await importer(role, filePaths);
-
-      if (!result?.success) {
-        const message = result?.message || `未选择${documentLabel}`;
-        if (isLibreOfficeRequiredMessage(message)) {
-          showDocumentParseNotice(message);
-          return;
-        }
-        showToast(message, resolveImportToastType(message, false));
-        return;
-      }
-
-      applyWorkspaceState(await window.yibiao.rejectionCheck.loadState());
-      const successMessage = result.message || `${documentLabel}已解析`;
-      showToast(successMessage, resolveImportToastType(successMessage, true));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : `${documentLabel}解析失败`;
-      if (isLibreOfficeRequiredMessage(message)) {
-        showDocumentParseNotice(message);
-        return;
-      }
-      showToast(message, 'error');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function readTenderFromTechnicalPlan() {
-    if (documentsLocked) {
-      return;
-    }
-    if (!window.yibiao?.rejectionCheck?.importTenderFromTechnicalPlan) {
-      showToast('废标项检查缓存接口尚未加载，请重启应用后重试', 'error');
-      return;
-    }
-
-    try {
-      setBusy('technical-plan');
-      const result = await window.yibiao.rejectionCheck.importTenderFromTechnicalPlan();
-      if (!result?.success) {
-        showToast(result?.message || '技术方案中暂无可读取的招标文件正文', 'info');
-        return;
-      }
-
-      applyWorkspaceState(await window.yibiao.rejectionCheck.loadState());
-      showToast(result.message || '已从技术方案读取招标文件', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '读取技术方案招标文件失败', 'error');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  function removeDocument(role: RejectionDocumentRole, documentId?: string) {
-    if (documentsLocked) {
-      return;
-    }
-    setBusy('remove');
-    void window.yibiao?.rejectionCheck.removeDocument(role, documentId)
-      .then(() => window.yibiao.rejectionCheck.loadState())
-      .then((state) => {
-        applyWorkspaceState({ ...state, step: role === 'tender' && step === 'items' ? 'documents' : state.step });
-      })
-      .catch((error) => {
-        showToast(error instanceof Error ? error.message : `移除${documentLabels[role]}失败`, 'error');
-      })
-      .finally(() => {
-        setBusy(null);
-      });
-  }
 
   async function prepareInvalidBidAndRejectionItems(force: boolean) {
     if (!tenderDocument || !tenderSignature) {
