@@ -5,11 +5,13 @@ import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
 import ContentEditPage from './ContentEditPage';
-import { TemplatePreview } from '../../export-format/components/TemplatePreview';
+import { ExportProgressDialog, ExportTemplateDialog, OutlineWordControlLeaveDialog, PetInstallDialog, SortLeaveDialog, WordControlWarningDialog, WorkflowSwitchDialog } from '../components/technicalPlanDialogs';
+import { initialExportProgress } from '../components/technicalPlanDialogs';
+import type { ExportProgressState, WorkflowSwitchRequest } from '../components/technicalPlanDialogs';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { bidAnalysisTasks, isMissingBidAnalysisResult } from '../services/bidAnalysisWorkflow';
 import { trackPageView } from '../../../shared/analytics/analytics';
-import { AppDialog, FloatingToolbar, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, ToolbarSparkleIcon, useToast } from '../../../shared/ui';
+import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, ToolbarSparkleIcon, useToast } from '../../../shared/ui';
 import type { BackgroundTaskState, ContentGenerationOptions, GlobalFactGroupState, GlobalFactsMode, SaveOutlineRequest, SaveOutlineSelectionRequest, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
 import { DEFAULT_OUTLINE_WORD_CONTROL_OPTIONS } from '../../../shared/types';
 import type { OutlineItem, OutlineWordControlOptions, WordExportProgressEvent } from '../../../shared/types';
@@ -35,11 +37,6 @@ interface OutlineSortGuard {
   discardSort: () => void;
 }
 
-interface WorkflowSwitchRequest {
-  from: TechnicalPlanWorkflowKind;
-  to: TechnicalPlanWorkflowKind;
-  navigateBackOnCancel: boolean;
-}
 
 
 
@@ -103,25 +100,7 @@ const resetState = {
   outlineData: null,
 };
 
-interface ExportProgressState {
-  open: boolean;
-  running: boolean;
-  progress: number;
-  message: string;
-  warnings: string[];
-  mermaidCount: number;
-  filePath?: string;
-  error?: string;
-}
 
-const initialExportProgress: ExportProgressState = {
-  open: false,
-  running: false,
-  progress: 0,
-  message: '',
-  warnings: [],
-  mermaidCount: 0,
-};
 
 const MAX_UI_TASK_LOGS = 80;
 
@@ -1065,240 +1044,69 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
         </section>
       )}
 
-      <AppDialog
+
+
+
+
+
+
+
+      <SortLeaveDialog
         open={sortLeaveDialogOpen}
+        saving={savingSortBeforeLeave}
         onOpenChange={(open) => !open && continueSorting()}
-        kicker="目录排序"
-        title="排序结果是否保存"
-        description="当前目录排序还没有保存。保存后会更新目录编号并保留已生成正文；不保存则丢弃本次排序草稿。"
-        cardClassName="outline-sort-leave-card"
-        actions={(
-          <>
-            <button type="button" className="secondary-action" onClick={continueSorting} disabled={savingSortBeforeLeave}>继续排序</button>
-            <button type="button" className="secondary-action" onClick={discardSortAndLeave} disabled={savingSortBeforeLeave}>不保存</button>
-            <button type="button" className="primary-action" onClick={() => { void saveSortAndLeave(); }} disabled={savingSortBeforeLeave}>
-              {savingSortBeforeLeave ? '正在保存...' : '保存排序'}
-            </button>
-          </>
-        )}
+        onContinue={continueSorting}
+        onDiscard={discardSortAndLeave}
+        onSave={saveSortAndLeave}
       />
 
-      <AppDialog
-        open={Boolean(wordControlWarningDialog)}
-        onOpenChange={(open) => !open && setWordControlWarningDialog(null)}
-        kicker="结果提醒"
-        title={wordControlWarningDialog?.title}
-        description={wordControlWarningDialog?.message}
-        cardClassName="word-control-result-card"
-        actions={<Dialog.Close className="primary-action" type="button">知道了</Dialog.Close>}
-      >
-        <div className="word-control-result-body">
-              <div className="word-control-result-metrics">
-                {wordControlWarningDialog?.metrics.map((metric) => (
-                  <section className="word-control-result-metric" key={metric.label}>
-                    <strong>{metric.label}</strong>
-                    <dl>
-                      <div>
-                        <dt>预期</dt>
-                        <dd>{metric.expected}</dd>
-                      </div>
-                      <div>
-                        <dt>实际</dt>
-                        <dd>{metric.actual}</dd>
-                      </div>
-                    </dl>
-                  </section>
-                ))}
-              </div>
-              {wordControlWarningDialog?.sections.length ? (
-                <section className="word-control-result-sections">
-                  <div className="word-control-result-sections-head">
-                    <strong>未达标小节</strong>
-                    <span>{wordControlWarningDialog.sections.length} 个</span>
-                  </div>
-                  <div className="word-control-result-section-list">
-                    {wordControlWarningDialog.sections.map((section) => (
-                      <div className="word-control-result-section" key={section.id}>
-                        <span>{section.id} {section.title}</span>
-                        <strong>{section.words.toLocaleString('zh-CN')} 字</strong>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-        </div>
-      </AppDialog>
+      <WordControlWarningDialog
+        dialog={wordControlWarningDialog}
+        onClose={() => setWordControlWarningDialog(null)}
+      />
 
-      <AppDialog
+      <PetInstallDialog
         open={petInstallDialogOpen}
-        onOpenChange={(open) => !open && !installingPetPlugin && setPetInstallDialogOpen(false)}
-        kicker="AI 调整"
-        title="需要安装桌宠插件"
-        description="AI 调整通过桌宠的 AI 对话完成。当前桌宠插件尚未安装或未启用，是否立即安装并启用？"
-        actions={(
-          <>
-            <button type="button" className="secondary-action" onClick={() => setPetInstallDialogOpen(false)} disabled={installingPetPlugin}>取消</button>
-            <button type="button" className="primary-action" onClick={() => { void installPetPluginAndOpenChat(); }} disabled={installingPetPlugin}>
-              {installingPetPlugin ? '正在安装...' : '安装并启用'}
-            </button>
-          </>
-        )}
+        installing={installingPetPlugin}
+        onClose={() => setPetInstallDialogOpen(false)}
+        onInstall={installPetPluginAndOpenChat}
       />
 
-      <AppDialog
+      <OutlineWordControlLeaveDialog
         open={outlineWordControlLeaveDialogOpen}
-        onOpenChange={(open) => !open && resolveOutlineWordControlLeave(false)}
-        kicker="字数检查"
-        title="AI生成小节数量未达预期"
-        description="您手动修改的目录可能导致生成正文字数不符合预期"
-        actions={(
-          <>
-            <button type="button" className="secondary-action" onClick={() => resolveOutlineWordControlLeave(false)}>再修改目录</button>
-            <button type="button" className="primary-action" onClick={() => resolveOutlineWordControlLeave(true)}>仍然继续</button>
-          </>
-        )}
+        onResolve={resolveOutlineWordControlLeave}
       />
 
-      <AppDialog
-        open={Boolean(workflowSwitchRequest)}
-        onOpenChange={(open) => !open && !switchingWorkflow && cancelWorkflowSwitch()}
-        kicker="切换模式"
-        title={`确认切换到${workflowSwitchRequest ? workflowLabel(workflowSwitchRequest.to) : '新模式'}`}
-        description={workflowSwitchRequest
-          ? `当前保存的进度是「${workflowLabel(workflowSwitchRequest.from)}」模式生成的。切换到「${workflowLabel(workflowSwitchRequest.to)}」会清空之前的已有进度。是否继续？`
-          : '切换模式会清空当前模式下的生成进度。'}
-        cardClassName="workflow-switch-card"
-        actions={(
-          <>
-            <button type="button" className="secondary-action" onClick={cancelWorkflowSwitch} disabled={switchingWorkflow}>取消</button>
-            <button type="button" className="primary-action" onClick={() => { void confirmWorkflowSwitch(); }} disabled={switchingWorkflow}>
-              {switchingWorkflow ? '正在切换...' : '继续切换'}
-            </button>
-          </>
-        )}
-      >
-        <div className="workflow-switch-summary">
-          <span>保留：招标文件、招标文件解析结果、参考知识库选择</span>
-          <span>清空：{workflowSwitchClearText}</span>
-        </div>
-      </AppDialog>
+      <WorkflowSwitchDialog
+        request={workflowSwitchRequest}
+        switching={switchingWorkflow}
+        clearText={workflowSwitchClearText}
+        onCancel={cancelWorkflowSwitch}
+        onConfirm={confirmWorkflowSwitch}
+      />
 
-      <Dialog.Root open={exportTemplateDialogOpen} onOpenChange={(open) => !open && !isExporting && setExportTemplateDialogOpen(false)}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="export-template-select-dialog">
-            <div className="export-template-select-head">
-              <div>
-                <span className="section-kicker">Word 导出</span>
-                <Dialog.Title>选择导出模板</Dialog.Title>
-                <Dialog.Description>选择一个已保存模板后继续导出。模板样式应用范围保持现有导出逻辑。</Dialog.Description>
-              </div>
-              <Dialog.Close className="detail-help-close" type="button" aria-label="关闭模板选择" disabled={isExporting}>×</Dialog.Close>
-            </div>
+      <ExportTemplateDialog
+        open={exportTemplateDialogOpen}
+        isExporting={isExporting}
+        search={exportTemplateSearch}
+        loading={exportTemplatesLoading}
+        templates={exportTemplates}
+        filteredTemplates={filteredExportTemplates}
+        selectedTemplate={selectedExportTemplate}
+        previewStyle={exportTemplatePreviewStyle}
+        onOpenChange={(open) => !open && !isExporting && setExportTemplateDialogOpen(false)}
+        onClose={() => setExportTemplateDialogOpen(false)}
+        onSearchChange={setExportTemplateSearch}
+        onSelect={setSelectedExportTemplateId}
+        onCreate={createExportTemplate}
+        onConfirm={confirmExportTemplate}
+      />
 
-            <div className="export-template-select-body">
-              <section className="export-template-select-list-panel" aria-label="模板列表">
-                <input
-                  className="export-template-select-search"
-                  type="text"
-                  value={exportTemplateSearch}
-                  onChange={(event) => setExportTemplateSearch(event.target.value)}
-                  placeholder="搜索模板名称"
-                />
-                <div className="export-template-select-list">
-                  {exportTemplatesLoading ? (
-                    <div className="export-template-select-empty"><strong>正在读取模板</strong><span>请稍候...</span></div>
-                  ) : null}
-                  {!exportTemplatesLoading && filteredExportTemplates.length === 0 ? (
-                    <div className="export-template-select-empty">
-                      <strong>{exportTemplates.length ? '没有匹配模板' : '暂无可用模板'}</strong>
-                      <span>{exportTemplates.length ? '请换个关键词搜索，或新建一个模板。' : '请先新建并保存模板，保存后再返回导出。'}</span>
-                      <button type="button" className="secondary-action" onClick={createExportTemplate} disabled={isExporting}>新建模板</button>
-                    </div>
-                  ) : null}
-                  {!exportTemplatesLoading && filteredExportTemplates.map((template) => {
-                    const selected = selectedExportTemplate?.template_id === template.template_id;
-                    return (
-                      <button
-                        type="button"
-                        className={`export-template-select-row${selected ? ' is-active' : ''}`}
-                        key={template.template_id}
-                        onClick={() => setSelectedExportTemplateId(template.template_id)}
-                      >
-                        <strong>{template.template_name}</strong>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="export-template-select-preview" aria-label="模板预览">
-                {selectedExportTemplate ? (
-                  <>
-                    <div className="export-template-select-preview-head">
-                      <span className="section-kicker">预览</span>
-                      <strong>{selectedExportTemplate.template_name}</strong>
-                    </div>
-                    <TemplatePreview config={selectedExportTemplate.config} previewStyle={exportTemplatePreviewStyle} />
-                  </>
-                ) : (
-                  <div className="export-template-select-preview-empty">
-                    <strong>暂无模板预览</strong>
-                    <span>选择模板后会在这里显示预览。</span>
-                  </div>
-                )}
-              </section>
-            </div>
-
-            <div className="content-regenerate-actions export-template-select-actions">
-              <button type="button" className="secondary-action" onClick={createExportTemplate} disabled={isExporting}>新建模板</button>
-              <Dialog.Close className="secondary-action" type="button" disabled={isExporting}>取消</Dialog.Close>
-              <button type="button" className="primary-action" onClick={() => { void confirmExportTemplate(); }} disabled={exportTemplatesLoading || !selectedExportTemplate || isExporting}>继续导出</button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      <Dialog.Root
-        open={exportProgress.open}
-        onOpenChange={(open) => {
-          if (!open && !exportProgress.running) {
-            setExportProgress(initialExportProgress);
-          }
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="export-progress-card">
-            <div className="content-regenerate-card-head">
-              <span className="section-kicker">Word 导出</span>
-              <Dialog.Title>{exportProgress.running ? '正在导出 Word' : exportProgress.error ? '导出失败' : '导出完成'}</Dialog.Title>
-              <Dialog.Description>
-                {exportProgress.mermaidCount > 0
-                  ? `本次包含 ${exportProgress.mermaidCount} 张 Mermaid 图，导出时会在本地转换成 Word 图片。`
-                  : '正在将正文、表格和图片写入 Word 文档。'}
-              </Dialog.Description>
-            </div>
-            <div className="export-progress-body">
-              <ProgressBar value={exportProgress.progress} label={`Word 导出进度 ${exportProgress.progress}%`} />
-              <p>{exportProgress.message || '正在处理导出任务，请稍候。'}</p>
-              {exportProgress.warnings.length > 0 && (
-                <div className="export-warning-list">
-                  <strong>需要核对</strong>
-                  {exportProgress.warnings.slice(0, 4).map((warning) => <small key={warning}>{warning}</small>)}
-                  {exportProgress.warnings.length > 4 && <small>还有 {exportProgress.warnings.length - 4} 条图片提示，请打开导出的 Word 核对。</small>}
-                </div>
-              )}
-            </div>
-            {!exportProgress.running && (
-              <div className="content-regenerate-actions">
-                {!exportProgress.error && exportProgress.filePath && <button className="primary-action" type="button" onClick={() => { void handleOpenExportedFile(); }}>打开文件</button>}
-                <Dialog.Close className={exportProgress.filePath && !exportProgress.error ? 'secondary-action' : 'primary-action'} type="button">知道了</Dialog.Close>
-              </div>
-            )}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <ExportProgressDialog
+        progress={exportProgress}
+        onReset={() => setExportProgress(initialExportProgress)}
+        onOpenFile={handleOpenExportedFile}
+      />
 
       <FloatingToolbar groups={toolbarGroups} label="技术方案工具条" />
     </div>
