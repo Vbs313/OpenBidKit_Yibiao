@@ -35,6 +35,14 @@ const {
   extractComfyUIHistoryWorkflow,
   extractComfyUIImages,
 } = require('./ai/providerParsers.cjs');
+const { repairInvalidJsonStringEscapes } = require('./ai/jsonRepair.cjs');
+const { normalizeStreamPayloadError } = require('./ai/streamErrors.cjs');
+const {
+  normalizeImageRequestMode,
+  createOpenAICompatibleImageRequestBody,
+  appendOpenAICompatibleImagePayload,
+  buildComfyUIImageWorkflow,
+} = require('./ai/imagePayloads.cjs');
 
 const AI_REQUEST_TIMEOUT_MS = 600000;
 const MULTIMODAL_IMAGE_MAX_EDGE = 2048;
@@ -150,7 +158,6 @@ function normalizeAnalyticsEndpointHost(baseUrl) {
 }
 
 
-
 function normalizeRequestTimeoutMs(request) {
   const timeoutMs = Number(request?.timeout_ms);
   return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : AI_REQUEST_TIMEOUT_MS;
@@ -232,62 +239,6 @@ async function prepareMultimodalMessages(config, messages) {
   return preparedMessages;
 }
 
-function normalizeImageRequestMode(imageConfig) {
-  return imageConfig?.request_mode === 'normal' ? 'normal' : 'stream';
-}
-
-function normalizeOpenAICompatibleImageSize(imageConfig, requestSize) {
-  const requested = String(requestSize || '').trim();
-  const configured = String(imageConfig?.image_size || '').trim();
-  return requested || configured || '1024x1024';
-}
-
-const AGNES_IMAGE_2_0_SIZES = new Set(['1024x768', '1024x1024', '768x1024']);
-const AGNES_IMAGE_2_1_SIZES = new Set(['1K', '2K', '3K', '4K']);
-const AGNES_IMAGE_RATIOS = new Set(['1:1', '3:4', '4:3', '16:9', '9:16', '2:3', '3:2', '21:9']);
-
-// 按服务商协议构造 OpenAI 兼容生图请求。
-function createOpenAICompatibleImageRequestBody(provider, imageConfig, prompt, requestSize) {
-  const requestMode = normalizeImageRequestMode(imageConfig);
-  const model = String(imageConfig?.model_name || '').trim();
-  const size = normalizeOpenAICompatibleImageSize(imageConfig, requestSize);
-
-  if (provider !== 'agnes') {
-    return {
-      model,
-      prompt,
-      size,
-      response_format: 'url',
-      ...(requestMode === 'stream' ? { stream: true } : {}),
-    };
-  }
-
-  if (requestMode === 'stream') {
-    throw new Error('Agnes AI 生图仅支持普通请求，请在设置中将请求方式改为普通请求');
-  }
-  if (size === 'auto') {
-    throw new Error('Agnes AI 生图不支持自动尺寸，请在设置中选择具体图片尺寸');
-  }
-
-  if (model === 'agnes-image-2.0-flash' && !AGNES_IMAGE_2_0_SIZES.has(size)) {
-    throw new Error('Agnes Image 2.0 Flash 仅支持 1024x768、1024x1024 或 768x1024');
-  }
-  if (model === 'agnes-image-2.1-flash' && !AGNES_IMAGE_2_1_SIZES.has(size)) {
-    throw new Error('Agnes Image 2.1 Flash 请使用 1K、2K、3K 或 4K 图片尺寸');
-  }
-
-  const body = {
-    model,
-    prompt,
-    size,
-    extra_body: { response_format: 'url' },
-  };
-  if (model === 'agnes-image-2.1-flash') {
-    const ratio = String(imageConfig?.image_ratio || '1:1').trim();
-    body.ratio = AGNES_IMAGE_RATIOS.has(ratio) ? ratio : '1:1';
-  }
-  return body;
-}
 
 function normalizeGoogleImageSize(imageConfig) {
   const size = String(imageConfig?.image_size || '1K').trim();
@@ -526,73 +477,6 @@ async function fetchOpenAICompatibleImageResponse(baseUrl, apiKey, requestBody, 
   throw error;
 }
 
-
-
-
-const jsonEscapeChars = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't']);
-const markdownEscapeChars = new Set(['.', '(', ')', '[', ']', '{', '}', '#', '*', '+', '-', '_', '!', '<', '>', '|', '`']);
-
-function repairInvalidJsonStringEscapes(content) {
-  const text = String(content || '');
-  let output = '';
-  let inString = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (!inString) {
-      output += char;
-      if (char === '"') {
-        inString = true;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      output += char;
-      inString = false;
-      continue;
-    }
-
-    if (char !== '\\') {
-      output += char;
-      continue;
-    }
-
-    const nextChar = text[index + 1] || '';
-    if (!nextChar) {
-      output += '\\\\';
-      continue;
-    }
-
-    if (nextChar === 'u') {
-      const unicodeDigits = text.slice(index + 2, index + 6);
-      if (/^[0-9a-fA-F]{4}$/.test(unicodeDigits)) {
-        output += text.slice(index, index + 6);
-        index += 5;
-      } else {
-        output += '\\\\';
-      }
-      continue;
-    }
-
-    if (jsonEscapeChars.has(nextChar)) {
-      output += char + nextChar;
-      index += 1;
-      continue;
-    }
-
-    if (markdownEscapeChars.has(nextChar)) {
-      output += nextChar;
-      index += 1;
-      continue;
-    }
-
-    output += '\\\\';
-  }
-
-  return output;
-}
 
 function parseJsonContent(content) {
   const normalized = String(content || '').replace(/^\uFEFF/, '').trim();
@@ -892,17 +776,6 @@ function appendStreamChoiceContent(choice, contentParts) {
   }
 }
 
-function normalizeStreamPayloadError(error, fallbackMessage) {
-  if (!error) {
-    return fallbackMessage;
-  }
-
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  return error.message || error.code || fallbackMessage;
-}
 
 async function readSseJsonDataLine(line, state, options) {
   const trimmed = String(line || '').trim();
@@ -1039,73 +912,6 @@ async function requestTextAi(app, config, requestBody, options = {}) {
   });
 }
 
-function appendOpenAICompatibleImageItem(state, item) {
-  const url = String(item?.url || '');
-  const b64Json = String(item?.b64_json || '');
-  if (!url && !b64Json) {
-    return;
-  }
-
-  state.images.push({
-    ...item,
-    url,
-    b64_json: b64Json,
-    mime_type: item?.mime_type || item?.mimeType || 'image/png',
-  });
-}
-
-function appendOpenAICompatibleImageError(state, payload) {
-  state.errors.push({
-    image_index: payload?.image_index,
-    code: payload?.error?.code || '',
-    message: normalizeStreamPayloadError(payload?.error, '图片生成失败'),
-    raw_payload: payload,
-  });
-}
-
-function appendOpenAICompatibleImagePayload(payload, state) {
-  if (payload?.usage) {
-    state.usage = payload.usage;
-  }
-
-  if (payload?.error && payload?.type !== 'image_generation.completed' && payload?.type !== 'image_generation.partial_failed') {
-    appendOpenAICompatibleImageError(state, payload);
-    return;
-  }
-
-  if (payload?.type === 'image_generation.completed') {
-    state.completed = payload;
-    if (payload.usage) {
-      state.usage = payload.usage;
-    }
-    if (Array.isArray(payload?.data)) {
-      payload.data.forEach((item) => appendOpenAICompatibleImageItem(state, item));
-    } else {
-      appendOpenAICompatibleImageItem(state, payload);
-    }
-    if (payload.error) {
-      appendOpenAICompatibleImageError(state, payload);
-    }
-    return;
-  }
-
-  if (payload?.type === 'image_generation.partial_failed') {
-    appendOpenAICompatibleImageError(state, payload);
-    return;
-  }
-
-  if (payload?.type === 'image_generation.partial_succeeded') {
-    appendOpenAICompatibleImageItem(state, payload);
-    return;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    payload.data.forEach((item) => appendOpenAICompatibleImageItem(state, item));
-    return;
-  }
-
-  appendOpenAICompatibleImageItem(state, payload);
-}
 
 async function readOpenAICompatibleImageStream(response) {
   const state = { images: [], errors: [], completed: null, usage: null };
@@ -1980,68 +1786,6 @@ async function resolveComfyUIWorkflowTemplate(baseUrl, imageConfig, options = {}
   throw new Error('未能从 ComfyUI 自动探测到可用的文生图工作流：请先在 ComfyUI 中成功运行一次文生图工作流（软件会自动复用最近一次的工作流），或在设置中粘贴 API 格式的工作流 JSON');
 }
 
-function buildComfyUIImageWorkflow(baseWorkflow, prompt, size) {
-  const workflow = JSON.parse(JSON.stringify(baseWorkflow));
-  if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow)) {
-    throw new Error('ComfyUI 工作流格式不正确');
-  }
-  const normalizedPrompt = String(prompt || '').trim();
-  if (!normalizedPrompt) {
-    throw new Error('生图提示词为空，请检查输入内容');
-  }
-
-  const nodes = Object.entries(workflow);
-  let samplerNode = null;
-  let latentNode = null;
-  let saveNode = null;
-  for (const [, node] of nodes) {
-    if (!node || typeof node !== 'object') continue;
-    if (node.class_type === 'KSampler' || node.class_type === 'KSamplerAdvanced') samplerNode = samplerNode || node;
-    if (node.class_type === 'EmptySD3LatentImage' || node.class_type === 'EmptyLatentImage') latentNode = latentNode || node;
-    if (node.class_type === 'SaveImage') saveNode = saveNode || node;
-  }
-
-  // 正向提示词写入采样器 positive 指向的文本节点。
-  // 兜底时必须排除采样器 negative 指向的节点，否则提示词会被写进负向节点（效果完全相反）
-  let promptNode = null;
-  const positiveRef = samplerNode?.inputs?.positive;
-  if (Array.isArray(positiveRef) && workflow[positiveRef[0]]?.class_type === 'CLIPTextEncode') {
-    promptNode = workflow[positiveRef[0]];
-  }
-  if (!promptNode) {
-    const negativeRef = samplerNode?.inputs?.negative;
-    const negativeNodeId = Array.isArray(negativeRef) ? String(negativeRef[0]) : null;
-    const candidates = [];
-    for (const [nodeId, node] of nodes) {
-      if (node?.class_type === 'CLIPTextEncode' && nodeId !== negativeNodeId) {
-        candidates.push(node);
-      }
-    }
-    // 典型工作流里正向节点留空待注入、负向节点预填词，优先选空文本节点
-    promptNode = candidates.find((node) => !String(node.inputs?.text || '').trim()) || candidates[0] || null;
-  }
-  if (!promptNode) {
-    throw new Error('ComfyUI 工作流中没有可用的 CLIPTextEncode 正向提示词节点（positive 连接无效，且负向节点之外没有其他文本节点），请检查工作流连接');
-  }
-  promptNode.inputs = { ...promptNode.inputs, text: normalizedPrompt };
-
-  if (latentNode) {
-    latentNode.inputs = { ...latentNode.inputs, width: size.width, height: size.height };
-  }
-
-  // seed 为节点链接（数组）时保持原样，不能用随机数覆盖断链
-  if (typeof samplerNode?.inputs?.seed === 'number') {
-    samplerNode.inputs = { ...samplerNode.inputs, seed: crypto.randomInt(0, 4294967296) };
-  } else if (typeof samplerNode?.inputs?.noise_seed === 'number') {
-    samplerNode.inputs = { ...samplerNode.inputs, noise_seed: crypto.randomInt(0, 4294967296) };
-  }
-
-  if (saveNode) {
-    saveNode.inputs = { ...saveNode.inputs, filename_prefix: 'yibiao' };
-  }
-
-  return workflow;
-}
 
 async function submitComfyUIPrompt(baseUrl, workflow, options = {}) {
   let response = null;
