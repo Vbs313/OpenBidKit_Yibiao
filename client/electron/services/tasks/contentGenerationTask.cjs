@@ -140,6 +140,7 @@ const { createWordAdjustmentStage } = require('./generation/stages/wordAdjustmen
 const { createOriginalMaterialState } = require('./generation/originalMaterialState.cjs');
 const { createOriginalMaterialRestoreStage } = require('./generation/stages/originalMaterialRestore.cjs');
 const { createSectionGenerationStage } = require('./generation/stages/sectionGeneration.cjs');
+const { createContentPlanStore } = require('./generation/contentPlanStore.cjs');
 
 const { TABLE_REQUIREMENT_LABELS } = require('./generation/markdownTables.cjs');
 const {
@@ -445,6 +446,19 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     },
   };
 
+  // 内容编排读取层：tasksToRun 计算阶段就要用到，必须先于原方案还原状态模块装配。
+  // 实现见 generation/contentPlanStore.cjs。
+  const {
+    getStoredContentPlan,
+    getReusableStoredContentPlan,
+    getContentPlanForItem,
+    applyCurrentTableRequirementToPlan,
+  } = createContentPlanStore({
+    state: ctx,
+    contentPlans,
+    allowedFactTitles,
+    tableRequirement,
+  });
   // 原方案还原状态派生：tasksToRun 计算阶段就要用到，必须先于下面的流程装配。
   // 实现见 generation/originalMaterialState.cjs。
   const { getOriginalMaterialRuntimeState, buildOriginalMaterialFromSegments } = createOriginalMaterialState({
@@ -886,45 +900,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     return sections[item.id];
   }
 
-  function getStoredContentPlan(itemId) {
-    return normalizeStoredContentPlan(storedContentPlans[itemId]);
-  }
-
-  function applyCurrentTableRequirementToPlan(plan) {
-    const normalizedPlan = normalizeContentPlan(plan, allowedKnowledgeItemIds, allowedFactTitles);
-    return tableRequirement === 'none' ? clearContentPlanTable(normalizedPlan) : normalizedPlan;
-  }
-
-  function getReusableStoredContentPlan(itemId) {
-    const storedContentPlan = getStoredContentPlan(itemId);
-    if (!storedContentPlan || !isStoredContentPlanReusableForTableRequirement(storedContentPlan, tableRequirement)) {
-      return null;
-    }
-    return {
-      ...storedContentPlan,
-      plan: applyCurrentTableRequirementToPlan(storedContentPlan.plan),
-    };
-  }
-
-  function getContentPlanForItem(itemId) {
-    const plan = contentPlans.get(itemId) || getReusableStoredContentPlan(itemId)?.plan || normalizeContentPlan({}, allowedKnowledgeItemIds, allowedFactTitles);
-    contentPlans.set(itemId, plan);
-    return plan;
-  }
-
-  function saveContentPlanForItem(itemId, plan) {
-    contentPlans.set(itemId, plan);
-    storedContentPlans = pruneContentGenerationPlans({
-      ...storedContentPlans,
-      [itemId]: createStoredContentPlan(plan, tableRequirement),
-    }, leaves);
-    const runtime = syncRuntime();
-    checkpointTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, {
-      contentGenerationItem: { nodeId: itemId, storedPlan: storedContentPlans[itemId], runtime },
-    }, { contentRuntime: runtime });
-    return storedContentPlans[itemId];
-  }
-
 
   function saveSectionAndContentPlan(item, partial, contentForOutline, plan, taskPartial = {}) {
     const hasPartialContent = Object.prototype.hasOwnProperty.call(partial || {}, 'content');
@@ -1000,22 +975,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
       contentGenerationRuntime: runtime,
     }, { contentRuntime: runtime });
     return storedContentPlans;
-  }
-
-
-  function getContentPromptWarmupKey(context) {
-    const originalState = getOriginalMaterialRuntimeState(context.item);
-    const contentPlan = getContentPlanForItem(context.item.id);
-    const branch = originalState.needsOptimization ? 'restored' : 'normal';
-    const tableMode = contentPlan?.table?.needed ? 'table' : 'plain';
-    return `${branch}:${tableMode}`;
-  }
-
-  function formatContentPromptWarmupLabel(key) {
-    if (key === 'restored:table') return '已还原优化扩写/允许表格';
-    if (key === 'restored:plain') return '已还原优化扩写/无表格';
-    if (key === 'normal:table') return '普通正文/允许表格';
-    return '普通正文/无表格';
   }
 
 
@@ -1263,8 +1222,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     getReusableStoredContentPlan,
     getContentPlanForItem,
     refreshRunLimits,
-    getContentPromptWarmupKey,
-    formatContentPromptWarmupLabel,
     getOriginalMaterialRuntimeState,
     allowedFactTitles,
     runContentAgentTask,

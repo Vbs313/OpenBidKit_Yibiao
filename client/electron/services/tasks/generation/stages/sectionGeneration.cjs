@@ -92,8 +92,6 @@ function createSectionGenerationStage(deps) {
     getReusableStoredContentPlan,
     getContentPlanForItem,
     refreshRunLimits,
-    getContentPromptWarmupKey,
-    formatContentPromptWarmupLabel,
     getOriginalMaterialRuntimeState,
     allowedFactTitles,
     runContentAgentTask,
@@ -427,6 +425,21 @@ function createSectionGenerationStage(deps) {
       publishTaskUpdate({ status: 'running', progress: progressFor(state.leaves, state.sections), logs: state.logs, stats: statsSnapshot() });
       await runItemsWithWorkerPool(remainingTargets, contentConcurrency, runOne, isPauseRequested);
     }
+  }
+
+  function getContentPromptWarmupKey(context) {
+    const originalState = getOriginalMaterialRuntimeState(context.item);
+    const contentPlan = getContentPlanForItem(context.item.id);
+    const branch = originalState.needsOptimization ? 'restored' : 'normal';
+    const tableMode = contentPlan?.table?.needed ? 'table' : 'plain';
+    return `${branch}:${tableMode}`;
+  }
+
+  function formatContentPromptWarmupLabel(key) {
+    if (key === 'restored:table') return '已还原优化扩写/允许表格';
+    if (key === 'restored:plain') return '已还原优化扩写/无表格';
+    if (key === 'normal:table') return '普通正文/允许表格';
+    return '普通正文/无表格';
   }
 
   return {
