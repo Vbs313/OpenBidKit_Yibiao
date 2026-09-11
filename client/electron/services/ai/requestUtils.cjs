@@ -8,6 +8,7 @@ const crypto = require('node:crypto');
 const { nativeImage } = require('electron');
 const { getGeneratedImagesDir } = require('../../utils/paths.cjs');
 const { createDeveloperLogger } = require('../../utils/developerLog.cjs');
+const IMAGE_MODEL_TEST_TIMEOUT_MESSAGE = '生图模型测试超时，请检查 Base URL、API Key 或模型名称';
 const textTokenStatsStore = require('../stores/textTokenStatsStore.cjs');
 const { markAiRequestError } = require('../../utils/aiRetry.cjs');
 const { copyAiHttpError, createAiHttpErrorFromResponse } = require('../../utils/aiHttpError.cjs');
@@ -312,6 +313,7 @@ async function ensureOk(response, fallbackMessage, options = {}) {
 }
 
 module.exports = {
+  IMAGE_MODEL_TEST_TIMEOUT_MESSAGE,
   trimBaseUrl,
   requireBaseUrl,
   isResponseFormatUnsupported,

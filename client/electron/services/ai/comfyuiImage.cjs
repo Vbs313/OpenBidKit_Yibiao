@@ -26,9 +26,9 @@ const {
   createAiResponseDataError,
   saveGeneratedImage,
   ensureOk,
+  IMAGE_MODEL_TEST_TIMEOUT_MESSAGE,
 } = require('./requestUtils.cjs');
 
-const IMAGE_MODEL_TEST_TIMEOUT_MESSAGE = '生图模型测试超时，请检查 Base URL、API Key 或模型名称';
 const COMFYUI_POLL_INTERVAL_MS = 2000;
 
 function sleepMs(ms) {
@@ -395,7 +395,6 @@ async function generateComfyUIImage(app, config, request) {
 module.exports = {
   runComfyUIImageGeneration,
   generateComfyUIImage,
-  IMAGE_MODEL_TEST_TIMEOUT_MESSAGE,
   parseComfyUIWorkflowJson,
   isComfyUITextToImageWorkflow,
   resolveComfyUIImageSize,
