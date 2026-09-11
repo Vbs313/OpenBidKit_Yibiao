@@ -19,6 +19,7 @@
     "prepare-openxml-helper": "node scripts/prepare-openxml-helper.cjs",
     "prepare-compliance-checker": "node scripts/prepare-compliance-checker.cjs",
     "verify-agent-tools": "node scripts/verify-agent-tools.cjs",
+    "verify:module-graph": "node scripts/verify-module-graph.cjs",
     "smoke:electron-native": "electron scripts/electron-native-smoke.cjs",
     "smoke:compliance-checker": "electron scripts/compliance-checker-smoke.cjs",
     "smoke:compliance-ui": "electron scripts/compliance-ui-smoke.cjs",

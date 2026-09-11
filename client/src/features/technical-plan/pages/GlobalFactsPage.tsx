@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useState } from 'react';
 import { MarkdownEditor, MarkdownFullscreenViewer, MarkdownRenderer, ProgressBar, useToast } from '../../../shared/ui';
 import type { OutlineData } from '../../../shared/types';
-import type { BackgroundTaskState, GlobalFactGroupState, GlobalFactsMode } from '../types';
+import type { BackgroundTaskState, GlobalFactGroupState, GlobalFactsMode } from '../../../shared/types/domains/technical-plan';
 
 interface GlobalFactsPageProps {
   outlineData: OutlineData | null;

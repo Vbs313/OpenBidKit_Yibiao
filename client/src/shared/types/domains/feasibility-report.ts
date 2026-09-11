@@ -1,4 +1,4 @@
-import type { OutlineData, OutlineItem } from '../../shared/types';
+import type { OutlineData, OutlineItem } from '../outline';
 
 export type FeasibilityReportStep = 'materials' | 'sources' | 'analysis' | 'outline' | 'parameters' | 'content';
 export type FeasibilityProjectType = 'government' | 'enterprise';

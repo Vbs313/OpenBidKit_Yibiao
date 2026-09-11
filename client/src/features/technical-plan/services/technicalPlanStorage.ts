@@ -1,4 +1,4 @@
-import type { TechnicalPlanState, TechnicalPlanStep } from '../types';
+import type { TechnicalPlanState, TechnicalPlanStep } from '../../../shared/types/domains/technical-plan';
 
 const validSteps: TechnicalPlanStep[] = [
   'document-analysis',

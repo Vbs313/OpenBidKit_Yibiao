@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { DetectedBidSection } from '../types';
+import type { DetectedBidSection } from '../../../shared/types/domains/technical-plan';
 
 interface BidSectionSelectorDialogProps {
   open: boolean;

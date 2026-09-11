@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_OUTLINE_WORD_CONTROL_OPTIONS } from '../../../shared/types';
 import { technicalPlanStorage } from '../services/technicalPlanStorage';
-import type { TechnicalPlanState } from '../types';
+import type { TechnicalPlanState } from '../../../shared/types/domains/technical-plan';
 
 const initialState: TechnicalPlanState = {
   workflowKind: 'technical-plan',

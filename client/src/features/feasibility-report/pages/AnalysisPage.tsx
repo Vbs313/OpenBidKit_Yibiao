@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { MarkdownEditor, MarkdownFullscreenViewer, MarkdownRenderer, ProgressBar, useToast } from '../../../shared/ui';
-import type { FeasibilityBackgroundTaskState } from '../types';
+import type { FeasibilityBackgroundTaskState } from '../../../shared/types/domains/feasibility-report';
 
 interface AnalysisPageProps {
   analysisMarkdown: string;

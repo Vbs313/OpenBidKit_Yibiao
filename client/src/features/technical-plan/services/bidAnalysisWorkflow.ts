@@ -1,5 +1,5 @@
 import { buildInvalidBidAndRejectionItemsPrompt } from '../../../shared/prompts';
-import type { BidAnalysisMode } from '../types';
+import type { BidAnalysisMode } from '../../../shared/types/domains/technical-plan';
 
 export interface BidAnalysisTaskDefinition {
   id: string;

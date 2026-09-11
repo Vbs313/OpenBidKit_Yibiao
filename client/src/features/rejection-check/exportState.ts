@@ -1,4 +1,4 @@
-import type { LogicCheckResultState, RejectionCheckResultState, TypoCheckResultState } from './types';
+import type { LogicCheckResultState, RejectionCheckResultState, TypoCheckResultState } from '../../shared/types/domains/rejection-check';
 
 type ExportableResultState = RejectionCheckResultState | TypoCheckResultState | LogicCheckResultState;
 

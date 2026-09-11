@@ -16,14 +16,14 @@ import MaterialsPage from './MaterialsPage';
 import OutlinePage from './OutlinePage';
 import ParametersPage from './ParametersPage';
 import SourcesPage from './SourcesPage';
-import type { FeasibilityExportOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityReportState, FeasibilityReportStep } from '../types';
+import type { FeasibilityExportOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityReportState, FeasibilityReportStep } from '../../../shared/types/domains/feasibility-report';
 import {
   collectFeasibilityLeaves,
   DEFAULT_FEASIBILITY_EXPORT_OPTIONS,
   DEFAULT_FEASIBILITY_PROJECT_INFO,
   FEASIBILITY_STEP_LABELS,
   FEASIBILITY_STEPS,
-} from '../types';
+} from '../../../shared/types/domains/feasibility-report';
 
 interface FeasibilityReportHomeProps {
   registerLeaveGuard?: (guard: ((nextSection?: string) => Promise<boolean>) | null) => void;

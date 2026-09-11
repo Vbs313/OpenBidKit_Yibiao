@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isLibreOfficeRequiredMessage, MarkdownFullscreenViewer, MarkdownRenderer, UploadBoard, UploadEmpty, UploadFilePill, UploadRow, useDocumentParseNotice, useToast } from '../../../shared/ui';
-import type { FeasibilitySourceFile } from '../types';
+import type { FeasibilitySourceFile } from '../../../shared/types/domains/feasibility-report';
 
 interface SourcesPageProps {
   sourceFiles: FeasibilitySourceFile[];

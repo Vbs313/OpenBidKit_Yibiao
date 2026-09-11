@@ -113,4 +113,4 @@ export type {
   RejectionFindingSeverity,
   RejectionFindingType,
   RejectionResultTab,
-} from '../../features/rejection-check/types';
+} from './domains/rejection-check';

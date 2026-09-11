@@ -24,7 +24,7 @@ import type {
   RejectionResultTab,
   TypoCheckFinding,
   TypoCheckResultState,
-} from '../types';
+} from '../../../shared/types/domains/rejection-check';
 
 const steps: RejectionCheckStep[] = ['documents', 'items', 'results'];
 

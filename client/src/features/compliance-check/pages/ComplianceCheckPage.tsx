@@ -13,7 +13,7 @@ import type {
   ComplianceCheckInput,
   ComplianceCheckState,
   ComplianceCheckTaskState,
-} from '../types';
+} from '../../../shared/types/domains/compliance-check';
 
 const initialState: ComplianceCheckState = {
   step: 'configure',

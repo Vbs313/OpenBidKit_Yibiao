@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { ProgressBar, useToast } from '../../../shared/ui';
-import type { KnowledgeBaseIndex } from '../../knowledge-base/types';
+import type { KnowledgeBaseIndex } from '../../../shared/types/domains/knowledge-base';
 import type { OutlineData, OutlineItem } from '../../../shared/types';
 import { formatOutlineTitle } from '../../../shared/utils/outlineNumbering';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
-import type { FeasibilityBackgroundTaskState, FeasibilityOutlineTemplate, FeasibilitySaveOutlineRequest } from '../types';
-import { FEASIBILITY_OUTLINE_TEMPLATE_LABELS } from '../types';
+import type { FeasibilityBackgroundTaskState, FeasibilityOutlineTemplate, FeasibilitySaveOutlineRequest } from '../../../shared/types/domains/feasibility-report';
+import { FEASIBILITY_OUTLINE_TEMPLATE_LABELS } from '../../../shared/types/domains/feasibility-report';
 
 interface OutlinePageProps {
   outlineTemplate: FeasibilityOutlineTemplate;

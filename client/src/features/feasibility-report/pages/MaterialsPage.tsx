@@ -1,5 +1,5 @@
-import type { FeasibilityProjectInfo, FeasibilityProjectType } from '../types';
-import { DEFAULT_FEASIBILITY_PROJECT_INFO } from '../types';
+import type { FeasibilityProjectInfo, FeasibilityProjectType } from '../../../shared/types/domains/feasibility-report';
+import { DEFAULT_FEASIBILITY_PROJECT_INFO } from '../../../shared/types/domains/feasibility-report';
 
 interface MaterialsPageProps {
   projectInfo: FeasibilityProjectInfo;

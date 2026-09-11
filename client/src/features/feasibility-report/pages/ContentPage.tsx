@@ -5,8 +5,8 @@ import { formatOutlineTitle } from '../../../shared/utils/outlineNumbering';
 import type { ExportFormatConfig } from '../../../shared/types/exportFormat';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
 import { buildExportFormatCssVars } from '../../../shared/utils/exportFormatCss';
-import type { FeasibilityBackgroundTaskState } from '../types';
-import { collectFeasibilityLeaves } from '../types';
+import type { FeasibilityBackgroundTaskState } from '../../../shared/types/domains/feasibility-report';
+import { collectFeasibilityLeaves } from '../../../shared/types/domains/feasibility-report';
 
 interface ContentPageProps {
   outlineData: OutlineData | null;
