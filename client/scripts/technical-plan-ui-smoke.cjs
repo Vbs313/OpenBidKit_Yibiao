@@ -136,6 +136,33 @@ async function run() {
     assert(workflow.startsWith('CLICKED'), '缺少「生成技术方案」入口：' + workflow);
   };
 
+  const outlineNodeCount = () => window.webContents.executeJavaScript("document.querySelectorAll('.outline-tree-node').length");
+
+  // 目录树交互：新增一级目录 → 进入排序 → 保存排序。
+  // 这三步正好覆盖 OutlineEditPage 的「条目增删改」与「拖拽排序」两簇 handler。
+  const exerciseOutlineTree = async () => {
+    const before = Number(await outlineNodeCount());
+    const added = String(await click('添加一级目录'));
+    assert(added.startsWith('CLICKED'), '找不到「添加一级目录」按钮：' + added);
+    await waitFor('新目录项落到目录树', async () => {
+      const text = String(await pageText());
+      return text.includes('新目录项') && Number(await outlineNodeCount()) === before + 1;
+    }, { timeoutMs: 15000 });
+    console.log(`[technical-plan-ui] 目录树：新增一级目录生效（${before} → ${before + 1} 个节点）`);
+
+    const sortStart = String(await click('目录排序'));
+    assert(sortStart.startsWith('CLICKED'), '找不到「目录排序」按钮：' + sortStart);
+    await waitFor('进入排序模式', async () => (await pageText()).includes('保存排序'), { timeoutMs: 10000 });
+
+    const sortSave = String(await click('保存排序'));
+    assert(sortSave.startsWith('CLICKED'), '找不到「保存排序」按钮：' + sortSave);
+    await waitFor('退出排序模式', async () => {
+      const text = String(await pageText());
+      return text.includes('添加一级目录') && !text.includes('保存排序');
+    }, { timeoutMs: 20000 });
+    console.log('[technical-plan-ui] 目录树：目录排序进入 / 保存往返正常');
+  };
+
   try {
     services = registerIpcHandlers({
       app,
@@ -173,6 +200,9 @@ async function run() {
         return markers.every((marker) => text.includes(marker));
       }, { timeoutMs: 30000 });
       console.log(`[technical-plan-ui] ${step} 渲染正常（${markers.length} 个标记）`);
+      if (step === 'outline-generation') {
+        await exerciseOutlineTree();
+      }
     }
 
     assert(rendererErrors.length === 0, '渲染器报错：' + rendererErrors.join(' | '));

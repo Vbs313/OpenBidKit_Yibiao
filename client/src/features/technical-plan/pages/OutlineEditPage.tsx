@@ -9,6 +9,21 @@ import { OUTLINE_CONTENT_MODE_LABELS } from '../../../shared/types';
 import type { OutlineContentMode, OutlineData, OutlineExpansionMode, OutlineItem, OutlineMode, OutlineWordControlOptions } from '../../../shared/types';
 import type { ExportFormatConfig } from '../../../shared/types/exportFormat';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
+import {
+  assertLeafContentModes,
+  collectOutlineIds,
+  collectRootIds,
+  composeIdMap,
+  createIdentityIdMap,
+  deleteOutlineItem,
+  findOutlineItem,
+  findOutlineLocation,
+  normalizeOutlineContentModes,
+  renumberOutlineItemsWithIdMap,
+  reorderOutlineSiblings,
+  updateOutlineItem,
+} from '../outlineTree';
+import { areWordControlOptionsEqual, formatWordCountDraft, getEstimatedPages, normalizeWordControlDraft, parseWordCountDraft } from '../outlineWordControl';
 import { formatOutlineTitle } from '../../../shared/utils/outlineNumbering';
 import OutlineSelectionDialog from '../components/OutlineSelectionDialog';
 
@@ -38,16 +53,7 @@ interface OutlineSortGuard {
   discardSort: () => void;
 }
 
-interface RenumberResult {
-  outline: OutlineItem[];
-  idMap: Record<string, string>;
-}
 
-interface OutlineLocation {
-  parentId: string | null;
-  level: number;
-  index: number;
-}
 
 interface DropTargetState {
   itemId: string;
@@ -86,81 +92,13 @@ const technicalDocumentModeOptions: Array<{ value: Extract<OutlineMode, 'respons
   },
 ];
 
-const WORD_COUNT_INPUT_UNIT = 10000;
 
-function parseWordCountDraft(value: string) {
-  if (!value) return 0;
-  if (!/^\d*(?:\.\d{0,4})?$/.test(value)) return null;
-  const number = Number(value);
-  const words = Math.round(number * WORD_COUNT_INPUT_UNIT);
-  return Number.isSafeInteger(words) && words >= 0 ? words : null;
-}
 
-function formatWordCountDraft(words: number) {
-  return String(Math.max(0, Math.round(Number(words) || 0)) / WORD_COUNT_INPUT_UNIT);
-}
 
-function normalizeWordControlDraft(values: {
-  minimumWords: string;
-  maximumWords: string;
-  sectionWords: string;
-  strictSectionWords: boolean;
-}) {
-  const minimumWords = parseWordCountDraft(values.minimumWords);
-  const maximumWords = parseWordCountDraft(values.maximumWords);
-  const sectionWords = parseWordCountDraft(values.sectionWords);
-  if (minimumWords === null || maximumWords === null || sectionWords === null) {
-    throw new Error('字数设置只允许填写非负整数');
-  }
-  const options: OutlineWordControlOptions = {
-    minimumWords,
-    maximumWords,
-    sectionWords,
-    strictSectionWords: sectionWords > 0 && values.strictSectionWords,
-  };
-  if (minimumWords > 0 && maximumWords > 0 && maximumWords < minimumWords) {
-    throw new Error('最多字数不能低于最少字数');
-  }
-  const effectiveSectionWords = sectionWords > 0 ? sectionWords : 3000;
-  const minimumLeafCount = minimumWords > 0 ? Math.ceil(minimumWords / effectiveSectionWords) : null;
-  const maximumLeafCount = maximumWords > 0 ? Math.floor(maximumWords / effectiveSectionWords) : null;
-  if (maximumLeafCount !== null && maximumLeafCount < 1) {
-    throw new Error('当前最多字数无法形成有效叶子节点范围，请调整最多字数或每小节字数');
-  }
-  if (minimumLeafCount !== null && maximumLeafCount !== null && minimumLeafCount > maximumLeafCount) {
-    throw new Error('当前设置无法形成有效叶子节点范围，请调整最少字数、最多字数或每小节字数');
-  }
-  return options;
-}
 
-function getEstimatedPages(minimumWords: number, maximumWords: number) {
-  const baseWords = minimumWords > 0 && maximumWords > 0
-    ? (minimumWords + maximumWords) / 2
-    : minimumWords || maximumWords;
-  return baseWords > 0 ? Math.ceil(baseWords / 650) : null;
-}
 
-function areWordControlOptionsEqual(left?: OutlineWordControlOptions, right?: OutlineWordControlOptions) {
-  return Boolean(left && right
-    && left.minimumWords === right.minimumWords
-    && left.maximumWords === right.maximumWords
-    && left.sectionWords === right.sectionWords
-    && left.strictSectionWords === right.strictSectionWords);
-}
 
-function collectOutlineIds(items: OutlineItem[], ids = new Set<string>()) {
-  items.forEach((item) => {
-    ids.add(item.id);
-    if (item.children?.length) {
-      collectOutlineIds(item.children, ids);
-    }
-  });
-  return ids;
-}
 
-function collectRootIds(items: OutlineItem[]) {
-  return new Set(items.map((item) => item.id));
-}
 
 function formatDuration(milliseconds: number) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -169,158 +107,16 @@ function formatDuration(milliseconds: number) {
   return `${minutes}:${seconds}`;
 }
 
-function renumberOutlineItemsWithIdMap(items: OutlineItem[], parentPrefix = ''): RenumberResult {
-  const idMap: Record<string, string> = {};
-  const outline = items.map((item, index) => {
-    const id = parentPrefix ? `${parentPrefix}.${index + 1}` : `${index + 1}`;
-    const childResult = item.children?.length ? renumberOutlineItemsWithIdMap(item.children, id) : null;
-    idMap[item.id] = id;
-    if (childResult) {
-      Object.assign(idMap, childResult.idMap);
-    }
-    return {
-      ...item,
-      id,
-      children: childResult?.outline,
-    };
-  });
 
-  return { outline, idMap };
-}
 
-// 父节点不保存处理模式，叶子保留已经明确选择的处理模式。
-function normalizeOutlineContentModes(items: OutlineItem[]): OutlineItem[] {
-  return items.map((item) => {
-    if (item.children?.length) {
-      const branch = { ...item };
-      delete branch.content_mode;
-      delete branch.content_mode_note;
-      return { ...branch, children: normalizeOutlineContentModes(item.children) };
-    }
-    const leaf = { ...item };
-    delete leaf.children;
-    const contentMode = item.content_mode;
-    return {
-      ...leaf,
-      content_mode: contentMode,
-      ...(contentMode === 'other' && item.content_mode_note?.trim()
-        ? { content_mode_note: item.content_mode_note.trim() }
-        : { content_mode_note: undefined }),
-    };
-  });
-}
 
-function assertLeafContentModes(items: OutlineItem[]) {
-  items.forEach((item) => {
-    if (item.children?.length) {
-      assertLeafContentModes(item.children);
-    } else if (!item.content_mode) {
-      throw new Error(`目录“${item.title}”缺少内容处理模式，请重新生成目录`);
-    }
-  });
-}
 
-function createIdentityIdMap(items: OutlineItem[], idMap: Record<string, string> = {}) {
-  items.forEach((item) => {
-    idMap[item.id] = item.id;
-    if (item.children?.length) {
-      createIdentityIdMap(item.children, idMap);
-    }
-  });
-  return idMap;
-}
 
-function composeIdMap(baseMap: Record<string, string>, stepMap: Record<string, string>) {
-  return Object.fromEntries(Object.entries(baseMap).map(([oldId, currentId]) => [oldId, stepMap[currentId] || currentId]));
-}
 
-function findOutlineLocation(items: OutlineItem[], itemId: string, parentId: string | null = null, level = 0): OutlineLocation | null {
-  for (let index = 0; index < items.length; index += 1) {
-    const item = items[index];
-    if (item.id === itemId) {
-      return { parentId, level, index };
-    }
-    if (item.children?.length) {
-      const child = findOutlineLocation(item.children, itemId, item.id, level + 1);
-      if (child) return child;
-    }
-  }
-  return null;
-}
 
-function reorderSiblingItems(items: OutlineItem[], draggedId: string, targetId: string, position: 'before' | 'after') {
-  const draggedIndex = items.findIndex((item) => item.id === draggedId);
-  const targetIndex = items.findIndex((item) => item.id === targetId);
-  if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) {
-    return items;
-  }
 
-  const next = [...items];
-  const [dragged] = next.splice(draggedIndex, 1);
-  const adjustedTargetIndex = next.findIndex((item) => item.id === targetId);
-  const insertIndex = position === 'before' ? adjustedTargetIndex : adjustedTargetIndex + 1;
-  next.splice(insertIndex, 0, dragged);
-  return next;
-}
 
-function reorderOutlineSiblings(items: OutlineItem[], parentId: string | null, draggedId: string, targetId: string, position: 'before' | 'after'): OutlineItem[] {
-  if (parentId === null) {
-    return reorderSiblingItems(items, draggedId, targetId, position);
-  }
 
-  return items.map((item) => {
-    if (item.id === parentId) {
-      return {
-        ...item,
-        children: reorderSiblingItems(item.children || [], draggedId, targetId, position),
-      };
-    }
-    return item.children?.length
-      ? { ...item, children: reorderOutlineSiblings(item.children, parentId, draggedId, targetId, position) }
-      : item;
-  });
-}
-
-function updateOutlineItem(items: OutlineItem[], itemId: string, updater: (item: OutlineItem) => OutlineItem): OutlineItem[] {
-  return items.map((item) => {
-    if (item.id === itemId) {
-      return updater(item);
-    }
-
-    return {
-      ...item,
-      children: item.children ? updateOutlineItem(item.children, itemId, updater) : undefined,
-    };
-  });
-}
-
-function deleteOutlineItem(items: OutlineItem[], itemId: string): OutlineItem[] {
-  return items.flatMap((item) => {
-    if (item.id === itemId) {
-      return [];
-    }
-
-    const children = item.children ? deleteOutlineItem(item.children, itemId) : undefined;
-    return [{
-      ...item,
-      children: children?.length ? children : undefined,
-      ...(!children?.length && item.children?.length ? { content_mode: 'ai-generate' as const } : {}),
-    }];
-  });
-}
-
-function findOutlineItem(items: OutlineItem[], itemId: string): OutlineItem | null {
-  for (const item of items) {
-    if (item.id === itemId) {
-      return item;
-    }
-    const child = item.children ? findOutlineItem(item.children, itemId) : null;
-    if (child) {
-      return child;
-    }
-  }
-  return null;
-}
 
 function getInitialExpandedKnowledgeFolders(index: KnowledgeBaseIndex) {
   const firstAvailableFolder = index.folders.find((folder) => (
