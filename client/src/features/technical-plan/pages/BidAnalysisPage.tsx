@@ -5,7 +5,8 @@ import { bidAnalysisTasks, getBidAnalysisTasks, isMissingBidAnalysisResult } fro
 import { MarkdownFullscreenViewer, MarkdownRenderer, ProgressBar, useToast } from '../../../shared/ui';
 import BidSectionSelectorDialog from '../components/BidSectionSelectorDialog';
 import { JsonResultTable } from '../components/JsonResultTable';
-import { allBidAnalysisTaskIds, getModeForSelection, getModeLabel, getSelectedTaskIdsForMode, modeOptions, normalizeSelectedTaskIds, requiredBidAnalysisTaskIdSet, requiredBidAnalysisTaskIds, statusLabel, taskGroups } from '../bidAnalysisModel';
+import { BidAnalysisConfigDialog } from '../components/BidAnalysisConfigDialog';
+import { allBidAnalysisTaskIds, getModeForSelection, getModeLabel, getSelectedTaskIdsForMode, normalizeSelectedTaskIds, requiredBidAnalysisTaskIdSet, requiredBidAnalysisTaskIds, statusLabel, taskGroups } from '../bidAnalysisModel';
 import type { BackgroundTaskState, BidAnalysisMode, BidAnalysisTasks, BidSectionExtractionStatus, BidSectionMode, DetectedBidSection, TechnicalPlanState } from '../../../shared/types/domains/technical-plan';
 
 interface BidAnalysisPageProps {
@@ -380,35 +381,6 @@ function BidAnalysisPage({
     showToast('解析结果已复制', 'success');
   };
 
-  const renderConfigTask = (definition: typeof bidAnalysisTasks[number]) => {
-    const selected = normalizeSelectedTaskIds(draftSelectedTaskIds).includes(definition.id);
-    const required = definition.required;
-
-    return (
-      <label className={`bid-analysis-config-item${selected ? ' is-selected' : ''}${required ? ' is-required' : ''}`} key={definition.id}>
-        <input
-          type="checkbox"
-          checked={selected}
-          disabled={required || taskRunning}
-          onChange={() => toggleDraftTask(definition.id)}
-        />
-        <span>
-          <strong>{definition.label}</strong>
-        </span>
-        {required && <em>必选</em>}
-      </label>
-    );
-  };
-
-  const draftMode = getModeForSelection(draftSelectedTaskIds);
-  const draftSelectedCount = normalizeSelectedTaskIds(draftSelectedTaskIds).length;
-  const hasExtractedBidSections = bidSectionExtractionStatus === 'success' && bidSections.length >= 2;
-  const bidSectionActionLabel = sectionTaskRunning
-    ? '识别中...'
-    : hasExtractedBidSections
-      ? selectedSectionTitle ? '更换' : '选择标段'
-      : bidSectionExtractionStatus === 'error' ? '重新识别标段' : '识别标段';
-
   return (
     <div className="plan-step-body bid-analysis-page">
       <section className="bid-analysis-command-bar">
@@ -529,138 +501,26 @@ function BidAnalysisPage({
         </article>
       </section>
 
-      <Dialog.Root open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="content-regenerate-modal" />
-          <Dialog.Content className="bid-analysis-config-card">
-            <Dialog.Title className="sr-only">招标文件解析配置</Dialog.Title>
-            <Dialog.Description className="sr-only">选择本次招标文件需要解析的项目。</Dialog.Description>
-
-            <header className="bid-analysis-config-head">
-              <div>
-                <span className="section-kicker">解析配置</span>
-                <strong>招标文件解析配置</strong>
-              </div>
-            </header>
-
-            <div className="bid-analysis-config-body">
-              <section className="bid-analysis-config-section is-compact">
-                <div className="bid-analysis-config-section-head">
-                  <strong>投标范围</strong>
-                  <span>{draftBidSectionMode === 'multiple' ? '多标段' : '默认单标段'}</span>
-                </div>
-                <div className="bid-analysis-config-presets" role="group" aria-label="投标范围模式">
-                  <button
-                    type="button"
-                    className={`bid-analysis-config-preset${draftBidSectionMode === 'single' ? ' is-active' : ''}`}
-                    onClick={() => setDraftBidSectionMode('single')}
-                    disabled={taskRunning}
-                  >
-                    <span>单标段</span>
-                    <small>默认</small>
-                  </button>
-                  <button
-                    type="button"
-                    className={`bid-analysis-config-preset${draftBidSectionMode === 'multiple' ? ' is-active' : ''}`}
-                    onClick={() => setDraftBidSectionMode('multiple')}
-                    disabled={taskRunning}
-                  >
-                    <span>多标段</span>
-                    <small>AI 识别</small>
-                  </button>
-                </div>
-                {draftBidSectionMode === 'multiple' && (
-                  <div className="bid-analysis-section-action">
-                    {selectedSectionTitle && (
-                      <>
-                        <span className="bid-analysis-section-label">当前选择的标段</span>
-                        <span className="bid-analysis-section-chip">{selectedSectionTitle}</span>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      className="secondary-action bid-analysis-section-change"
-                      onClick={() => {
-                        if (hasExtractedBidSections) {
-                          void openSectionSelectorFromConfig();
-                          return;
-                        }
-                        void startSectionExtractionOnly();
-                      }}
-                      disabled={!hasTenderFile || taskRunning}
-                    >
-                      {bidSectionActionLabel}
-                    </button>
-                  </div>
-                )}
-              </section>
-
-              <section className="bid-analysis-config-section is-compact">
-                <div className="bid-analysis-config-section-head">
-                  <strong>解析范围</strong>
-                  <span>{getModeLabel(draftMode)}</span>
-                </div>
-                <div className="bid-analysis-config-presets" role="group" aria-label="快速选择解析项">
-                  {modeOptions.map((option) => (
-                    <button
-                      type="button"
-                      className={`bid-analysis-config-preset${draftMode === option.id ? ' is-active' : ''}`}
-                      key={option.id}
-                      onClick={() => selectPreset(option.id)}
-                      disabled={taskRunning}
-                    >
-                      <span>{option.title}</span>
-                      <small>{option.badge}</small>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="bid-analysis-config-section">
-                <div className="bid-analysis-config-section-head">
-                  <strong>关键项</strong>
-                  <span>{requiredBidAnalysisTaskIds.length} 项必选</span>
-                </div>
-                <div className="bid-analysis-config-grid">
-                  {bidAnalysisTasks.filter((definition) => definition.required).map(renderConfigTask)}
-                </div>
-              </section>
-
-              <section className="bid-analysis-config-section">
-                <div className="bid-analysis-config-section-head">
-                  <strong>其他项</strong>
-                  <span>当前共选择 {draftSelectedCount} 项</span>
-                </div>
-                <div className="bid-analysis-config-grid">
-                  {bidAnalysisTasks.filter((definition) => !definition.required).map(renderConfigTask)}
-                </div>
-              </section>
-            </div>
-
-            <div className="content-regenerate-actions bid-analysis-config-actions">
-              <Dialog.Close className="secondary-action" type="button">取消</Dialog.Close>
-              <button
-                type="button"
-                className="secondary-action"
-                onClick={() => {
-                  void saveConfig().catch((error) => showToast(error instanceof Error ? error.message : '保存解析配置失败', 'error'));
-                }}
-                disabled={taskRunning}
-              >
-                保存配置
-              </button>
-              <button
-                type="button"
-                className="primary-action"
-                onClick={() => { void startAnalysis(undefined, draftSelectedTaskIds); }}
-                disabled={taskRunning || !hasTenderFile}
-              >
-                开始解析
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <BidAnalysisConfigDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        draftSelectedTaskIds={draftSelectedTaskIds}
+        onToggleDraftTask={toggleDraftTask}
+        onSelectPreset={selectPreset}
+        draftBidSectionMode={draftBidSectionMode}
+        onDraftBidSectionModeChange={setDraftBidSectionMode}
+        hasTenderFile={hasTenderFile}
+        bidSectionExtractionStatus={bidSectionExtractionStatus}
+        bidSectionCount={bidSections.length}
+        selectedSectionTitle={selectedSectionTitle}
+        sectionTaskRunning={sectionTaskRunning}
+        taskRunning={taskRunning}
+        onOpenSectionSelector={openSectionSelectorFromConfig}
+        onStartSectionExtraction={startSectionExtractionOnly}
+        onSaveConfig={() => saveConfig()}
+        onSaveConfigError={(error) => showToast(error instanceof Error ? error.message : '保存解析配置失败', 'error')}
+        onStartAnalysis={() => { void startAnalysis(undefined, draftSelectedTaskIds); }}
+      />
 
       <Dialog.Root open={Boolean(sectionModeWarning)} onOpenChange={(open) => { if (!open) setSectionModeWarning(null); }}>
         <Dialog.Portal>
