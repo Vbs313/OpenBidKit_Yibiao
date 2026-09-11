@@ -7,7 +7,7 @@ import type { OutlineItem } from '../../../shared/types';
 import type { ExportFormatConfig, ExportTemplateRecord } from '../../../shared/types/exportFormat';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
 import type { SectionId } from '../../../shared/types/navigation';
-import { TemplatePreview } from '../../export-format/pages/ExportFormatPage';
+import { TemplatePreview } from '../../export-format/components/TemplatePreview';
 import { buildExportFormatCssVars } from '../../../shared/utils/exportFormatCss';
 import type { WordExportProgressEvent } from '../../../shared/types';
 import AnalysisPage from './AnalysisPage';
