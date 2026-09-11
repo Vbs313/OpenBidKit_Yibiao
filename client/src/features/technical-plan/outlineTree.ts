@@ -184,3 +184,6 @@ export function findOutlineItem(items: OutlineItem[], itemId: string): OutlineIt
   }
   return null;
 }
+export function collectLeafItems(items: OutlineItem[]): OutlineItem[] {
+  return items.flatMap((item) => item.children?.length ? collectLeafItems(item.children) : [item]);
+}
