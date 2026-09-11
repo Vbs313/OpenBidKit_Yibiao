@@ -25,3 +25,7 @@ export interface SettingsPageState {
     gpu_hardware_acceleration_configured: boolean;
   };
 }
+
+export type AgentSelfCheckUiStatus = 'untested' | 'checking' | 'normal' | 'busy' | 'error';
+
+export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error' | 'disabled';
