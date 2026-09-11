@@ -11,11 +11,11 @@
 //   state.appendLog(message)                                          追加一行任务日志
 //   其余为任务运行时回调（进度、检查点、开发者日志、暂停、落盘）
 
+const { buildConsistencyAuditMessages } = require('./../contentMessages.cjs');
 const {
-  buildConsistencyAuditMessages,
   buildConsistencyAuditRepairMessages,
   buildConsistencyRepairJsonRepairMessages,
-} = require('./../contentMessages.cjs');
+} = require('./../promptBuilders.cjs');
 const {
   normalizeConsistencyAuditResponse,
   normalizeConsistencyRepairResponse,
