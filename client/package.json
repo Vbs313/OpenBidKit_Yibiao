@@ -31,6 +31,7 @@
     "smoke:settings-ui": "electron scripts/settings-ui-smoke.cjs",
     "smoke:rejection-ui": "electron scripts/rejection-ui-smoke.cjs",
     "smoke:technical-plan-ui": "electron scripts/technical-plan-ui-smoke.cjs",
+    "smoke:feasibility-ui": "electron scripts/feasibility-ui-smoke.cjs",
     "smoke:export-format-ui": "electron scripts/export-format-ui-smoke.cjs",
     "smoke:knowledge-base-ui": "electron scripts/knowledge-base-ui-smoke.cjs",
     "smoke:pages-mount": "electron scripts/pages-mount-smoke.cjs",
