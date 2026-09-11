@@ -1081,7 +1081,72 @@ function getImagePixelDensity(source) {
   }
 }
 
+function getManualUnorderedListLevelIndent(context, level) {
+  const safeLevel = Math.max(0, Math.min(Number(level) || 0, 2));
+  const listIndentChars = typeof context.bodyListIndentChars === 'number' ? context.bodyListIndentChars : 2;
+  const left = Math.round(charsToTwips(listIndentChars, context.bodyRunSize || 24) * (safeLevel + 1));
+  return left > 0 ? { left } : null;
+}
+
+function getTaskListLevelIndent(context, level) {
+  const bodyStyle = context.exportFormat?.body_text || {};
+  const safeLevel = Math.max(0, Math.min(Number(level) || 0, 2));
+  if (safeLevel <= 0) return null;
+  const listIndentChars = typeof bodyStyle.list_indent_chars === 'number' ? bodyStyle.list_indent_chars : 2;
+  return { left: Math.round(charsToTwips(listIndentChars, context.bodyRunSize || 24) * safeLevel) };
+}
+
+function buildDocxImageGuidanceBox($, node) {
+  const fullText = String($(node).text() || '').trim();
+  const titleMatch = fullText.match(/(?:📸\s*)?(【[^】]+】[^\n*]*)/);
+  const titleText = titleMatch ? titleMatch[1].trim() : '【插图指引】：此处建议插入工程项目图纸/照片';
+  let descText = fullText
+    .replace(/📸\s*/g, '')
+    .replace(/(?:📸\s*)?【[^】]+】[^\n*]*/g, '')
+    .replace(/^\s*[*_说明：:\s]*/g, '')
+    .trim();
+  if (!descText) {
+    descText = '此处请插入相关的工程效果图、现场实景照片、总平面布置图、工艺流程示意图或实施进度甘特图。';
+  }
+
+  const cell = new TableCell({
+    children: [
+      paragraph([
+        textRun('📸 ', { font: 'Segoe UI Emoji', size: 21 }),
+        textRun(titleText, { bold: true, size: 21, color: FEASIBILITY_ACCENT }),
+      ], { after: 100, alignment: AlignmentType.LEFT }),
+      paragraph([
+        textRun(`规格建议：横版 16:9 / 建议居中排版 插图说明：${descText}`, { size: 18, color: '475569', italics: true }),
+      ], { after: 60, alignment: AlignmentType.LEFT }),
+    ],
+    shading: { fill: 'F0F6FF', type: ShadingType.CLEAR },
+    margins: { top: 120, bottom: 120, left: 200, right: 200 },
+    borders: {
+      top: { style: BorderStyle.SINGLE, size: 6, color: 'C7DCEA' },
+      bottom: { style: BorderStyle.SINGLE, size: 6, color: 'C7DCEA' },
+      left: { style: BorderStyle.SINGLE, size: 18, color: FEASIBILITY_ACCENT },
+      right: { style: BorderStyle.SINGLE, size: 6, color: 'C7DCEA' },
+    },
+  });
+
+  return [
+    new Table({
+      width: { size: FEASIBILITY_TABLE_WIDTH, type: WidthType.DXA },
+      rows: [new TableRow({ children: [cell], cantSplit: true })],
+    }),
+    paragraph([textRun('', { size: 12 })], { after: 150 }),
+  ];
+}
+
+const FEASIBILITY_ACCENT = '1A5F7A';
+const FEASIBILITY_TABLE_WIDTH = 9000;
+
 module.exports = {
+  FEASIBILITY_ACCENT,
+  FEASIBILITY_TABLE_WIDTH,
+  getManualUnorderedListLevelIndent,
+  getTaskListLevelIndent,
+  buildDocxImageGuidanceBox,
   mmToTwips,
   delay,
   clampPercent,
