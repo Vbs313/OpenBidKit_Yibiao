@@ -7,13 +7,14 @@ import type { OutlineItem } from '../../../shared/types';
 import type { SectionId } from '../../../shared/types/navigation';
 import { TemplatePreview } from '../../export-format/components/TemplatePreview';
 import { useFeasibilityExportWord } from '../hooks/useFeasibilityExportWord';
+import { useFeasibilityReportActions } from '../hooks/useFeasibilityReportActions';
 import AnalysisPage from './AnalysisPage';
 import ContentPage from './ContentPage';
 import MaterialsPage from './MaterialsPage';
 import OutlinePage from './OutlinePage';
 import ParametersPage from './ParametersPage';
 import SourcesPage from './SourcesPage';
-import type { FeasibilityExportOptions, FeasibilityOutlineTemplate, FeasibilityProjectInfo, FeasibilityReportState, FeasibilityReportStep } from '../../../shared/types/domains/feasibility-report';
+import type { FeasibilityExportOptions, FeasibilityProjectInfo, FeasibilityReportState } from '../../../shared/types/domains/feasibility-report';
 import {
   collectFeasibilityLeaves,
   DEFAULT_FEASIBILITY_EXPORT_OPTIONS,
@@ -38,9 +39,6 @@ function isActiveStatus(status?: string) {
   return status === 'running' || status === 'pausing';
 }
 
-function sameProjectInfo(left: FeasibilityProjectInfo, right: FeasibilityProjectInfo) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
 
 const emptyState: FeasibilityReportState = {
   step: 'materials',
@@ -169,136 +167,30 @@ function FeasibilityReportHome({ registerLeaveGuard, onSectionChange }: Feasibil
     return () => registerLeaveGuard?.(null);
   }, [anyRunning, registerLeaveGuard, showToast]);
 
-  const applyLoadedState = (next: FeasibilityReportState) => {
-    setState(next);
-    setDraftProjectInfo(next.projectInfo);
-    setAnalysisDraft(next.analysisMarkdown);
-    setParametersDraft(next.keyParametersMarkdown);
-  };
+  const {
+    applyLoadedState,
+    goToOffset,
+    importSources,
+    removeSource,
+    startAnalysis,
+    saveAnalysis,
+    startOutline,
+    saveKeyParameters,
+  } = useFeasibilityReportActions({
+    state,
+    setState,
+    draftProjectInfo,
+    setDraftProjectInfo,
+    analysisDraft,
+    setAnalysisDraft,
+    parametersDraft,
+    setParametersDraft,
+    activeIndex,
+    setBusyImport,
+    setSaving,
+  });
 
-  const persistProjectInfoIfNeeded = async () => {
-    if (sameProjectInfo(draftProjectInfo, state.projectInfo)) {
-      return state;
-    }
-    const saved = await window.yibiao!.feasibilityReport.saveProjectInfo(draftProjectInfo);
-    applyLoadedState(saved);
-    return saved;
-  };
 
-  const persistAnalysisIfNeeded = async () => {
-    if (analysisDraft === state.analysisMarkdown) return;
-    const next = await window.yibiao!.feasibilityReport.saveAnalysis(analysisDraft);
-    applyLoadedState(next);
-  };
-
-  const persistParametersIfNeeded = async () => {
-    if (parametersDraft === state.keyParametersMarkdown) return;
-    const next = await window.yibiao!.feasibilityReport.saveKeyParameters(parametersDraft);
-    applyLoadedState(next);
-  };
-
-  const switchStep = async (step: FeasibilityReportStep) => {
-    if (step !== 'materials' && !draftProjectInfo.projectName.trim()) {
-      showToast('请先填写项目名称', 'info');
-      return;
-    }
-    const movingForward = FEASIBILITY_STEPS.indexOf(step) > activeIndex;
-    try {
-      if (state.step === 'materials') {
-        await persistProjectInfoIfNeeded();
-      }
-      if (movingForward && state.step === 'analysis') {
-        await persistAnalysisIfNeeded();
-      }
-      if (movingForward && state.step === 'parameters') {
-        await persistParametersIfNeeded();
-      }
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '保存当前步骤失败', 'error');
-      return;
-    }
-    setState((prev) => ({ ...prev, step }));
-    window.yibiao?.feasibilityReport.updateStep(step).catch((error) => {
-      showToast(error instanceof Error ? error.message : '保存步骤失败', 'error');
-    });
-  };
-
-  const goToOffset = async (offset: number) => {
-    const next = FEASIBILITY_STEPS[activeIndex + offset];
-    if (next) await switchStep(next);
-  };
-
-  const importSources = async (filePaths?: string[]) => {
-    setBusyImport(true);
-    try {
-      const result = await window.yibiao!.feasibilityReport.importSourceDocuments(filePaths);
-      if (!result?.success) {
-        showToast(result?.message || '未导入文件', result?.message === '已取消选择' ? 'info' : 'error');
-        return;
-      }
-      applyLoadedState(await window.yibiao!.feasibilityReport.loadState());
-      showToast(result.message || '资料已导入', 'success');
-    } finally {
-      setBusyImport(false);
-    }
-  };
-
-  const removeSource = async (sourceId: string) => {
-    const result = await window.yibiao!.feasibilityReport.removeSourceDocument(sourceId);
-    if (!result.success) {
-      showToast(result.message || '移除失败', 'error');
-      return;
-    }
-    applyLoadedState(await window.yibiao!.feasibilityReport.loadState());
-    showToast(result.message || '已移除资料', 'success');
-  };
-
-  const startAnalysis = async () => {
-    try {
-      await persistProjectInfoIfNeeded();
-      await window.yibiao!.tasks.startFeasibilityAnalysis();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '启动分析失败', 'error');
-    }
-  };
-
-  const saveAnalysis = async () => {
-    setSaving(true);
-    try {
-      const next = await window.yibiao!.feasibilityReport.saveAnalysis(analysisDraft);
-      applyLoadedState(next);
-      showToast('资料分析已保存', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '保存分析失败', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const startOutline = async (config: {
-    outlineTemplate: FeasibilityOutlineTemplate;
-    targetWords: number;
-    referenceDocumentIds: string[];
-  }) => {
-    try {
-      await window.yibiao!.tasks.startFeasibilityOutline(config);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '启动目录生成失败', 'error');
-    }
-  };
-
-  const saveKeyParameters = async () => {
-    setSaving(true);
-    try {
-      const next = await window.yibiao!.feasibilityReport.saveKeyParameters(parametersDraft);
-      applyLoadedState(next);
-      showToast('关键参数已保存', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '保存关键参数失败', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
 
 
   const openPetAiChat = useCallback(async () => {
