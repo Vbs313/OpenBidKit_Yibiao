@@ -5,6 +5,7 @@ import { AppDialog, AppSwitch, FloatingToolbar, isLibreOfficeRequiredMessage, Ma
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import { useRejectionWorkspace } from '../hooks/useRejectionWorkspace';
 import { hasExportableRejectionResults } from '../exportState';
+import { buildCheckRunPlan, buildExtractionErrorState, buildExtractionStartPlan, markBackgroundTaskFailed, markCheckResultFailed } from '../checkRunModel';
 import {
   steps,
   stepLabels,
@@ -36,20 +37,15 @@ import {
 } from '../components/findingItems';
 import type {
   LogicCheckFinding,
-  LogicCheckResultState,
-  RejectionBackgroundTaskState,
   RejectionCheckFinding,
   RejectionCheckStep,
   RejectionCheckOptions,
-  RejectionCheckResultState,
   RejectionCheckResultTab,
   RejectionCheckRunStatus,
   RejectionDocumentRole,
   RejectionDocumentTabId,
-  RejectionExtractionState,
   RejectionResultTab,
   TypoCheckFinding,
-  TypoCheckResultState,
 } from '../../../shared/types/domains/rejection-check';
 
 function escapeInlineHtml(value: string) {
@@ -377,27 +373,11 @@ function RejectionCheckPage() {
 
     autoStartedSignatureRef.current = signature;
     const startedAt = new Date().toISOString();
-    const nextExtractionState: RejectionExtractionState = {
-      status: 'running',
-      content: '',
-      source: 'ai',
-      tenderSignature: signature,
-      updatedAt: startedAt,
-    };
-    const nextExtractionTask: RejectionBackgroundTaskState = {
-      task_id: `local-${Date.now()}`,
-      type: 'rejection-items-extraction',
-      status: 'running',
-      progress: 5,
-      logs: ['正在启动无效与废标项解析任务。'],
-      started_at: startedAt,
-      updated_at: startedAt,
-    };
-    const emptyRejectionCheckResult = createEmptyRejectionCheckResultState();
+    const { extractionState, extractionTask } = buildExtractionStartPlan(signature, startedAt, `local-${Date.now()}`);
 
-    setInvalidBidAndRejectionItems(nextExtractionState);
-    setRejectionCheckResult(emptyRejectionCheckResult);
-    setExtractionTask(nextExtractionTask);
+    setInvalidBidAndRejectionItems(extractionState);
+    setRejectionCheckResult(createEmptyRejectionCheckResultState());
+    setExtractionTask(extractionTask);
     setCheckTask(undefined);
 
     try {
@@ -410,15 +390,8 @@ function RejectionCheckPage() {
       showToast('无效与废标项解析任务已在后台启动', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '启动无效与废标项解析失败';
-      setInvalidBidAndRejectionItems({
-        status: 'error',
-        content: '',
-        error: message,
-        source: 'ai',
-        tenderSignature: signature,
-        updatedAt: new Date().toISOString(),
-      });
-      setExtractionTask((prev) => prev ? { ...prev, status: 'error', progress: 100, error: message, logs: [message], updated_at: new Date().toISOString() } : prev);
+      setInvalidBidAndRejectionItems(buildExtractionErrorState(signature, message, new Date().toISOString()));
+      setExtractionTask((prev) => markBackgroundTaskFailed(prev, message, new Date().toISOString()));
       showToast(message, 'error');
     }
   }
@@ -502,60 +475,33 @@ function RejectionCheckPage() {
       return;
     }
 
-    const nextActiveCheckResultTab: RejectionCheckResultTab = runOptions.rejectionCheck ? 'rejection' : runOptions.typoCheck ? 'typo' : 'logic';
-    setActiveCheckResultTab(nextActiveCheckResultTab);
-    setActiveResultBidDocumentId('all');
     const startedAt = new Date().toISOString();
-    const nextRejectionCheckResult: RejectionCheckResultState = runOptions.rejectionCheck
-      ? {
-          status: 'running',
-          findings: [],
-          inputSignature: currentRejectionCheckInputSignature,
-          progressMessage: '第一轮：正在分析检查范围。',
-          updatedAt: startedAt,
-        }
-      : rejectionCheckResult;
-    const nextTypoCheckResult: TypoCheckResultState = runOptions.typoCheck
-      ? {
-          status: 'running',
-          findings: [],
-          inputSignature: bidSignature,
-          progressMessage: '正在识别错别字候选。',
-          updatedAt: startedAt,
-        }
-      : typoCheckResult;
-    const nextLogicCheckResult: LogicCheckResultState = runOptions.logicCheck
-      ? {
-          status: 'running',
-          findings: [],
-          inputSignature: bidSignature,
-          progressMessage: '正在检查逻辑谬误。',
-          updatedAt: startedAt,
-        }
-      : logicCheckResult;
-    const nextCheckTask: RejectionBackgroundTaskState = {
-      task_id: `local-${Date.now()}`,
-      type: 'rejection-check-run',
-      status: 'running',
-      progress: 5,
-      logs: ['正在启动检查任务。'],
-      started_at: startedAt,
-      updated_at: startedAt,
-    };
+    const plan = buildCheckRunPlan({
+      runOptions,
+      bidSignature,
+      rejectionInputSignature: currentRejectionCheckInputSignature,
+      startedAt,
+      taskId: `local-${Date.now()}`,
+      previousRejectionCheckResult: rejectionCheckResult,
+      previousTypoCheckResult: typoCheckResult,
+      previousLogicCheckResult: logicCheckResult,
+    });
 
+    setActiveCheckResultTab(plan.activeCheckResultTab);
+    setActiveResultBidDocumentId('all');
     if (runOptions.rejectionCheck) {
-      setRejectionCheckResult(nextRejectionCheckResult);
+      setRejectionCheckResult(plan.rejectionCheckResult);
     }
 
     if (runOptions.typoCheck) {
-      setTypoCheckResult(nextTypoCheckResult);
+      setTypoCheckResult(plan.typoCheckResult);
     }
 
     if (runOptions.logicCheck) {
-      setLogicCheckResult(nextLogicCheckResult);
+      setLogicCheckResult(plan.logicCheckResult);
     }
 
-    setCheckTask(nextCheckTask);
+    setCheckTask(plan.checkTask);
 
     try {
       const starter = window.yibiao?.tasks.startRejectionCheck;
@@ -564,7 +510,7 @@ function RejectionCheckPage() {
       }
 
       await window.yibiao?.rejectionCheck.saveUiState({
-        activeCheckResultTab: nextActiveCheckResultTab,
+        activeCheckResultTab: plan.activeCheckResultTab,
         checkOptions: options,
       });
 
@@ -576,22 +522,17 @@ function RejectionCheckPage() {
       showToast('检查任务已在后台启动', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '启动检查任务失败';
+      const failedAt = new Date().toISOString();
       if (runOptions.rejectionCheck) {
-        setRejectionCheckResult((prev) => prev.inputSignature === currentRejectionCheckInputSignature
-          ? { ...prev, status: 'error', error: message, progressMessage: message, updatedAt: new Date().toISOString() }
-          : prev);
+        setRejectionCheckResult((prev) => markCheckResultFailed(prev, message, currentRejectionCheckInputSignature, failedAt));
       }
       if (runOptions.typoCheck) {
-        setTypoCheckResult((prev) => prev.inputSignature === bidSignature
-          ? { ...prev, status: 'error', error: message, progressMessage: message, updatedAt: new Date().toISOString() }
-          : prev);
+        setTypoCheckResult((prev) => markCheckResultFailed(prev, message, bidSignature, failedAt));
       }
       if (runOptions.logicCheck) {
-        setLogicCheckResult((prev) => prev.inputSignature === bidSignature
-          ? { ...prev, status: 'error', error: message, progressMessage: message, updatedAt: new Date().toISOString() }
-          : prev);
+        setLogicCheckResult((prev) => markCheckResultFailed(prev, message, bidSignature, failedAt));
       }
-      setCheckTask((prev) => prev ? { ...prev, status: 'error', error: message, progress: 100, updated_at: new Date().toISOString() } : prev);
+      setCheckTask((prev) => markBackgroundTaskFailed(prev, message, new Date().toISOString()));
       showToast(message, 'error');
     }
   }
