@@ -393,6 +393,47 @@ function createLeafAdjustmentPrompt(targetLeafCount, actualLeafCount) {
 5. 不要机械增加重复、空泛或近义目录。程序已为 ${OUTLINE_OUTPUT_FILE} 预置 Schema；完成调整后覆盖写回该文件，并调用 json-validation 校验，只传 file_path；校验失败后必须先修改文件，再重新校验。`;
 }
 
+function enforceMinimumLeafTarget(targetLeafCount, fixedAiLeafCount, technicalBranchCount, wordControlOptions = {}) {
+  if (targetLeafCount === null) return null;
+  const minimumLeafCount = fixedAiLeafCount + technicalBranchCount;
+  const adjustedTarget = Math.max(targetLeafCount, minimumLeafCount);
+  if (wordControlOptions.strictSectionWords && wordControlOptions.maximumWords > 0) {
+    const sectionMinimumWords = Math.ceil(wordControlOptions.sectionWords * 0.8);
+    const maximumLeafCount = Math.floor(wordControlOptions.maximumWords / sectionMinimumWords);
+    if (maximumLeafCount < minimumLeafCount) {
+      throw new Error(
+        `当前严格字数配置最多容纳 ${maximumLeafCount} 个 AI 生成小节，但独立成册目录至少需要 ${minimumLeafCount} 个。请提高全文最大字数、降低单节字数或减少技术评分分支后重新生成目录。`,
+      );
+    }
+    return Math.min(adjustedTarget, maximumLeafCount);
+  }
+  return adjustedTarget;
+}
+
+function renumberOutline(items, prefix = '') {
+  return (items || []).map((item, index) => {
+    const id = prefix ? `${prefix}.${index + 1}` : String(index + 1);
+    const hasChildren = Array.isArray(item?.children) && item.children.length;
+    const next = {
+      id,
+      title: String(item?.title || '').trim(),
+      description: String(item?.description || '').trim(),
+      ...(prefix ? {} : { attr: item?.attr }),
+      ...(!prefix && String(item?.branch_id || '').trim() ? { branch_id: String(item.branch_id).trim() } : {}),
+      ...(!hasChildren ? {
+        content_mode: item?.content_mode,
+        ...(item?.content_mode === 'other' && String(item?.content_mode_note || '').trim()
+          ? { content_mode_note: String(item.content_mode_note).trim() }
+          : {}),
+      } : {}),
+    };
+    if (hasChildren) {
+      next.children = renumberOutline(item.children, id);
+    }
+    return next;
+  });
+}
+
 module.exports = {
   LEAF_ALLOCATION_CONTEXT_FILE,
   OUTLINE_OUTPUT_FILE,
@@ -416,4 +457,6 @@ module.exports = {
   createLeafAllocationPrompt,
   createScorePlanningPrompt,
   createLeafAdjustmentPrompt,
+  enforceMinimumLeafTarget,
+  renumberOutline,
 };

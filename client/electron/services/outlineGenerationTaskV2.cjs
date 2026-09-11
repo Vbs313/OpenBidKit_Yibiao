@@ -24,6 +24,8 @@ const {
   createLeafAllocationPrompt,
   createScorePlanningPrompt,
   createLeafAdjustmentPrompt,
+  enforceMinimumLeafTarget,
+  renumberOutline,
   collectNodesAtLevel,
   countLeavesByMode,
 } = require('./tasks/outline/outlineBlueprint.cjs');
@@ -189,48 +191,7 @@ function deriveTargetLeafCount(options) {
 }
 
 // 独立成册时每个技术分支至少保留根节点作为正文叶子；字数允许时再推荐向下展开。
-function enforceMinimumLeafTarget(targetLeafCount, fixedAiLeafCount, technicalBranchCount, wordControlOptions = {}) {
-  if (targetLeafCount === null) return null;
-  const minimumLeafCount = fixedAiLeafCount + technicalBranchCount;
-  const adjustedTarget = Math.max(targetLeafCount, minimumLeafCount);
-  if (wordControlOptions.strictSectionWords && wordControlOptions.maximumWords > 0) {
-    const sectionMinimumWords = Math.ceil(wordControlOptions.sectionWords * 0.8);
-    const maximumLeafCount = Math.floor(wordControlOptions.maximumWords / sectionMinimumWords);
-    if (maximumLeafCount < minimumLeafCount) {
-      throw new Error(
-        `当前严格字数配置最多容纳 ${maximumLeafCount} 个 AI 生成小节，但独立成册目录至少需要 ${minimumLeafCount} 个。请提高全文最大字数、降低单节字数或减少技术评分分支后重新生成目录。`,
-      );
-    }
-    return Math.min(adjustedTarget, maximumLeafCount);
-  }
-  return adjustedTarget;
-}
-
 // 统一目录层级编号，并按父子节点形态整理目录字段。
-function renumberOutline(items, prefix = '') {
-  return (items || []).map((item, index) => {
-    const id = prefix ? `${prefix}.${index + 1}` : String(index + 1);
-    const hasChildren = Array.isArray(item?.children) && item.children.length;
-    const next = {
-      id,
-      title: String(item?.title || '').trim(),
-      description: String(item?.description || '').trim(),
-      ...(prefix ? {} : { attr: item?.attr }),
-      ...(!prefix && String(item?.branch_id || '').trim() ? { branch_id: String(item.branch_id).trim() } : {}),
-      ...(!hasChildren ? {
-        content_mode: item?.content_mode,
-        ...(item?.content_mode === 'other' && String(item?.content_mode_note || '').trim()
-          ? { content_mode_note: String(item.content_mode_note).trim() }
-          : {}),
-      } : {}),
-    };
-    if (hasChildren) {
-      next.children = renumberOutline(item.children, id);
-    }
-    return next;
-  });
-}
-
 // 接受 Agent 的完整目录结果，并统一整理层级编号和节点字段。
 function buildFinalOutline(candidate) {
   return { outline: renumberOutline(candidate?.outline || []) };
