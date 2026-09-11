@@ -5,6 +5,7 @@
  * 其中 OutlineEditPage 有过 5 次自动化提取全部回退的记录 —— 重构前必须先有能发现渲染回归的网。
  *
  * 覆盖：用真实 IPC 预置一份大纲，再把 5 个子页面（STEP 01~05）逐个真实渲染一遍；
+ *       再打开目录生成配置弹窗、保存配置（真实 IPC 落库），覆盖 OutlineEditPage 的生成配置簇；
  *       全程监听渲染器错误，并用探针自检「监听器真的能收到」。
  *
  * 用法：npm run smoke:technical-plan-ui   （前置：npm run build）
@@ -138,6 +139,39 @@ async function run() {
 
   const outlineNodeCount = () => window.webContents.executeJavaScript("document.querySelectorAll('.outline-tree-node').length");
 
+  // 生成配置弹窗此前进不去：projectOverview 只有真实 bid-analysis 任务才会写进页面状态。
+  // 这里走真实的任务事件通道（tasks:event）补一条最小补丁，避免为了打开弹窗去跑真实 LLM 任务。
+  const seedProjectOverview = async () => {
+    window.webContents.send('tasks:event', {
+      task: { type: 'bid-analysis', status: 'success', task_id: 'smoke-bid-analysis', logs: [] },
+      technicalPlan: { projectOverview: '冒烟项目概述' },
+    });
+    await waitFor('目录生成按钮解除禁用', async () => window.webContents.executeJavaScript(`(() => {
+      const button = Array.from(document.querySelectorAll('button')).find((el) => (el.innerText || '').trim() === '重新生成目录');
+      return Boolean(button && !button.disabled);
+    })()`), { timeoutMs: 15000 });
+  };
+
+  // 覆盖生成配置弹窗：打开 → 配置项渲染 → 保存配置（真实 IPC 落库）→ 关闭。
+  const exerciseOutlineGenerationDialog = async () => {
+    await seedProjectOverview();
+    const opened = String(await click('重新生成目录'));
+    assert(opened.startsWith('CLICKED'), '找不到「重新生成目录」按钮：' + opened);
+    await waitFor('生成配置弹窗渲染', async () => {
+      const text = String(await pageText());
+      return ['全文字数/页数预设', '参考知识库', '保存配置'].every((marker) => text.includes(marker));
+    }, { timeoutMs: 15000 });
+    console.log('[technical-plan-ui] 目录生成配置：弹窗打开且配置项渲染正常');
+
+    const saved = String(await click('保存配置'));
+    assert(saved.startsWith('CLICKED'), '找不到「保存配置」按钮：' + saved);
+    await waitFor('生成配置保存并关闭', async () => {
+      const text = String(await pageText());
+      return !text.includes('全文字数/页数预设') && text.includes('目录生成配置已保存');
+    }, { timeoutMs: 20000 });
+    console.log('[technical-plan-ui] 目录生成配置：保存配置走真实 IPC 落库并关闭弹窗');
+  };
+
   // 目录树交互：新增一级目录 → 进入排序 → 保存排序。
   // 这三步正好覆盖 OutlineEditPage 的「条目增删改」与「拖拽排序」两簇 handler。
   const exerciseOutlineTree = async () => {
@@ -184,6 +218,17 @@ async function run() {
     await waitFor('渲染器错误捕获自检', async () => rendererErrors.some((line) => line.includes('__technical-plan-ui-probe__')));
     rendererErrors.length = 0;
 
+    // 先用真实 IPC 把目录结构定成「完整投标文件结构」：默认值 aligned 在已有大纲时会先提示重新生成，
+    // 那是另一条分支；这里要覆盖的是生成配置弹窗的保存成功路径。
+    await window.webContents.executeJavaScript(
+      `window.yibiao.technicalPlan.saveOutlineConfig(${JSON.stringify({
+        referenceKnowledgeDocumentIds: [],
+        outlineMode: 'response-file',
+        outlineExpansionMode: 'ai-complement',
+        wordControlOptions: { minimumWords: 0, maximumWords: 0, sectionWords: 0, strictSectionWords: false },
+      })})`
+    );
+
     // 用真实 IPC 预置一份大纲：否则 STEP 03 之后的分支只能看到空态，等于没进网。
     await window.webContents.executeJavaScript(
       `window.yibiao.technicalPlan.saveOutline(${JSON.stringify(SEED_OUTLINE)})`
@@ -201,6 +246,7 @@ async function run() {
       }, { timeoutMs: 30000 });
       console.log(`[technical-plan-ui] ${step} 渲染正常（${markers.length} 个标记）`);
       if (step === 'outline-generation') {
+        await exerciseOutlineGenerationDialog();
         await exerciseOutlineTree();
       }
     }
