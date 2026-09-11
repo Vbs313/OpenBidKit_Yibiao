@@ -90,9 +90,27 @@ function bootPiRuntime() {
   return runtime;
 }
 
-app.whenReady().then(() => {
+// 数据库初始化是「加载完成后再 setTimeout(120ms)」触发的；失败走 console.error。
+// 这里捕获这段时间的错误日志，否则「应用起不来」这类缺陷会被静默放过。
+function captureConsoleErrors() {
+  const captured = [];
+  const original = console.error;
+  console.error = (...args) => { captured.push(args.map((a) => (a && a.message) || String(a)).join(' ')); original.apply(console, args); };
+  return { captured, restore: () => { console.error = original; } };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+app.whenReady().then(async () => {
   try {
+    const spy = captureConsoleErrors();
     const services = bootServiceGraph();
+    await sleep(2500);
+    spy.restore();
+    const dbFailure = spy.captured.find((line) => line.includes('工作区数据库初始化失败'));
+    if (dbFailure) throw new Error('工作区数据库初始化失败：' + dbFailure);
+    console.log('[ipc-boot-smoke] 工作区数据库初始化未报错（已等待延迟初始化完成）');
+
     const piRuntime = bootPiRuntime();
     try {
       services.closeServices?.();
