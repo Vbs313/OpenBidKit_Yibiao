@@ -1,6 +1,16 @@
 // 全文字数调整的批次计算：判断小节是否越界、决定扩写/缩写方向，并按预算切批。
 // 纯函数，只做数值与结构运算，不接触任务状态、模型或文件系统，可单独测试。
 
+// 小节字数调整的最大轮次。
+const MAX_WORD_ADJUSTMENT_ROUNDS = 3;
+// 全文扩写不限制有效轮数，仅在连续多轮没有增加字数时退出。
+const MAX_EXPANSION_NO_PROGRESS_ROUNDS = 3;
+// 每轮全文调整最多选择的小节数。
+const TOTAL_WORD_ADJUSTMENT_BATCH_SIZE = 10;
+// 全文缩写阶段筛选候选小节时，可缩空间至少要达到本轮单节平均预算的比例，
+// 低于此值的小节直接跳过以免空占批次名额。
+const TOTAL_WORD_SHRINK_MIN_CAPACITY_RATIO = 0.3;
+
 const DEFAULT_SECTION_WORD_GUIDANCE = 3000;
 const TOTAL_WORD_SHRINK_SECTION_RATIO = 0.25;
 
@@ -112,6 +122,10 @@ const TOTAL_WORD_SHRINK_SECTION_RATIO = 0.25;
   }
 
 module.exports = {
+  MAX_WORD_ADJUSTMENT_ROUNDS,
+  MAX_EXPANSION_NO_PROGRESS_ROUNDS,
+  TOTAL_WORD_ADJUSTMENT_BATCH_SIZE,
+  TOTAL_WORD_SHRINK_MIN_CAPACITY_RATIO,
   isSectionWordsOutsideRange,
   getTotalWordDirection,
   buildTotalWordAdjustmentBatch,
