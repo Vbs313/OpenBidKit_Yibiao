@@ -30,6 +30,7 @@
     "smoke:schema": "electron scripts/schema-migration-smoke.cjs",
     "smoke:settings-ui": "electron scripts/settings-ui-smoke.cjs",
     "smoke:rejection-ui": "electron scripts/rejection-ui-smoke.cjs",
+    "smoke:technical-plan-ui": "electron scripts/technical-plan-ui-smoke.cjs",
     "smoke:pages-mount": "electron scripts/pages-mount-smoke.cjs",
     "start": "electron ."
   },
