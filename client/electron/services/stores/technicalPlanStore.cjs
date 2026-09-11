@@ -37,6 +37,7 @@ const { createTaskPersistence } = require('./taskPersistence.cjs');
 const { createContentPersistence } = require('./contentPersistence.cjs');
 const { createTenderSourceFiles } = require('./tenderSourceFiles.cjs');
 const { createTenderDocumentLifecycle } = require('./tenderDocumentLifecycle.cjs');
+const { createDownstreamCleanup } = require('./downstreamCleanup.cjs');
 
 const tenderMarkdownRelativePath = path.join('technical-plan', 'tender.md').replace(/\\/g, '/');
 const tenderOriginalMarkdownRelativePath = path.join('technical-plan', 'tender-original.md').replace(/\\/g, '/');
@@ -1008,67 +1009,6 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
       updated_at = excluded.updated_at
   `);
 
-  function clearDownstreamFromTender() {
-    deleteOutlineAgentTask();
-    deleteGlobalFactsAgentTask();
-    db.prepare('DELETE FROM technical_plan_tasks').run();
-    db.prepare('DELETE FROM technical_plan_bid_items').run();
-    db.prepare('DELETE FROM technical_plan_reference_docs').run();
-    db.prepare('DELETE FROM technical_plan_outline_nodes').run();
-    db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
-    clearContentIllustrationPlan();
-    clearOriginalOutlineRuntime();
-    clearTechnicalPlanMermaidCache();
-    updateMeta({
-      step: 'document-analysis',
-      bid_analysis_mode: 'key',
-      bid_analysis_selected_task_ids_json: null,
-      outline_mode: 'aligned',
-      outline_expansion_mode: 'ai-complement',
-      outline_word_control_snapshot_json: null,
-      outline_project_name: null,
-      outline_project_overview: null,
-      global_facts_mode: 'fabricate',
-      content_generation_options_json: null,
-      content_generation_runtime_json: null,
-      pending_tender_markdown_path: null,
-      pending_tender_file_name: null,
-      pending_tender_parser_label: null,
-      pending_tender_sections_json: null,
-      pending_tender_total_declared: null,
-      pending_tender_created_at: null,
-      bid_section_mode: 'single',
-      bid_sections_json: null,
-      bid_section_extraction_status: 'idle',
-      bid_section_extraction_error: null,
-      selected_section_id: null,
-      selected_section_title: null,
-    });
-    notifyAgentWorkspaceChange({ force: true });
-  }
-
-  function clearDownstreamFromBidSectionChange() {
-    clearBidTemplate();
-    deleteOutlineAgentTask();
-    deleteGlobalFactsAgentTask();
-    db.prepare('DELETE FROM technical_plan_tasks').run();
-    db.prepare('DELETE FROM technical_plan_bid_items').run();
-    db.prepare('DELETE FROM technical_plan_reference_docs').run();
-    db.prepare('DELETE FROM technical_plan_outline_nodes').run();
-    db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
-    clearContentIllustrationPlan();
-    clearOriginalOutlineRuntime();
-    clearTechnicalPlanMermaidCache();
-    updateMeta({
-      step: 'bid-analysis',
-      content_generation_options_json: null,
-      content_generation_runtime_json: null,
-      outline_word_control_snapshot_json: null,
-      outline_project_name: null,
-      outline_project_overview: null,
-    });
-    notifyAgentWorkspaceChange({ force: true });
-  }
 
   function clearContentGenerationState() {
     db.prepare("UPDATE technical_plan_outline_nodes SET content = '', updated_at = ?").run(now());
@@ -1080,26 +1020,6 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     updateMeta({ content_generation_runtime_json: null });
   }
 
-  function clearDownstreamFromOriginalPlan() {
-    deleteOutlineAgentTask();
-    deleteGlobalFactsAgentTask();
-    db.prepare(`DELETE FROM technical_plan_tasks WHERE type IN (${originalPlanDownstreamTaskTypes.map(() => '?').join(', ')})`).run(...originalPlanDownstreamTaskTypes);
-    db.prepare('DELETE FROM technical_plan_outline_nodes').run();
-    db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
-    db.prepare('DELETE FROM technical_plan_content_sections').run();
-    db.prepare('DELETE FROM technical_plan_content_plans').run();
-    clearContentIllustrationPlan();
-    clearOriginalOutlineRuntime();
-    clearTechnicalPlanMermaidCache();
-    updateMeta({
-      step: 'document-analysis',
-      outline_project_name: null,
-      outline_project_overview: null,
-      content_generation_runtime_json: null,
-      outline_word_control_snapshot_json: null,
-    });
-    notifyAgentWorkspaceChange({ force: true });
-  }
 
   function assertNoTechnicalPlanTaskRunning() {
     const row = db.prepare("SELECT type FROM technical_plan_tasks WHERE status IN ('running', 'pausing') LIMIT 1").get();
@@ -1116,37 +1036,6 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     }
   }
 
-  function clearWorkflowSpecificState(workflowKind) {
-    deleteOutlineAgentTask();
-    deleteGlobalFactsAgentTask();
-    db.prepare(`DELETE FROM technical_plan_tasks WHERE type IN (${originalPlanDownstreamTaskTypes.map(() => '?').join(', ')})`).run(...originalPlanDownstreamTaskTypes);
-    db.prepare('DELETE FROM technical_plan_content_sections').run();
-    db.prepare('DELETE FROM technical_plan_content_plans').run();
-    db.prepare('DELETE FROM technical_plan_outline_nodes').run();
-    db.prepare('DELETE FROM technical_plan_global_fact_groups').run();
-    clearContentIllustrationPlan();
-    clearOriginalOutlineRuntime();
-    clearTechnicalPlanMermaidCache();
-    updateMeta({
-      workflow_kind: normalizeWorkflowKind(workflowKind),
-      step: 'document-analysis',
-      outline_expansion_mode: 'ai-complement',
-      global_facts_mode: 'fabricate',
-      original_plan_file_name: null,
-      original_plan_markdown_path: null,
-      original_plan_markdown_hash: null,
-      original_plan_markdown_chars: 0,
-      original_plan_parser_label: null,
-      original_plan_imported_at: null,
-      outline_project_name: null,
-      outline_project_overview: null,
-      outline_word_control_options_json: null,
-      outline_word_control_snapshot_json: null,
-      content_generation_options_json: null,
-      content_generation_runtime_json: null,
-    });
-    notifyAgentWorkspaceChange({ force: true });
-  }
 
   function loadOutlinePersistenceSnapshot() {
     return {
@@ -1469,25 +1358,6 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     return updateTechnicalPlan({ workflowKind: normalizeWorkflowKind(workflowKind) });
   }
 
-  function switchWorkflowKind(workflowKind) {
-    const nextWorkflowKind = normalizeWorkflowKind(workflowKind);
-    const meta = ensureMetaRow();
-    if (normalizeWorkflowKind(meta.workflow_kind) === nextWorkflowKind) {
-      return;
-    }
-
-    const originalPlanFilePath = meta.original_plan_markdown_path
-      ? resolveMarkdownPath(meta.original_plan_markdown_path)
-      : originalPlanMarkdownPath;
-    const transaction = db.transaction(() => {
-      assertNoTechnicalPlanTaskRunning();
-      clearWorkflowSpecificState(nextWorkflowKind);
-    });
-    transaction();
-    if (fs.existsSync(originalPlanFilePath)) {
-      fs.rmSync(originalPlanFilePath, { force: true });
-    }
-  }
 
   function saveOutlineConfig({ referenceKnowledgeDocumentIds, outlineMode, outlineExpansionMode, wordControlOptions } = {}) {
     updateTechnicalPlan({
@@ -1822,6 +1692,24 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     deleteImportedImageBatches,
     app,
     clearContentIllustrationPlan,
+  });
+  // 技术标下游清理：实现见 stores/downstreamCleanup.cjs。
+  const {
+    clearDownstreamFromTender,
+    clearDownstreamFromBidSectionChange,
+    clearDownstreamFromOriginalPlan,
+    clearWorkflowSpecificState,
+    switchWorkflowKind,
+  } = createDownstreamCleanup({
+    deleteOutlineAgentTask,
+    deleteGlobalFactsAgentTask,
+    notifyAgentWorkspaceChange,
+    originalPlanMarkdownPath,
+    clearTechnicalPlanMermaidCache,
+    clearBidTemplate,
+    assertNoTechnicalPlanTaskRunning,
+    originalPlanDownstreamTaskTypes,
+    normalizeWorkflowKind,
   });
   return {
     loadTechnicalPlan,
