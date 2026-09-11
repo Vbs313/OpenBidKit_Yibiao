@@ -129,6 +129,10 @@ async function run() {
     await waitFor('渲染器错误捕获自检', async () => rendererErrors.some((line) => line.includes('__knowledge-base-ui-probe__')));
     rendererErrors.length = 0;
 
+    // 「新建文件夹」在列表加载完成前是 disabled，disabled 按钮点不动——先等它可用。
+    await waitFor('「新建文件夹」按钮可用', async () => window.webContents.executeJavaScript(
+      '(() => { const btn = Array.from(document.querySelectorAll("button")).find((el) => String(el.innerText||"").trim() === "新建文件夹"); return Boolean(btn) && !btn.disabled; })()'
+    ), { timeoutMs: 20000 });
     const opened = String(await click('新建文件夹'));
     assert(opened.startsWith('CLICKED'), '找不到「新建文件夹」按钮：' + opened);
     await waitFor('新建文件夹表单出现', async () => window.webContents.executeJavaScript(
