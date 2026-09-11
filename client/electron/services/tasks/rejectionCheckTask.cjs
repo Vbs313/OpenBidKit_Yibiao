@@ -1725,4 +1725,30 @@ async function runRejectionCheckTask({ aiService, workspaceStore, updateTask, ch
 module.exports = {
   runRejectionItemsExtractionTask,
   runRejectionCheckTask,
+  // 纯函数出口：仅供单测（见 rejectionCheckTask.test.cjs）。
+  // 这个文件此前没有任何测试，先用 __test__ 把归一化 / 签名 / 滚动状态的纯逻辑钉住，
+  // 再考虑按「提示词 / 归一化 / 滚动状态」拆模块。
+  __test__: {
+    applyRollingRejectionPatch,
+    createEmptyRollingRejectionState,
+    createVerifiedTypoExcerpt,
+    dedupeItems,
+    findVerifiedTypoPosition,
+    formatBidDocumentIdList,
+    formatBidDocumentsForPrompt,
+    getArrayPayload,
+    getBidDocumentDisplayName,
+    getBidDocumentIdFromItem,
+    getPackageBidDocumentId,
+    limitDedupeItems,
+    normalizeFindingType,
+    normalizeLogicCheckFindings,
+    normalizeRejectionCheckFindings,
+    normalizeRollingRejectionPatch,
+    normalizeSeverity,
+    normalizeText,
+    normalizeTypoCheckFindings,
+    shouldUseSegmentedRejectionFlow,
+    stripTripleQuoteWrapper,
+  },
 };
