@@ -38,7 +38,7 @@ function extractOriginalSegmentIds(messages) {
   return [...text.matchAll(/<original_segment id="([^"]+)"/g)].map((match) => match[1]);
 }
 
-function buildPlan({ expansion, audit, coverageAudit }) {
+function buildPlan({ expansion, audit, coverageAudit, wordControl }) {
   const plan = {
     outlineData: {
       outline: [{ id: 'c1', title: '章节一', description: '章节描述', content_mode: 'ai-generate', children: [] }],
@@ -56,6 +56,16 @@ function buildPlan({ expansion, audit, coverageAudit }) {
         : {}),
     },
   };
+  if (wordControl) {
+    // 严格小节字数：生成正文远低于下限，必然进入正文字数调整阶段。
+    plan.outlineWordControlSnapshot = {
+      enabled: true,
+      minimumWords: 0,
+      maximumWords: 0,
+      sectionWords: 100,
+      strictSectionWords: true,
+    };
+  }
   if (expansion) {
     plan.workflowKind = 'existing-plan-expansion';
     plan.originalPlanFile = 'original.md';
@@ -63,10 +73,14 @@ function buildPlan({ expansion, audit, coverageAudit }) {
   return plan;
 }
 
-async function runScenario({ name, expansion = false, audit = false, coverageAudit = false }) {
+async function runScenario({
+  name, expansion = false, audit = false, coverageAudit = false, wordControl = false,
+}) {
   const { runContentGenerationTask } = require(path.join(__dirname, '..', 'electron', 'services', 'tasks', 'contentGenerationTask.cjs'));
-  const plan = buildPlan({ expansion, audit, coverageAudit });
-  const calls = { chat: 0, json: 0, audit: 0, coverageAudit: 0, agent: 0, checkpoints: [], updates: [] };
+  const plan = buildPlan({ expansion, audit, coverageAudit, wordControl });
+  const calls = {
+    chat: 0, json: 0, audit: 0, coverageAudit: 0, wordAdjust: 0, agent: 0, checkpoints: [], updates: [],
+  };
 
   const aiService = {
     getConfig: () => ({ concurrency_limit: 1 }),
@@ -86,6 +100,15 @@ async function runScenario({ name, expansion = false, audit = false, coverageAud
             node_id: 'c1',
             status: 'covered',
           })),
+        };
+      }
+      if (wordControl && title.startsWith('正文扩写')) {
+        calls.wordAdjust += 1;
+        // 一次性插入足够长的正文，让严格小节字数在一轮内收敛。
+        return {
+          mode: 'expand',
+          granularity: 'paragraph',
+          operations: [{ operation: 'insert', anchor: 'end', content: '扩写补充内容。'.repeat(9) }],
         };
       }
       // 直接返回 normalizer 之后的形状：真实 aiService 会先 normalize 再 validate，
@@ -182,6 +205,15 @@ async function runScenario({ name, expansion = false, audit = false, coverageAud
     assert(calls.coverageAudit >= 1, `${name}：原方案覆盖审计阶段没有调用模型`);
     assert(logs.includes('原方案覆盖审计'), `${name}：任务日志里没有原方案覆盖审计阶段`);
   }
+  if (wordControl) {
+    assert(calls.wordAdjust >= 1, `${name}：字数调整阶段没有调用模型`);
+    assert(
+      calls.checkpoints.some(([, , planPatch]) => (
+        String(planPatch?.contentSection?.content || '').includes('扩写补充内容')
+      )),
+      `${name}：字数调整结果没有写回小节正文`,
+    );
+  }
   if (expansion) {
     assert(
       logs.includes('原方案还原完成：已还原 1 个小节，未分配原文段 0 个。'),
@@ -199,14 +231,16 @@ async function runSmoke() {
     results.push(await runScenario({ name: '已有方案扩写', expansion: true }));
     results.push(await runScenario({ name: '一致性审计', audit: true }));
     results.push(await runScenario({ name: '原方案覆盖审计', expansion: true, coverageAudit: true }));
+    results.push(await runScenario({ name: '小节字数控制', wordControl: true }));
 
     for (const result of results) {
       console.log(
         `[content-generation-smoke] ${result.name}：正文 ${result.chat} 次、模型 JSON ${result.json} 次`
-        + `、审计 ${result.audit} 次、覆盖审计 ${result.coverageAudit} 次、检查点 ${result.checkpoints} 次`,
+        + `、审计 ${result.audit} 次、覆盖审计 ${result.coverageAudit} 次、字数调整 ${result.wordAdjust} 次`
+        + `、检查点 ${result.checkpoints} 次`,
       );
     }
-    console.log('[content-generation-smoke] 四条路径的生成正文都已进入 checkpointTask 的状态补丁与方案补丁');
+    console.log('[content-generation-smoke] 五条路径的生成正文都已进入 checkpointTask 的状态补丁与方案补丁');
     console.log('[content-generation-smoke] all checks passed');
     exitWithCode(0);
   } catch (error) {
