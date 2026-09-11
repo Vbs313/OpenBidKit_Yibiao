@@ -101,3 +101,68 @@ test('validateAgentConsistencySections 允许原本就为空的小节保持为�
   sectionIndex.set('empty', { item: { id: 'empty' }, originalContent: '' });
   assert.doesNotThrow(() => W.validateAgentConsistencySections(new Map([['a', 'A'], ['empty', '']]), sectionIndex));
 });
+function makeWriter(overrides = {}) {
+  const state = { logs: [], saved: [], touched: [] };
+  const deps = {
+    state,
+    rememberTouchedItem: (id) => { state.touched.push(id); },
+    saveSection: (item, partial, content) => { state.saved.push({ item, partial, content }); },
+    ...overrides,
+  };
+  return { writer: W.createAgentSectionWriter(deps), state };
+}
+
+test('applyAgentConsistencySections 只回写内容真正变化的小节', () => {
+  const { writer, state } = makeWriter();
+  const sectionIndex = W.buildAgentConsistencySectionIndex([
+    { item: { id: 'a', title: 'A' }, content: '原文 A' },
+    { item: { id: 'b', title: 'B' }, content: '原文 B' },
+    { item: { id: 'c', title: 'C' }, content: '原文 C' },
+  ]);
+  const result = writer.applyAgentConsistencySections(
+    new Map([['a', '改后的 A'], ['b', '原文 B'], ['c', '原文 C']]),
+    sectionIndex,
+    new Set(['a', 'b']),
+  );
+  assert.deepEqual(result, { changedCount: 1, skippedCount: 2, changedIds: ['a'] });
+  assert.equal(state.saved.length, 1);
+  assert.equal(state.saved[0].item.id, 'a');
+  assert.equal(state.saved[0].content, '改后的 A');
+  assert.equal(state.saved[0].partial.status, 'success');
+  assert.equal(state.saved[0].partial.error, undefined);
+  assert.deepEqual(state.touched, ['a']);
+});
+
+test('applyAgentConsistencySections 忽略空差异与换行差异', () => {
+  const { writer, state } = makeWriter();
+  const sectionIndex = W.buildAgentConsistencySectionIndex([{ item: { id: 'a', title: 'A' }, content: '原文 A' }]);
+  const result = writer.applyAgentConsistencySections(new Map([['a', '原文 A\r\n']]), sectionIndex, new Set(sectionIndex.keys()));
+  assert.deepEqual(result, { changedCount: 0, skippedCount: 1, changedIds: [] });
+  assert.equal(state.saved.length, 0);
+  assert.deepEqual(state.touched, []);
+});
+
+test('applyAgentConsistencySections 把界外小节计入跳过', () => {
+  const { writer, state } = makeWriter();
+  const sectionIndex = W.buildAgentConsistencySectionIndex([
+    { item: { id: 'a', title: 'A' }, content: '原文 A' },
+    { item: { id: 'b', title: 'B' }, content: '原文 B' },
+  ]);
+  const result = writer.applyAgentConsistencySections(
+    new Map([['a', '改后的 A'], ['b', '改后的 B']]),
+    sectionIndex,
+    new Set(['a']),
+  );
+  assert.deepEqual(result, { changedCount: 1, skippedCount: 1, changedIds: ['a'] });
+  assert.equal(state.saved.length, 1);
+  assert.equal(state.saved[0].item.id, 'a');
+});
+
+test('applyAgentConsistencySections 把落盘前的日志数组传给 saveSection', () => {
+  const captured = [];
+  const { writer } = makeWriter({ saveSection: (item, partial, content, extra) => captured.push(extra) });
+  const sectionIndex = W.buildAgentConsistencySectionIndex([{ item: { id: 'a', title: 'A' }, content: '原文 A' }]);
+  writer.applyAgentConsistencySections(new Map([['a', '改后的 A']]), sectionIndex, new Set(['a']));
+  assert.equal(captured.length, 1);
+  assert.ok(Array.isArray(captured[0].logs));
+});

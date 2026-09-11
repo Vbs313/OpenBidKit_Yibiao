@@ -123,6 +123,7 @@ const {
   buildAgentConsistencyRepairPrompt,
   validateAgentConsistencySections,
 } = require('./generation/agentWorkspace.cjs');
+const { createAgentSectionWriter } = require('./generation/agentWorkspace.cjs');
 const {
   isSectionWordsOutsideRange,
   getTotalWordDirection,
@@ -1801,29 +1802,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
   }
 
 
-  function applyAgentConsistencySections(parsedSections, sectionIndex, writableIds) {
-    let changedCount = 0;
-    let skippedCount = 0;
-    const changedIds = [];
-    for (const [id, section] of sectionIndex.entries()) {
-      if (writableIds instanceof Set && !writableIds.has(id)) {
-        skippedCount += 1;
-        continue;
-      }
-      const nextContent = String(parsedSections.get(id) || '').trim();
-      const currentContent = String(section.originalContent || '').trim();
-      if (normalizeNewlines(nextContent).trim() === normalizeNewlines(currentContent).trim()) {
-        skippedCount += 1;
-        continue;
-      }
-      changedCount += 1;
-      changedIds.push(id);
-      rememberTouchedItem(id);
-      saveSection(section.item, { status: 'success', content: nextContent, error: undefined }, nextContent, { logs });
-    }
-    return { changedCount, skippedCount, changedIds };
-  }
-
   async function runAgentConsistencyRepairIfEnabled(options = {}) {
     if (!enableConsistencyAudit) {
       writeDeveloperLog('consistency.agent.skipped', { reason: 'disabled' });
@@ -2051,6 +2029,12 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     isPauseRequested,
   });
 
+  // Agent 回包小节写回：状态与落盘回调显式注入，实现见 generation/agentWorkspace.cjs。
+  const { applyAgentConsistencySections } = createAgentSectionWriter({
+    state: ctx,
+    rememberTouchedItem,
+    saveSection,
+  });
   // 原方案覆盖子阶段（正常审计 + Agent 修复两种模式）：
   // 状态与副作用显式注入，实现见 generation/stages/originalCoverageAudit.cjs。
   const { runOriginalPlanCoverageAuditIfEnabled, runAgentOriginalCoverageRepairIfEnabled } = createOriginalCoverageAuditStage({

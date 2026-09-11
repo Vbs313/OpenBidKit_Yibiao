@@ -5,6 +5,7 @@
 const { singleLine } = require('./agentResponse.cjs');
 const { escapeSectionAttribute } = require('./agentRestore.cjs');
 const { textHash } = require('./textEdits.cjs');
+const { normalizeNewlines } = require('./normalize.cjs');
 const { buildContentFactCompletenessInstruction } = require('./contentMessages.cjs');
 
 function buildAgentConsistencySectionIndex(targets) {
@@ -99,10 +100,42 @@ function validateAgentConsistencySections(parsedSections, sectionIndex) {
   }
 }
 
+// 把 Agent 回包解析出的小节写回任务状态：内容没变化或不在可写范围内的小节会被跳过。
+// 状态与落盘回调由 createAgentSectionWriter(deps) 注入，可单独测试。
+function createAgentSectionWriter(deps) {
+  const { state, rememberTouchedItem, saveSection } = deps;
+
+  function applyAgentConsistencySections(parsedSections, sectionIndex, writableIds) {
+    let changedCount = 0;
+    let skippedCount = 0;
+    const changedIds = [];
+    for (const [id, section] of sectionIndex.entries()) {
+      if (writableIds instanceof Set && !writableIds.has(id)) {
+        skippedCount += 1;
+        continue;
+      }
+      const nextContent = String(parsedSections.get(id) || '').trim();
+      const currentContent = String(section.originalContent || '').trim();
+      if (normalizeNewlines(nextContent).trim() === normalizeNewlines(currentContent).trim()) {
+        skippedCount += 1;
+        continue;
+      }
+      changedCount += 1;
+      changedIds.push(id);
+      rememberTouchedItem(id);
+      saveSection(section.item, { status: 'success', content: nextContent, error: undefined }, nextContent, { logs: state.logs });
+    }
+    return { changedCount, skippedCount, changedIds };
+  }
+
+  return { applyAgentConsistencySections };
+}
+
 module.exports = {
   buildAgentConsistencySectionIndex,
   buildAgentTechnicalPlanMarkdown,
   buildAgentGlobalFactsMarkdown,
   buildAgentConsistencyRepairPrompt,
   validateAgentConsistencySections,
+  createAgentSectionWriter,
 };
