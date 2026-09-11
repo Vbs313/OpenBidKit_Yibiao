@@ -6,6 +6,7 @@ import type { FloatingToolbarGroup } from '../../../shared/ui';
 import { useRejectionWorkspace } from '../hooks/useRejectionWorkspace';
 import { hasExportableRejectionResults } from '../exportState';
 import { buildCheckRunPlan, buildExtractionErrorState, buildExtractionStartPlan, markBackgroundTaskFailed, markCheckResultFailed } from '../checkRunModel';
+import { deleteResultFinding, filterFindingsByActiveBid, groupFindingsByBid, toggleResultFinding } from '../findingModel';
 import {
   steps,
   stepLabels,
@@ -553,11 +554,7 @@ function RejectionCheckPage() {
   }
 
   function toggleFinding(findingId: string) {
-    const next = {
-      ...rejectionCheckResult,
-      activeFindingId: rejectionCheckResult.activeFindingId === findingId ? undefined : findingId,
-      updatedAt: new Date().toISOString(),
-    };
+    const next = toggleResultFinding(rejectionCheckResult, findingId, new Date().toISOString());
     setRejectionCheckResult(next);
     persistRejectionState({
       rejectionCheckResult: { activeFindingId: next.activeFindingId, updatedAt: next.updatedAt },
@@ -565,18 +562,11 @@ function RejectionCheckPage() {
   }
 
   function deleteFinding(findingId: string) {
-    const findings = rejectionCheckResult.findings.filter((item) => item.id !== findingId);
-    const next = {
-      ...rejectionCheckResult,
-      findings,
-      activeFindingId: rejectionCheckResult.activeFindingId === findingId ? undefined : rejectionCheckResult.activeFindingId,
-      progressMessage: findings.length ? `保留 ${findings.length} 个需复核风险项` : '所有风险项已处理',
-      updatedAt: new Date().toISOString(),
-    };
+    const next = deleteResultFinding(rejectionCheckResult, findingId, new Date().toISOString(), '需复核风险项', '风险项');
     setRejectionCheckResult(next);
     persistRejectionState({
       rejectionCheckResult: {
-        findings,
+        findings: next.findings,
         activeFindingId: next.activeFindingId,
         progressMessage: next.progressMessage,
         updatedAt: next.updatedAt,
@@ -585,11 +575,7 @@ function RejectionCheckPage() {
   }
 
   function toggleTypoFinding(findingId: string) {
-    const next = {
-      ...typoCheckResult,
-      activeFindingId: typoCheckResult.activeFindingId === findingId ? undefined : findingId,
-      updatedAt: new Date().toISOString(),
-    };
+    const next = toggleResultFinding(typoCheckResult, findingId, new Date().toISOString());
     setTypoCheckResult(next);
     persistRejectionState({
       typoCheckResult: { activeFindingId: next.activeFindingId, updatedAt: next.updatedAt },
@@ -597,18 +583,11 @@ function RejectionCheckPage() {
   }
 
   function deleteTypoFinding(findingId: string) {
-    const findings = typoCheckResult.findings.filter((item) => item.id !== findingId);
-    const next = {
-      ...typoCheckResult,
-      findings,
-      activeFindingId: typoCheckResult.activeFindingId === findingId ? undefined : typoCheckResult.activeFindingId,
-      progressMessage: findings.length ? `保留 ${findings.length} 个疑似错别字` : '所有错别字项已处理',
-      updatedAt: new Date().toISOString(),
-    };
+    const next = deleteResultFinding(typoCheckResult, findingId, new Date().toISOString(), '疑似错别字', '错别字项');
     setTypoCheckResult(next);
     persistRejectionState({
       typoCheckResult: {
-        findings,
+        findings: next.findings,
         activeFindingId: next.activeFindingId,
         progressMessage: next.progressMessage,
         updatedAt: next.updatedAt,
@@ -635,11 +614,7 @@ function RejectionCheckPage() {
   }
 
   function toggleLogicFinding(findingId: string) {
-    const next = {
-      ...logicCheckResult,
-      activeFindingId: logicCheckResult.activeFindingId === findingId ? undefined : findingId,
-      updatedAt: new Date().toISOString(),
-    };
+    const next = toggleResultFinding(logicCheckResult, findingId, new Date().toISOString());
     setLogicCheckResult(next);
     persistRejectionState({
       logicCheckResult: { activeFindingId: next.activeFindingId, updatedAt: next.updatedAt },
@@ -647,18 +622,11 @@ function RejectionCheckPage() {
   }
 
   function deleteLogicFinding(findingId: string) {
-    const findings = logicCheckResult.findings.filter((item) => item.id !== findingId);
-    const next = {
-      ...logicCheckResult,
-      findings,
-      activeFindingId: logicCheckResult.activeFindingId === findingId ? undefined : logicCheckResult.activeFindingId,
-      progressMessage: findings.length ? `保留 ${findings.length} 个逻辑问题` : '所有逻辑问题已处理',
-      updatedAt: new Date().toISOString(),
-    };
+    const next = deleteResultFinding(logicCheckResult, findingId, new Date().toISOString(), '逻辑问题', '逻辑问题');
     setLogicCheckResult(next);
     persistRejectionState({
       logicCheckResult: {
-        findings,
+        findings: next.findings,
         activeFindingId: next.activeFindingId,
         progressMessage: next.progressMessage,
         updatedAt: next.updatedAt,
@@ -776,23 +744,6 @@ function RejectionCheckPage() {
     );
   }
 
-  function filterFindingsByActiveBid<T extends { bidDocumentId: string }>(findings: T[]) {
-    return activeResultBidDocumentId === 'all'
-      ? findings
-      : findings.filter((finding) => finding.bidDocumentId === activeResultBidDocumentId);
-  }
-
-  function groupFindingsByBid<T extends { bidDocumentId: string }>(findings: T[]) {
-    const filteredFindings = filterFindingsByActiveBid(findings);
-    if (activeResultBidDocumentId !== 'all') {
-      const document = bidDocuments.find((item) => item.id === activeResultBidDocumentId);
-      return document ? [{ document, findings: filteredFindings }] : [];
-    }
-    return bidDocuments
-      .map((document) => ({ document, findings: filteredFindings.filter((finding) => finding.bidDocumentId === document.id) }))
-      .filter((group) => group.findings.length > 0);
-  }
-
   function renderBidResultFilter(findings: Array<{ bidDocumentId: string }>) {
     const counts = new Map<string, number>();
     findings.forEach((finding) => counts.set(finding.bidDocumentId, (counts.get(finding.bidDocumentId) || 0) + 1));
@@ -817,7 +768,7 @@ function RejectionCheckPage() {
   }
 
   function renderRejectionFindingGroups(findings: RejectionCheckFinding[]) {
-    const groups = groupFindingsByBid(findings);
+    const groups = groupFindingsByBid(findings, bidDocuments, activeResultBidDocumentId);
     return (
       <div className="rejection-finding-list">
         {groups.map((group) => (
@@ -845,7 +796,7 @@ function RejectionCheckPage() {
   }
 
   function renderTypoFindingGroups(findings: TypoCheckFinding[]) {
-    const groups = groupFindingsByBid(findings);
+    const groups = groupFindingsByBid(findings, bidDocuments, activeResultBidDocumentId);
     return (
       <div className="rejection-finding-list">
         {groups.map((group) => (
@@ -875,7 +826,7 @@ function RejectionCheckPage() {
   }
 
   function renderLogicFindingGroups(findings: LogicCheckFinding[]) {
-    const groups = groupFindingsByBid(findings);
+    const groups = groupFindingsByBid(findings, bidDocuments, activeResultBidDocumentId);
     return (
       <div className="rejection-finding-list">
         {groups.map((group) => (
@@ -935,7 +886,7 @@ function RejectionCheckPage() {
               重新检查错别字
             </button>
           </div>
-        ) : filterFindingsByActiveBid(visibleTypoFindings).length ? (
+        ) : filterFindingsByActiveBid(visibleTypoFindings, activeResultBidDocumentId).length ? (
           renderTypoFindingGroups(visibleTypoFindings)
         ) : (
           <div className="markdown-empty-state rejection-finding-empty">
@@ -980,7 +931,7 @@ function RejectionCheckPage() {
               重新检查逻辑谬误
             </button>
           </div>
-        ) : filterFindingsByActiveBid(visibleLogicFindings).length ? (
+        ) : filterFindingsByActiveBid(visibleLogicFindings, activeResultBidDocumentId).length ? (
           renderLogicFindingGroups(visibleLogicFindings)
         ) : (
           <div className="markdown-empty-state rejection-finding-empty">
@@ -1385,7 +1336,7 @@ function RejectionCheckPage() {
                         重新检查废标项
                       </button>
                     </div>
-                  ) : filterFindingsByActiveBid(visibleRejectionFindings).length ? (
+                  ) : filterFindingsByActiveBid(visibleRejectionFindings, activeResultBidDocumentId).length ? (
                     renderRejectionFindingGroups(visibleRejectionFindings)
                   ) : (
                     <div className="markdown-empty-state rejection-finding-empty">
