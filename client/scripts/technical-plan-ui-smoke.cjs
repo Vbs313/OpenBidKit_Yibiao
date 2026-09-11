@@ -6,6 +6,7 @@
  *
  * 覆盖：用真实 IPC 预置一份大纲，再把 5 个子页面（STEP 01~05）逐个真实渲染一遍；
  *       再打开目录生成配置弹窗、保存配置（真实 IPC 落库），覆盖 OutlineEditPage 的生成配置簇；
+ *       在 STEP 05 打开正文生成配置弹窗并保存配置，覆盖 ContentEditPage 的生成控制簇；
  *       最后切一次工作流模式，覆盖 TechnicalPlanHome 的离开守卫与模式切换确认；
  *       全程监听渲染器错误，并用探针自检「监听器真的能收到」。
  *
@@ -219,6 +220,26 @@ async function run() {
     console.log('[technical-plan-ui] 离开守卫：取消切换后回到原工作流');
   };
 
+  // 正文生成配置：打开弹窗 → 保存配置（真实 IPC 落库）→ 关闭。
+  // 这条路径覆盖 useContentGeneration 的 openGenerationDialog / saveGenerationOptions / saveDraftGenerationOptions。
+  const exerciseContentGenerationDialog = async () => {
+    const opened = String(await click('生成正文'));
+    assert(opened.startsWith('CLICKED'), '找不到「生成正文」按钮：' + opened);
+    await waitFor('正文生成配置弹窗渲染', async () => {
+      const text = String(await pageText());
+      return ['正文生成配置', '保存配置', '开始生成'].every((marker) => text.includes(marker));
+    }, { timeoutMs: 20000 });
+    console.log('[technical-plan-ui] 正文生成配置：弹窗打开且配置项渲染正常');
+
+    const saved = String(await click('保存配置'));
+    assert(saved.startsWith('CLICKED'), '找不到「保存配置」按钮：' + saved);
+    await waitFor('正文生成配置保存并关闭', async () => {
+      const text = String(await pageText());
+      return !text.includes('保存配置') && text.includes('正文生成配置已保存');
+    }, { timeoutMs: 20000 });
+    console.log('[technical-plan-ui] 正文生成配置：保存配置走真实 IPC 落库并关闭弹窗');
+  };
+
   try {
     services = registerIpcHandlers({
       app,
@@ -270,6 +291,9 @@ async function run() {
       if (step === 'outline-generation') {
         await exerciseOutlineGenerationDialog();
         await exerciseOutlineTree();
+      }
+      if (step === 'content-edit') {
+        await exerciseContentGenerationDialog();
       }
     }
 
