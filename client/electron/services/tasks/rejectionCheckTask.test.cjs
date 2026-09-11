@@ -4,6 +4,9 @@ const { __test__ } = require('./rejectionCheckTask.cjs');
 
 const {
   applyRollingRejectionPatch,
+  buildCommonRejectionCheckMessages,
+  buildRejectionGlobalMergeMessages,
+  buildTypoCheckMessages,
   createEmptyRollingRejectionState,
   createVerifiedTypoExcerpt,
   dedupeItems,
@@ -298,4 +301,45 @@ test('getPackageBidDocumentId 优先用条目线索，其次用兜底文档', ()
   assert.equal(getPackageBidDocumentId({ bidDocumentId: 'doc-2' }, documents), 'doc-2');
   assert.equal(getPackageBidDocumentId({}, documents, 'doc-1'), 'doc-1');
   assert.equal(getPackageBidDocumentId({}, documents, '不存在'), '');
+});
+
+test('buildCommonRejectionCheckMessages：自定义检查项只在有内容时追加', () => {
+  const withoutCustom = buildCommonRejectionCheckMessages({
+    invalidBidAndRejectionItems: '检查口径A',
+    customCheckItems: '   ',
+  });
+  // 恒定两条：检查口径 + 投标文件原文；自定义检查项插在中间。
+  assert.equal(withoutCustom.length, 2);
+  assert.equal(withoutCustom[0].role, 'user');
+  assert.ok(withoutCustom[0].content.includes('检查口径A'));
+  assert.ok(withoutCustom[0].content.includes('检查项'));
+  assert.ok(withoutCustom[1].content.includes('投标文件原文'));
+
+  const withCustom = buildCommonRejectionCheckMessages({
+    invalidBidAndRejectionItems: '检查口径A',
+    customCheckItems: '  关注签署与盖章  ',
+  });
+  assert.equal(withCustom.length, 3);
+  assert.ok(withCustom[1].content.includes('自定义检查项'));
+  assert.ok(withCustom[1].content.includes('关注签署与盖章'));
+  assert.ok(!withCustom[1].content.includes('  关注签署与盖章  '), '自定义文本要 trim');
+});
+
+test('buildTypoCheckMessages / buildRejectionGlobalMergeMessages 带上投标文件与状态', () => {
+  const documents = [bidDoc('doc-1', '本公司提供建筑工成施工总承包一级资质。')];
+  const typoMessages = buildTypoCheckMessages({ bidDocuments: documents });
+  assert.ok(Array.isArray(typoMessages));
+  const typoText = typoMessages.map((message) => message.content).join('\n');
+  assert.ok(typoText.includes('doc-1'));
+  assert.ok(typoText.includes('建筑工成'));
+
+  const mergeMessages = buildRejectionGlobalMergeMessages(
+    { bidDocuments: documents },
+    [{ bidDocumentId: 'doc-1', title: '资质过期' }],
+    { submittedEvidence: [], resolvedRisks: [] },
+  );
+  const mergeText = mergeMessages.map((message) => message.content).join('\n');
+  assert.ok(mergeText.includes('投标文件1'));
+  assert.ok(mergeText.includes('资质过期'));
+  assert.ok(mergeText.includes('"submittedEvidence": []'));
 });
