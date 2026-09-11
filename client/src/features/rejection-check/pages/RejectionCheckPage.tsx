@@ -4,6 +4,7 @@ import { trackPageView } from '../../../shared/analytics/analytics';
 import { AppDialog, FloatingToolbar, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import { useRejectionWorkspace } from '../hooks/useRejectionWorkspace';
+import { useRejectionFindingActions } from '../hooks/useRejectionFindingActions';
 import { useRejectionDocumentImport } from '../hooks/useRejectionDocumentImport';
 import type { RejectionDocumentBusyState } from '../hooks/useRejectionDocumentImport';
 import { BidResultFilter, LogicCheckContent, RejectionFindingGroups, TypoCheckContent } from '../components/resultViews';
@@ -11,7 +12,7 @@ import { DocumentsStepView, ItemsStepView } from '../components/stepViews';
 import { CheckConfigDialog } from '../components/CheckConfigDialog';
 import { hasExportableRejectionResults } from '../exportState';
 import { buildCheckRunPlan, buildExtractionErrorState, buildExtractionStartPlan, markBackgroundTaskFailed, markCheckResultFailed } from '../checkRunModel';
-import { deleteResultFinding, filterFindingsByActiveBid, toggleResultFinding } from '../findingModel';
+import { filterFindingsByActiveBid } from '../findingModel';
 import {
   steps,
   stepLabels,
@@ -35,7 +36,6 @@ import type {
   RejectionCheckRunStatus,
   RejectionDocumentTabId,
   RejectionResultTab,
-  TypoCheckFinding,
 } from '../../../shared/types/domains/rejection-check';
 
 function escapeInlineHtml(value: string) {
@@ -124,6 +124,26 @@ function RejectionCheckPage() {
   const autoStartedSignatureRef = useRef('');
   const { showToast } = useToast();
   const { showDocumentParseNotice } = useDocumentParseNotice();
+
+  const {
+    toggleFinding,
+    deleteFinding,
+    toggleTypoFinding,
+    deleteTypoFinding,
+    copyTypoOriginal,
+    copyTypoWrong,
+    toggleLogicFinding,
+    deleteLogicFinding,
+  } = useRejectionFindingActions({
+    rejectionCheckResult,
+    typoCheckResult,
+    logicCheckResult,
+    setRejectionCheckResult,
+    setTypoCheckResult,
+    setLogicCheckResult,
+    persistRejectionState,
+    showToast,
+  });
 
   const activeTenderSourceDocument = tenderDocuments.find((document) => document.id === activeDocumentTab) || null;
   const activeBidDocument = bidDocuments.find((document) => document.id === activeDocumentTab) || null;
@@ -471,90 +491,6 @@ function RejectionCheckPage() {
       logicCheck: tabId === 'logic',
     });
   }
-
-  function toggleFinding(findingId: string) {
-    const next = toggleResultFinding(rejectionCheckResult, findingId, new Date().toISOString());
-    setRejectionCheckResult(next);
-    persistRejectionState({
-      rejectionCheckResult: { activeFindingId: next.activeFindingId, updatedAt: next.updatedAt },
-    }, '保存废标项结果状态失败');
-  }
-
-  function deleteFinding(findingId: string) {
-    const next = deleteResultFinding(rejectionCheckResult, findingId, new Date().toISOString(), '需复核风险项', '风险项');
-    setRejectionCheckResult(next);
-    persistRejectionState({
-      rejectionCheckResult: {
-        findings: next.findings,
-        activeFindingId: next.activeFindingId,
-        progressMessage: next.progressMessage,
-        updatedAt: next.updatedAt,
-      },
-    }, '保存废标项结果状态失败');
-  }
-
-  function toggleTypoFinding(findingId: string) {
-    const next = toggleResultFinding(typoCheckResult, findingId, new Date().toISOString());
-    setTypoCheckResult(next);
-    persistRejectionState({
-      typoCheckResult: { activeFindingId: next.activeFindingId, updatedAt: next.updatedAt },
-    }, '保存错别字结果状态失败');
-  }
-
-  function deleteTypoFinding(findingId: string) {
-    const next = deleteResultFinding(typoCheckResult, findingId, new Date().toISOString(), '疑似错别字', '错别字项');
-    setTypoCheckResult(next);
-    persistRejectionState({
-      typoCheckResult: {
-        findings: next.findings,
-        activeFindingId: next.activeFindingId,
-        progressMessage: next.progressMessage,
-        updatedAt: next.updatedAt,
-      },
-    }, '保存错别字结果状态失败');
-  }
-
-  async function copyTypoOriginal(finding: TypoCheckFinding) {
-    try {
-      await navigator.clipboard.writeText(finding.originalExcerpt);
-      showToast('已复制原文', 'success');
-    } catch {
-      showToast('复制原文失败', 'error');
-    }
-  }
-
-  async function copyTypoWrong(finding: TypoCheckFinding) {
-    try {
-      await navigator.clipboard.writeText(finding.wrongText);
-      showToast('已复制错字', 'success');
-    } catch {
-      showToast('复制错字失败', 'error');
-    }
-  }
-
-  function toggleLogicFinding(findingId: string) {
-    const next = toggleResultFinding(logicCheckResult, findingId, new Date().toISOString());
-    setLogicCheckResult(next);
-    persistRejectionState({
-      logicCheckResult: { activeFindingId: next.activeFindingId, updatedAt: next.updatedAt },
-    }, '保存逻辑谬误结果状态失败');
-  }
-
-  function deleteLogicFinding(findingId: string) {
-    const next = deleteResultFinding(logicCheckResult, findingId, new Date().toISOString(), '逻辑问题', '逻辑问题');
-    setLogicCheckResult(next);
-    persistRejectionState({
-      logicCheckResult: {
-        findings: next.findings,
-        activeFindingId: next.activeFindingId,
-        progressMessage: next.progressMessage,
-        updatedAt: next.updatedAt,
-      },
-    }, '保存逻辑谬误结果状态失败');
-  }
-
-
-
 
   async function exportCheckResultsExcel() {
     if (!window.yibiao?.rejectionCheck?.exportExcel) {
