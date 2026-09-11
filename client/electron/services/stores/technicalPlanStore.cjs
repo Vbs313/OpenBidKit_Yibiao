@@ -1639,6 +1639,25 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
 
   cleanupLegacyPendingTenderState(ensureMetaRow());
 
+  // 技术标下游清理：实现见 stores/downstreamCleanup.cjs。
+  const {
+    clearDownstreamFromTender,
+    clearDownstreamFromBidSectionChange,
+    clearDownstreamFromOriginalPlan,
+    clearWorkflowSpecificState,
+    switchWorkflowKind,
+  } = createDownstreamCleanup({
+    deleteOutlineAgentTask,
+    deleteGlobalFactsAgentTask,
+    notifyAgentWorkspaceChange,
+    originalPlanMarkdownPath,
+    clearTechnicalPlanMermaidCache,
+    clearBidTemplate,
+    assertNoTechnicalPlanTaskRunning,
+    originalPlanDownstreamTaskTypes,
+    normalizeWorkflowKind,
+  });
+
   // 招标文件与原方案文档生命周期：实现见 stores/tenderDocumentLifecycle.cjs。
   const {
     importTenderDocument,
@@ -1692,24 +1711,6 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     deleteImportedImageBatches,
     app,
     clearContentIllustrationPlan,
-  });
-  // 技术标下游清理：实现见 stores/downstreamCleanup.cjs。
-  const {
-    clearDownstreamFromTender,
-    clearDownstreamFromBidSectionChange,
-    clearDownstreamFromOriginalPlan,
-    clearWorkflowSpecificState,
-    switchWorkflowKind,
-  } = createDownstreamCleanup({
-    deleteOutlineAgentTask,
-    deleteGlobalFactsAgentTask,
-    notifyAgentWorkspaceChange,
-    originalPlanMarkdownPath,
-    clearTechnicalPlanMermaidCache,
-    clearBidTemplate,
-    assertNoTechnicalPlanTaskRunning,
-    originalPlanDownstreamTaskTypes,
-    normalizeWorkflowKind,
   });
   return {
     loadTechnicalPlan,
