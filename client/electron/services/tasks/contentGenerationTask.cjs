@@ -730,11 +730,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     },
   });
 
-  // 更新单个小节字数及全文累计字数。
-
-  // 正文整体替换后重建内存字数索引。
-
-
   function markGenerationCompleted(itemId) {
     if (itemId) generationCompletedItemIds.add(itemId);
     contentStats.generation_completed = generationCompletedItemIds.size;
@@ -992,14 +987,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
       contentGenerationRuntime: runtime,
     }, { contentRuntime: runtime });
   }
-
-
-  // 扩写先按小节指导缺口分配，剩余额度再均摊；3000 仅是 sectionWords 为 0 时的内部指导值，不构成小节上限。
-
-  // 强控缩写限制单次最多减少 25%；非强控只受全文差额和正文可读空间限制。
-
-  // 每轮最多选择十个小节，批次总预算不超过当前全文差额。
-
 
   // Agent 子任务执行层：错误诊断、忙碌判定、进度透传与失败输出恢复，
   // 实现见 generation/agentRun.cjs。
