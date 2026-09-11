@@ -53,6 +53,32 @@ const TAB_SECTION_COUNT = "document.querySelectorAll('.settings-page-section').l
 const TAB_SECTION_CHARS = "Array.from(document.querySelectorAll('.settings-page-section')).map((el) => String(el.textContent || '').length)";
 const ACTIVE_TAB_TEXT = "(() => { const el = document.querySelector('.settings-tab-shell .is-active'); return el ? String(el.textContent || '').trim() : ''; })()";
 
+// 「弄脏 -> 保存」闭环用的探针：改一个真实下拉框，再读工具条保存按钮的可用态。
+const PICK_OTHER_CHANNEL = `(() => {
+  const sel = Array.from(document.querySelectorAll("select")).find((node) => !node.disabled && Array.from(node.options).length > 1);
+  if (!sel) return "MISSING";
+  const before = sel.value;
+  const next = Array.from(sel.options).map((option) => option.value).find((value) => value !== before);
+  if (!next) return "NO_OPTION";
+  sel.value = next;
+  sel.dispatchEvent(new Event("change", { bubbles: true }));
+  return before + "->" + next;
+})()`;
+const SAVE_BUTTON_ENABLED = `(() => {
+  const btn = Array.from(document.querySelectorAll("button")).find((el) => String(el.innerText || "").trim() === "保存");
+  return btn ? !btn.disabled : null;
+})()`;
+const SAVE_LABEL = `(() => {
+  const el = Array.from(document.querySelectorAll("button")).find((node) => ["未保存", "已保存"].includes(String(node.innerText || "").trim()));
+  return el ? String(el.innerText || "").trim() : "";
+})()`;
+const CLICK_SAVE_DIRECT = `(() => {
+  const btn = Array.from(document.querySelectorAll("button")).find((el) => String(el.innerText || "").trim() === "保存");
+  if (!btn) return "MISSING";
+  btn.click();
+  return "CLICKED";
+})()`;
+
 async function run() {
   if (!fs.existsSync(DIST_INDEX)) {
     console.error('[settings-ui] 缺少构建产物，请先运行 npm run build');
@@ -118,6 +144,29 @@ async function run() {
     }
 
     console.log(`[settings-ui] ${TABS.length} 个分页全部可切换且各自独立渲染`);
+    // 保存链路：草稿 / 脏检查 / 保存已搬进 useSettingsConfig，所以这里真的改一次配置再保存。
+    const back = String(await click('通用'));
+    assert(back.startsWith('CLICKED'), '切回「通用」分页失败：' + back);
+    const picked = String(await window.webContents.executeJavaScript(PICK_OTHER_CHANNEL));
+    assert(picked.includes('->'), '找不到可修改的更新渠道下拉框：' + picked);
+    const [beforeChannel, nextChannel] = picked.split('->');
+    await waitFor('保存按钮变为可用（脏检查生效）', async () => {
+      const enabled = await window.webContents.executeJavaScript(SAVE_BUTTON_ENABLED);
+      const label = await window.webContents.executeJavaScript(SAVE_LABEL);
+      return enabled === true && label === '未保存';
+    }, { timeoutMs: 10000 });
+    const saving = String(await window.webContents.executeJavaScript(CLICK_SAVE_DIRECT));
+    assert(saving.startsWith('CLICKED'), '找不到「保存」按钮：' + saving);
+    await waitFor('保存完成（脏检查复位）', async () => {
+      const enabled = await window.webContents.executeJavaScript(SAVE_BUTTON_ENABLED);
+      const label = await window.webContents.executeJavaScript(SAVE_LABEL);
+      return enabled === false && label === '已保存';
+    }, { timeoutMs: 15000 });
+    const persisted = await window.webContents.executeJavaScript('window.yibiao?.config?.load()');
+    assert(persisted && persisted.update_channel === nextChannel,
+      `保存未落库：期望 update_channel=${nextChannel}，实际 ${persisted && persisted.update_channel}`);
+    console.log(`[settings-ui] 配置保存闭环通过（update_channel ${beforeChannel} -> ${nextChannel} 已持久化，脏状态已复位）`);
+
     console.log('[settings-ui] all checks passed');
     app.exit(0);
   } catch (error) {
