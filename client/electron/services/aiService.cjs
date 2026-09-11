@@ -93,6 +93,13 @@ const {
   isComfyUITextToImageWorkflow,
   resolveComfyUIImageSize,
 } = require('./ai/comfyuiImage.cjs');
+const {
+  createGoogleImageRequestBody,
+  createGoogleImageUrl,
+  requestGoogleImageData,
+  getGoogleImageInlineData,
+  getGoogleText,
+} = require('./ai/googleImages.cjs');
 
 
 // 金龙中转站废弃模型映射：使用这些模型时自动切换到替代模型
@@ -441,102 +448,6 @@ function getOpenAICompatibleImageFailureMessage(responseData, fallbackMessage) {
   return firstError?.message || fallbackMessage;
 }
 
-function createGoogleImageRequestBody(prompt, imageSize) {
-  const generationConfig = {
-    responseModalities: ['TEXT', 'IMAGE'],
-  };
-  const normalizedImageSize = String(imageSize || '').trim();
-  if (normalizedImageSize) {
-    generationConfig.imageConfig = { imageSize: normalizedImageSize };
-  }
-
-  return {
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: prompt }],
-      },
-    ],
-    generationConfig,
-  };
-}
-
-function createGoogleImageUrl(baseUrl, modelName, requestMode) {
-  const action = requestMode === 'stream' ? 'streamGenerateContent?alt=sse' : 'generateContent';
-  return `${baseUrl}/models/${encodeURIComponent(modelName)}:${action}`;
-}
-
-function createGoogleHeaders(apiKey) {
-  return {
-    'Content-Type': 'application/json',
-    'x-goog-api-key': apiKey,
-  };
-}
-
-
-function appendGoogleImagePayload(payload, state) {
-  if (payload?.usageMetadata || payload?.usage_metadata) {
-    state.usageMetadata = payload.usageMetadata || payload.usage_metadata;
-  }
-
-  state.parts.push(...extractGoogleCandidateParts(payload));
-}
-
-async function readGoogleImageStream(response) {
-  const state = { parts: [], usageMetadata: null };
-
-  await readSseJsonStream(response, {
-    unreadableMessage: '生图流式响应不可读',
-    parseErrorMessage: '生图流式响应解析失败',
-    failureMessage: 'Google AI Studio 生图流式请求失败',
-    onPayload(payload) {
-      appendGoogleImagePayload(payload, state);
-    },
-  });
-
-  return {
-    stream: true,
-    candidates: [{ content: { parts: state.parts } }],
-    usageMetadata: state.usageMetadata,
-  };
-}
-
-async function requestGoogleImageData(baseUrl, imageConfig, requestBody, requestMode, fallbackMessage, options = {}) {
-  let response = null;
-  try {
-    response = await fetch(createGoogleImageUrl(baseUrl, imageConfig.model_name, requestMode), {
-      method: 'POST',
-      headers: createGoogleHeaders(imageConfig.api_key),
-      body: JSON.stringify(requestBody),
-      signal: options.signal,
-    });
-  } catch (error) {
-    throw markAiRequestError(error, { retryable: true });
-  }
-
-  await ensureOk(response, fallbackMessage, { source: 'google-image-model' });
-  if (requestMode === 'stream') {
-    return readGoogleImageStream(response);
-  }
-  try {
-    return await response.json();
-  } catch (error) {
-    throw markAiRequestError(error, { retryable: true });
-  }
-}
-
-function getGoogleImageInlineData(responseData) {
-  const imagePart = extractGoogleCandidateParts(responseData).find((part) => part.inlineData?.data || part.inline_data?.data);
-  return imagePart?.inlineData || imagePart?.inline_data || null;
-}
-
-function getGoogleText(responseData) {
-  return extractGoogleCandidateParts(responseData)
-    .map((part) => part.text || '')
-    .filter(Boolean)
-    .join('')
-    .trim();
-}
 
 async function chatWithConfig(app, config, request) {
   if (!config.api_key) {
