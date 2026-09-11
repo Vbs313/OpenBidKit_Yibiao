@@ -1,10 +1,33 @@
-const crypto = require('node:crypto');
+const {
+  now,
+  createId,
+  stripTripleQuoteWrapper,
+  normalizeText,
+  truncatePromptText,
+  getBidDocumentIdFromItem,
+  formatBidDocumentsForPrompt,
+  getArrayPayload,
+  normalizeFindingType,
+  normalizeSeverity,
+  getBidDocumentDisplayName,
+  formatBidDocumentIdList,
+  getPackageBidDocumentId,
+  limitDedupeItems,
+  dedupeItems,
+} = require('./rejectionCheckCore.cjs');
+const {
+  normalizeRejectionCheckFindings,
+  findVerifiedTypoPosition,
+  createVerifiedTypoExcerpt,
+  createLineLocationHint,
+  normalizeTypoCheckFindings,
+  normalizeLogicCheckFindings,
+} = require('./rejectionCheckFindings.cjs');
 const { compactLogError, createNoopDeveloperLogger, textMetrics } = require('./../../utils/developerLog.cjs');
 const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
 const { runInvalidBidAndRejectionItemsExtraction } = require('./bidAnalysisTask.cjs');
 
 const checkRunStatus = ['idle', 'running', 'success', 'error'];
-const typoExcerptRadius = 8;
 const fullPromptLimitRatio = 0.6;
 const rollingSegmentLimitRatio = 0.55;
 const typoSegmentLimitRatio = 0.7;
@@ -13,62 +36,14 @@ const rollingSummaryResolvedLimit = 40;
 const rollingSummaryConfirmedLimit = 60;
 const finalCandidateBatchSize = 20;
 
-function now() {
-  return new Date().toISOString();
-}
 
-function createId(prefix) {
-  return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
-}
 
-function stripTripleQuoteWrapper(content) {
-  const trimmed = String(content || '').trim();
-  if (trimmed.startsWith("'''") && trimmed.endsWith("'''")) {
-    return trimmed.slice(3, -3).trim();
-  }
-  return String(content || '');
-}
 
-function normalizeText(value) {
-  return String(value || '').trim();
-}
 
-function getBidDocumentIdFromItem(item, bidDocumentIds) {
-  const candidates = [item.bidDocumentId, item.bid_document_id, item.documentId, item.document_id, item.fileId, item.file_id, item.sourceFile, item.source_file]
-    .map((value) => normalizeText(value))
-    .filter(Boolean);
-  for (const candidate of candidates) {
-    if (bidDocumentIds.has(candidate)) return candidate;
-  }
-  return bidDocumentIds.size === 1 ? Array.from(bidDocumentIds)[0] : '';
-}
 
-function formatBidDocumentsForPrompt(input) {
-  const documents = Array.isArray(input.bidDocuments) ? input.bidDocuments : [];
-  return documents.map((document, index) => `【投标文件${index + 1}｜bidDocumentId：${document.id}｜文件名：${document.fileName || document.id}】\n${document.content}`).join('\n\n--- 投标文件分隔线 ---\n\n');
-}
 
-function getArrayPayload(parsed, keys) {
-  if (Array.isArray(parsed)) return parsed;
-  if (!parsed || typeof parsed !== 'object') return [];
-  for (const key of keys) {
-    if (Array.isArray(parsed[key])) return parsed[key];
-  }
-  return [];
-}
 
-function normalizeFindingType(value) {
-  const raw = String(value || '').trim();
-  if (raw === 'invalidBid' || raw.includes('无效')) return 'invalidBid';
-  return 'rejectionItem';
-}
 
-function normalizeSeverity(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (raw === 'high' || raw.includes('高')) return 'high';
-  if (raw === 'low' || raw.includes('低')) return 'low';
-  return 'medium';
-}
 
 function buildCommonRejectionCheckMessages(input) {
   const messages = [
@@ -235,141 +210,12 @@ JSON 格式：{"findings":[{"bidDocumentId":"对应投标文件的 bidDocumentId
   ];
 }
 
-function normalizeRejectionCheckFindings(parsed, bidDocuments) {
-  const bidDocumentIds = new Set((Array.isArray(bidDocuments) ? bidDocuments : []).map((document) => document.id).filter(Boolean));
-  return getArrayPayload(parsed, ['findings', 'items', 'risks'])
-    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
-    .map((item) => {
-      const bidDocumentId = getBidDocumentIdFromItem(item, bidDocumentIds);
-      const title = normalizeText(item.title).slice(0, 80);
-      const bidEvidence = normalizeText(item.bidEvidence || item.evidence || item.bid_evidence);
-      const riskReason = normalizeText(item.riskReason || item.reason || item.risk_reason);
-      return {
-        id: normalizeText(item.id) || createId('rejection_finding'),
-        bidDocumentId,
-        type: normalizeFindingType(item.type),
-        severity: normalizeSeverity(item.severity),
-        title,
-        summary: normalizeText(item.summary) || title,
-        requirement: normalizeText(item.requirement || item.source) || '未明确引用具体检查依据，请人工复核。',
-        bidEvidence,
-        riskReason,
-        suggestion: normalizeText(item.suggestion) || '请结合招标文件要求和投标文件原文人工复核后处理。',
-      };
-    })
-    .filter((item) => item.bidDocumentId && item.title && item.bidEvidence && item.riskReason);
-}
 
-function findVerifiedTypoPosition(bidContent, wrongText, originalExcerpt, options = {}) {
-  if (!wrongText) return -1;
-  const segmentStartOffset = Number.isFinite(Number(options.segmentStartOffset))
-    ? Math.max(0, Math.floor(Number(options.segmentStartOffset)))
-    : 0;
-  const segmentEndOffset = Number.isFinite(Number(options.segmentEndOffset))
-    ? Math.min(bidContent.length, Math.max(segmentStartOffset, Math.floor(Number(options.segmentEndOffset))))
-    : bidContent.length;
-  if (segmentStartOffset > 0 || segmentEndOffset < bidContent.length) {
-    const segmentContent = bidContent.slice(segmentStartOffset, segmentEndOffset);
-    if (originalExcerpt) {
-      const excerptIndex = segmentContent.indexOf(originalExcerpt);
-      const wrongIndexInExcerpt = originalExcerpt.indexOf(wrongText);
-      if (excerptIndex >= 0 && wrongIndexInExcerpt >= 0) return segmentStartOffset + excerptIndex + wrongIndexInExcerpt;
-    }
-    const wrongIndexInSegment = segmentContent.indexOf(wrongText);
-    if (wrongIndexInSegment >= 0) return segmentStartOffset + wrongIndexInSegment;
-  }
-  if (originalExcerpt) {
-    const excerptIndex = bidContent.indexOf(originalExcerpt);
-    const wrongIndexInExcerpt = originalExcerpt.indexOf(wrongText);
-    if (excerptIndex >= 0 && wrongIndexInExcerpt >= 0) return excerptIndex + wrongIndexInExcerpt;
-  }
-  return bidContent.indexOf(wrongText);
-}
 
-function createVerifiedTypoExcerpt(bidContent, position, wrongText) {
-  let start = Math.max(0, position - typoExcerptRadius);
-  let end = Math.min(bidContent.length, position + wrongText.length + typoExcerptRadius);
-  const startTagOpen = bidContent.lastIndexOf('<', start);
-  const startTagClose = bidContent.lastIndexOf('>', start);
-  if (startTagOpen > startTagClose) {
-    const tagEnd = bidContent.indexOf('>', start);
-    if (tagEnd >= 0 && tagEnd < position) start = tagEnd + 1;
-  }
-  const endTagOpen = bidContent.lastIndexOf('<', end);
-  const endTagClose = bidContent.lastIndexOf('>', end);
-  if (endTagOpen > endTagClose) {
-    const tagEnd = bidContent.indexOf('>', end);
-    if (tagEnd >= 0) end = Math.min(bidContent.length, tagEnd + 1);
-  }
-  return bidContent.slice(start, end).trim();
-}
 
-function createLineLocationHint(bidContent, position) {
-  const before = bidContent.slice(0, Math.max(0, position));
-  return `原文第 ${before.split(/\r\n|\r|\n/).length} 行附近`;
-}
 
-function normalizeTypoCheckFindings(parsed, bidDocuments, options = {}) {
-  const documents = Array.isArray(bidDocuments) ? bidDocuments : [];
-  const bidDocumentIds = new Set(documents.map((document) => document.id).filter(Boolean));
-  const documentMap = new Map(documents.map((document) => [document.id, document]));
-  const seen = new Set();
-  const findings = [];
-  for (const item of getArrayPayload(parsed, ['findings', 'items', 'typos'])) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const bidDocumentId = getBidDocumentIdFromItem(item, bidDocumentIds);
-    const bidDocument = documentMap.get(bidDocumentId);
-    if (!bidDocument?.content) continue;
-    const wrongText = normalizeText(item.wrongText || item.wrong_text || item.wrong || item.typo).slice(0, 60);
-    const correctText = normalizeText(item.correctText || item.correct_text || item.correct || item.suggestion).slice(0, 60);
-    const originalExcerpt = normalizeText(item.originalExcerpt || item.original_excerpt || item.excerpt || item.context);
-    const reason = normalizeText(item.reason || item.riskReason || item.detail) || '疑似错别字，请结合原文复核。';
-    if (!wrongText || !correctText || wrongText === correctText) continue;
-    const position = findVerifiedTypoPosition(bidDocument.content, wrongText, originalExcerpt, options);
-    if (position < 0) continue;
-    const key = `${bidDocumentId}\u0000${wrongText}\u0000${correctText}\u0000${position}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    findings.push({
-      id: normalizeText(item.id) || createId('typo_finding'),
-      bidDocumentId,
-      wrongText,
-      correctText,
-      originalExcerpt: createVerifiedTypoExcerpt(bidDocument.content, position, wrongText),
-      reason,
-      locationHint: createLineLocationHint(bidDocument.content, position),
-      position,
-    });
-  }
-  return findings;
-}
 
-function normalizeLogicCheckFindings(parsed, bidDocuments) {
-  const bidDocumentIds = new Set((Array.isArray(bidDocuments) ? bidDocuments : []).map((document) => document.id).filter(Boolean));
-  const seen = new Set();
-  const findings = [];
-  for (const item of getArrayPayload(parsed, ['findings', 'items', 'risks', 'issues'])) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const bidDocumentId = getBidDocumentIdFromItem(item, bidDocumentIds);
-    const title = normalizeText(item.title || item.summary).slice(0, 80);
-    const originalText = normalizeText(item.originalText || item.original_text || item.evidence || item.bidEvidence) || '未提供明确原文摘录，请结合位置线索复核。';
-    const locationHint = normalizeText(item.locationHint || item.location_hint || item.location || item.position) || '未明确具体位置，请结合原文摘录复核。';
-    const fallacyReason = normalizeText(item.fallacyReason || item.fallacy_reason || item.reason || item.riskReason);
-    const suggestion = normalizeText(item.suggestion || item.recommendation) || '请结合投标文件上下文人工复核后修改。';
-    if (!bidDocumentId || !title || !fallacyReason) continue;
-    const key = `${bidDocumentId}\u0000${title}\u0000${fallacyReason}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    findings.push({ id: normalizeText(item.id) || createId('logic_finding'), bidDocumentId, title, originalText, locationHint, fallacyReason, suggestion });
-  }
-  return findings;
-}
 
-function truncatePromptText(value, maxLength) {
-  const text = normalizeText(value);
-  if (!text || text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength)}...`;
-}
 
 function getCurrentAiConfig(aiService) {
   try {
@@ -437,38 +283,10 @@ function createSegmentPromptDocument(document, segment) {
   return { ...document, content: segment.content };
 }
 
-function getBidDocumentDisplayName(document, documentIndex) {
-  return `投标文件${documentIndex + 1}${document.fileName ? `（${document.fileName}）` : ''}`;
-}
 
-function formatBidDocumentIdList(bidDocuments) {
-  return (Array.isArray(bidDocuments) ? bidDocuments : [])
-    .map((document, index) => `- ${getBidDocumentDisplayName(document, index)}：${document.id}`)
-    .join('\n');
-}
 
-function getPackageBidDocumentId(item, bidDocuments, fallbackBidDocumentId = '') {
-  const bidDocumentIds = new Set((Array.isArray(bidDocuments) ? bidDocuments : []).map((document) => document.id).filter(Boolean));
-  return getBidDocumentIdFromItem(item, bidDocumentIds) || (bidDocumentIds.has(fallbackBidDocumentId) ? fallbackBidDocumentId : '');
-}
 
-function limitDedupeItems(items, maxCount, keyBuilder) {
-  const seen = new Set();
-  const result = [];
-  for (const item of Array.isArray(items) ? items : []) {
-    if (!item) continue;
-    const key = normalizeText(keyBuilder(item)) || JSON.stringify(item);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(item);
-    if (result.length >= maxCount) break;
-  }
-  return result;
-}
 
-function dedupeItems(items, keyBuilder) {
-  return limitDedupeItems(items, Number.MAX_SAFE_INTEGER, keyBuilder);
-}
 
 function normalizeRollingEvidenceItem(item, bidDocuments, fallbackBidDocumentId = '') {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
