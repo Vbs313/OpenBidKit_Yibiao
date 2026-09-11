@@ -9,19 +9,19 @@ import { ExportProgressDialog, ExportTemplateDialog, OutlineWordControlLeaveDial
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { useExportWord } from '../hooks/useExportWord';
 import { useTechnicalPlanLeaveGuards } from '../hooks/useTechnicalPlanLeaveGuards';
+import { useTechnicalPlanPersistence } from '../hooks/useTechnicalPlanPersistence';
 import { bidAnalysisTasks, isMissingBidAnalysisResult } from '../services/bidAnalysisWorkflow';
 import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, ToolbarSparkleIcon, useToast } from '../../../shared/ui';
-import type { BackgroundTaskState, ContentGenerationOptions, GlobalFactGroupState, GlobalFactsMode, SaveOutlineRequest, SaveOutlineSelectionRequest, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
+import type { BackgroundTaskState, GlobalFactGroupState, GlobalFactsMode, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
 import { DEFAULT_OUTLINE_WORD_CONTROL_OPTIONS } from '../../../shared/types';
-import type { OutlineItem, OutlineWordControlOptions } from '../../../shared/types';
 import type { ExportFormatConfig } from '../../../shared/types/exportFormat';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
 import type { SectionId } from '../../../shared/types/navigation';
 import { areRequiredBidAnalysisTasksReady, buildWordControlWarningDialog, isOutlineLeafCountOutsideRange } from '../technicalPlanHomeModel';
 import type { WordControlWarningDialogState } from '../technicalPlanHomeModel';
 import { collectLeafItems } from '../../../shared/utils/outlineMetrics';
-import { applyTaskEventToState, trimTaskLogs, updateOutlineItemContent } from '../taskEventMapping';
+import { applyTaskEventToState, trimTaskLogs } from '../taskEventMapping';
 
 
 interface TechnicalPlanHomeProps {
@@ -157,6 +157,17 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
     registerLeaveGuard,
     showToast,
   });
+
+  const {
+    saveChapterContent,
+    saveContentGenerationOptions,
+    saveGlobalFacts,
+    saveGlobalFactsConfig,
+    saveOutline,
+    saveOutlineSelection,
+    openBidTemplate,
+    saveOutlineConfig,
+  } = useTechnicalPlanPersistence({ state, setState, showToast });
   const [wordControlWarningDialog, setWordControlWarningDialog] = useState<WordControlWarningDialogState | null>(null);
   const [pendingWordControlWarningTaskId, setPendingWordControlWarningTaskId] = useState<string | null>(null);
   const [petInstallDialogOpen, setPetInstallDialogOpen] = useState(false);
@@ -380,34 +391,6 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
 
 
 
-  const saveChapterContent = async (item: OutlineItem, content: string) => {
-    if (!state.outlineData?.outline?.length) {
-      throw new Error('当前没有可保存的目录');
-    }
-
-    const updatedOutlineData = {
-      ...state.outlineData,
-      outline: updateOutlineItemContent(state.outlineData.outline, item.id, content),
-    };
-    const updatedSections = {
-      ...state.contentGenerationSections,
-      [item.id]: {
-        id: item.id,
-        title: item.title || '未命名章节',
-        status: content.trim() ? 'success' as const : 'idle' as const,
-        content,
-        updated_at: new Date().toISOString(),
-      },
-    };
-
-    setState((prev) => ({
-      ...prev,
-      outlineData: updatedOutlineData,
-      contentGenerationSections: updatedSections,
-    }));
-    const saved = await window.yibiao?.technicalPlan.saveChapterContent({ nodeId: item.id, content });
-    if (saved) setState((prev) => ({ ...prev, ...saved }));
-  };
 
   const resetTechnicalPlan = async () => {
     if (isResetting) return;
@@ -430,71 +413,6 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
     }
   };
 
-  const saveContentGenerationOptions = async (contentGenerationOptions: ContentGenerationOptions) => {
-    const saved = await window.yibiao?.technicalPlan.saveContentGenerationOptions(contentGenerationOptions);
-    setState((prev) => ({ ...prev, ...(saved || {}), contentGenerationOptions }));
-  };
-
-  const saveGlobalFacts = async (globalFacts: GlobalFactGroupState[]) => {
-    const saved = await window.yibiao?.technicalPlan.saveGlobalFacts(globalFacts);
-    setState((prev) => ({ ...prev, ...(saved || {}), globalFacts }));
-  };
-
-  const saveGlobalFactsConfig = async (globalFactsMode: GlobalFactsMode) => {
-    const saved = await window.yibiao?.technicalPlan.saveGlobalFactsConfig({ globalFactsMode });
-    setState((prev) => ({ ...prev, ...(saved || {}), globalFactsMode }));
-  };
-
-  const saveOutline = async (request: SaveOutlineRequest) => {
-    const saved = await window.yibiao?.technicalPlan.saveOutline(request);
-    setState((prev) => {
-      if (request.reason !== 'sort') {
-        return { ...prev, ...(saved || {}), outlineData: saved?.outlineData || request.outlineData };
-      }
-      const contentGenerationSections = Object.fromEntries(Object.entries(prev.contentGenerationSections).map(([nodeId, section]) => {
-        const nextId = request.idMap?.[nodeId] || nodeId;
-        return [nextId, { ...section, id: nextId }];
-      }));
-      const contentGenerationPlans = Object.fromEntries(Object.entries(prev.contentGenerationPlans).map(([nodeId, plan]) => [
-        request.idMap?.[nodeId] || nodeId,
-        plan,
-      ]));
-      return {
-        ...prev,
-        ...(saved || {}),
-        outlineData: saved?.outlineData || request.outlineData,
-        contentGenerationSections,
-        contentGenerationPlans,
-      };
-    });
-  };
-
-  const saveOutlineSelection = async (request: SaveOutlineSelectionRequest) => {
-    await window.yibiao?.technicalPlan.saveOutlineSelection(request);
-  };
-
-  const openBidTemplate = async () => {
-    const result = await window.yibiao?.technicalPlan.openBidTemplate();
-    if (!result?.success) {
-      showToast(result?.message || '无法打开投标模版', 'error');
-    }
-  };
-
-  const saveOutlineConfig = async (config: {
-    referenceKnowledgeDocumentIds: string[];
-    outlineMode: TechnicalPlanState['outlineMode'];
-    outlineExpansionMode: TechnicalPlanState['outlineExpansionMode'];
-    wordControlOptions: OutlineWordControlOptions;
-  }) => {
-    await window.yibiao!.technicalPlan.saveOutlineConfig(config);
-    setState((prev) => ({
-      ...prev,
-      outlineMode: config.outlineMode,
-      outlineExpansionMode: config.outlineExpansionMode,
-      outlineWordControlOptions: config.wordControlOptions,
-      referenceKnowledgeDocumentIds: config.referenceKnowledgeDocumentIds,
-    }));
-  };
 
   const generatedContentCount = state.outlineData?.outline
     ? collectLeafItems(state.outlineData.outline).filter((item) => item.content?.trim()).length
