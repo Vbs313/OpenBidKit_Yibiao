@@ -20,6 +20,8 @@
     "prepare-compliance-checker": "node scripts/prepare-compliance-checker.cjs",
     "verify-agent-tools": "node scripts/verify-agent-tools.cjs",
     "verify:module-graph": "node scripts/verify-module-graph.cjs",
+    "test": "node --test \"electron/ipc/*.test.cjs\" \"electron/services/ai/*.test.cjs\" \"electron/services/duplicates/*.test.cjs\" \"electron/services/export/*.test.cjs\" \"electron/services/knowledge/*.test.cjs\" \"electron/services/stores/*.test.cjs\" \"electron/services/tasks/**/*.test.cjs\" \"electron/services/checkResultExportService.test.cjs\" \"electron/services/contentIllustrationGeneration.html.test.cjs\" \"electron/services/localImageRenderService.test.cjs\" \"electron/services/outlineGenerationTaskV2.test.cjs\" \"electron/services/updateService.test.cjs\" \"electron/utils/*.test.cjs\" \"src/**/*.test.cjs\"",
+    "test:electron-abi": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test \"electron/services/knowledgeBaseStore.search.test.cjs\"",
     "smoke:electron-native": "electron scripts/electron-native-smoke.cjs",
     "smoke:compliance-checker": "electron scripts/compliance-checker-smoke.cjs",
     "smoke:compliance-ui": "electron scripts/compliance-ui-smoke.cjs",
