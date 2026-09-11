@@ -36,6 +36,16 @@ function mergeDocuments(prev: KnowledgeDocument[], next: KnowledgeDocument[]) {
   return Array.from(byId.values());
 }
 
+export type KnowledgeDropPosition = 'before' | 'after';
+export type KnowledgeDragPayload =
+  | { kind: 'folder'; folderId: string }
+  | { kind: 'document'; documentId: string; folderId: string };
+
+export interface KnowledgeDocumentDropTarget {
+  documentId: string;
+  position: KnowledgeDropPosition;
+}
+
 export type {
   KnowledgeViewer,
 };
