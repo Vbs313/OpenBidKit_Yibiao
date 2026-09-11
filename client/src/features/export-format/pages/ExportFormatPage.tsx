@@ -29,9 +29,11 @@ import {
   SIZE_OPTIONS,
 } from '../../../shared/types/exportFormat';
 import { buildExportFormatCssVars } from '../../../shared/utils/exportFormatCss';
+import { FontPicker } from '../components/FontPicker';
+import { collectConfigFonts, createDefaultExportFormat, createNewTemplateExportFormat, hasGeneratedContent, headingNumberExample, mergeFontOptions, withExportFormatDefaults } from '../exportFormatModel';
+import { countOutlineMermaidDiagrams } from '../../../shared/utils/outlineMetrics';
 import { TemplatePreview } from '../components/TemplatePreview';
-import { formatOutlineNumber } from '../../../shared/utils/outlineNumbering';
-import type { OutlineItem, WordExportProgressEvent } from '../../../shared/types';
+import type { WordExportProgressEvent } from '../../../shared/types';
 import {
   EXPORT_LAYOUT_PRESETS,
   EXPORT_THEME_PRESETS,
@@ -78,193 +80,18 @@ const initialExportProgress: ExportProgressState = {
   mermaidCount: 0,
 };
 
-function collectLeafItems(items: OutlineItem[]): OutlineItem[] {
-  return items.flatMap((item) => item.children?.length ? collectLeafItems(item.children) : [item]);
-}
 
-function countMermaidDiagrams(content: string) {
-  const mermaidBlocks = (String(content || '').match(/```mermaid[\s\S]*?```/gi) || []).length;
-  const mermaidInkImages = (String(content || '').match(/https:\/\/mermaid\.ink\/img\//gi) || []).length;
-  return mermaidBlocks + mermaidInkImages;
-}
 
-function countOutlineMermaidDiagrams(items: OutlineItem[]) {
-  return collectLeafItems(items).reduce((sum, item) => sum + countMermaidDiagrams(item.content || ''), 0);
-}
 
-function hasGeneratedContent(items: OutlineItem[]) {
-  return collectLeafItems(items).some((item) => String(item.content || '').trim());
-}
 
-function mergeFontOptions(...groups: Array<readonly string[]>): string[] {
-  const seen = new Set<string>();
-  const merged: string[] = [];
 
-  groups.forEach((group) => {
-    group.forEach((font) => {
-      const name = String(font || '').trim();
-      if (!name || seen.has(name)) return;
-      seen.add(name);
-      merged.push(name);
-    });
-  });
 
-  return merged;
-}
 
-function collectConfigFonts(config: ExportFormatConfig): string[] {
-  return [
-    config.page.header_font,
-    config.page.footer_font,
-    ...config.headings.map((heading) => heading.font),
-    config.body_text.font,
-    config.table.header_row.font,
-    config.table.first_column.font,
-    config.table.body_cell.font,
-    config.image.caption_font,
-  ].filter(Boolean);
-}
 
-interface FontPickerProps {
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}
 
-function FontPicker({ value, options, onChange }: FontPickerProps) {
-  const [open, setOpen] = useState(false);
-  const [searchDirty, setSearchDirty] = useState(false);
-  const filteredOptions = useMemo(() => {
-    const query = value.trim().toLowerCase();
-    if (!searchDirty || !query) return options;
-    return options.filter((font) => font.toLowerCase().includes(query));
-  }, [options, searchDirty, value]);
 
-  const pickFont = (font: string) => {
-    onChange(font);
-    setSearchDirty(false);
-    setOpen(false);
-  };
 
-  return (
-    <div className="font-picker" onBlur={(event) => {
-      const nextFocus = event.relatedTarget;
-      if (!(nextFocus instanceof Node) || !event.currentTarget.contains(nextFocus)) {
-        setOpen(false);
-        setSearchDirty(false);
-      }
-    }}>
-      <input
-        className="font-picker-input"
-        type="text"
-        value={value}
-        onFocus={() => {
-          setOpen(true);
-          setSearchDirty(false);
-        }}
-        onChange={(event) => {
-          onChange(event.target.value);
-          setOpen(true);
-          setSearchDirty(true);
-        }}
-        placeholder="输入或选择字体"
-        spellCheck={false}
-        role="combobox"
-        aria-expanded={open}
-      />
-      {open && (
-        <div className="font-picker-menu" role="listbox">
-          <div className="font-picker-summary">
-            {searchDirty ? `匹配 ${filteredOptions.length} 个字体` : `共 ${options.length} 个字体，输入可搜索`}
-          </div>
-          {filteredOptions.length > 0 ? filteredOptions.map((font) => (
-            <button
-              key={font}
-              type="button"
-              className={`font-picker-option${font === value ? ' is-selected' : ''}`}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                pickFont(font);
-              }}
-              role="option"
-              aria-selected={font === value}
-            >
-              {font}
-            </button>
-          )) : <div className="font-picker-empty">没有匹配字体</div>}
-        </div>
-      )}
-    </div>
-  );
-}
 
-function headingNumberExample(index: number, heading: HeadingStyleConfig): string {
-  const sampleIds = ['1', '1.1', '1.1.1', '1.1.1.1', '1.1.1.1.1', '1.1.1.1.1.1'];
-  return formatOutlineNumber(sampleIds[index] || '1', heading);
-}
-
-function createDefaultTemplateName(date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hour = String(date.getHours()).padStart(2, '0');
-  const minute = String(date.getMinutes()).padStart(2, '0');
-  const second = String(date.getSeconds()).padStart(2, '0');
-
-  return `yibiao-${year}-${month}-${day}-${hour}${minute}${second}`;
-}
-
-function createDefaultExportFormat(): ExportFormatConfig {
-  return {
-    template_name: DEFAULT_EXPORT_FORMAT.template_name,
-    page: { ...DEFAULT_EXPORT_FORMAT.page },
-    heading_level1_page_break_before: DEFAULT_EXPORT_FORMAT.heading_level1_page_break_before,
-    heading_border: { ...DEFAULT_EXPORT_FORMAT.heading_border, level_cell_colors: [...DEFAULT_EXPORT_FORMAT.heading_border.level_cell_colors] },
-    headings: DEFAULT_EXPORT_FORMAT.headings.map((heading) => ({ ...heading })),
-    body_text: { ...DEFAULT_EXPORT_FORMAT.body_text },
-    table: {
-      border_width: DEFAULT_EXPORT_FORMAT.table.border_width,
-      border_color: DEFAULT_EXPORT_FORMAT.table.border_color,
-      cell_padding_pt: DEFAULT_EXPORT_FORMAT.table.cell_padding_pt,
-      full_width: DEFAULT_EXPORT_FORMAT.table.full_width,
-      header_row: { ...DEFAULT_EXPORT_FORMAT.table.header_row },
-      first_column: { ...DEFAULT_EXPORT_FORMAT.table.first_column },
-      body_cell: { ...DEFAULT_EXPORT_FORMAT.table.body_cell },
-    },
-    image: { ...DEFAULT_EXPORT_FORMAT.image },
-  };
-}
-
-function createNewTemplateExportFormat(): ExportFormatConfig {
-  return {
-    ...createDefaultExportFormat(),
-    template_name: createDefaultTemplateName(),
-  };
-}
-
-function withExportFormatDefaults(source: ExportFormatConfig): ExportFormatConfig {
-  const defaults = createDefaultExportFormat();
-  return {
-    ...defaults,
-    ...source,
-    page: { ...defaults.page, ...source.page },
-    heading_border: {
-      ...defaults.heading_border,
-      ...source.heading_border,
-      level_cell_colors: defaults.heading_border.level_cell_colors.map((color, index) => source.heading_border?.level_cell_colors?.[index] || color),
-    },
-    headings: defaults.headings.map((heading, index) => ({ ...heading, ...(source.headings?.[index] || {}) })),
-    body_text: { ...defaults.body_text, ...source.body_text },
-    table: {
-      ...defaults.table,
-      ...source.table,
-      header_row: { ...defaults.table.header_row, ...source.table?.header_row },
-      first_column: { ...defaults.table.first_column, ...source.table?.first_column },
-      body_cell: { ...defaults.table.body_cell, ...source.table?.body_cell },
-    },
-    image: { ...defaults.image, ...source.image },
-  };
-}
 
 function ExportFormatPage({ mode = 'create', templateId = null, onBack }: ExportFormatPageProps) {
   const { showToast } = useToast();

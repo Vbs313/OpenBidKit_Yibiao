@@ -16,7 +16,6 @@ function loadModule(fileName) {
 
 const {
   assertLeafContentModes,
-  collectLeafItems,
   collectOutlineIds,
   collectRootIds,
   composeIdMap,
@@ -46,11 +45,6 @@ const tree = () => [
 test('collectOutlineIds / collectRootIds 收集嵌套 id', () => {
   assert.deepEqual([...collectOutlineIds(tree())].sort(), ['1', '1.1', '1.2', '2']);
   assert.deepEqual([...collectRootIds(tree())].sort(), ['1', '2']);
-});
-
-test('collectLeafItems 只取叶子并按原顺序展开', () => {
-  assert.deepEqual(collectLeafItems(tree()).map((item) => item.id), ['1.1', '1.2', '2']);
-  assert.deepEqual(collectLeafItems([]), []);
 });
 
 test('renumberOutlineItemsWithIdMap 重排编号并给出 idMap', () => {

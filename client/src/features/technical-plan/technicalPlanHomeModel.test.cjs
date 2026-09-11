@@ -19,7 +19,7 @@ function evaluate(code, localRequire) {
 
 // wordCount 是真的（自身零依赖）；bidAnalysisWorkflow 依赖链太长，这里用等价桩。
 const wordCount = evaluate(transpile('../../shared/utils/wordCount.ts'), require);
-const outlineTree = evaluate(transpile('outlineTree.ts'), require);
+const outlineMetrics = evaluate(transpile('../../shared/utils/outlineMetrics.ts'), require);
 const requiredTaskIds = ['task-a', 'task-b'];
 const bidAnalysisWorkflowStub = {
   getBidAnalysisTasks: () => requiredTaskIds.map((id) => ({
@@ -34,15 +34,13 @@ const bidAnalysisWorkflowStub = {
 const model = evaluate(transpile('technicalPlanHomeModel.ts'), (id) => {
   if (id.endsWith('wordCount')) return wordCount;
   if (id.endsWith('bidAnalysisWorkflow')) return bidAnalysisWorkflowStub;
-  if (id.endsWith('outlineTree')) return outlineTree;
+  if (id.endsWith('outlineMetrics')) return outlineMetrics;
   return require(id);
 });
 
 const {
   areRequiredBidAnalysisTasksReady,
   buildWordControlWarningDialog,
-  countMermaidDiagrams,
-  countOutlineMermaidDiagrams,
   formatCountRange,
   hasRunningTechnicalPlanTask,
   hasWorkflowSpecificProgress,
@@ -66,21 +64,6 @@ test('isOutlineLeafCountOutsideRange 只统计 AI 生成叶子，且在区间内
     true,
     '非 AI 叶子不计入数量',
   );
-});
-
-test('countMermaidDiagrams 同时统计代码块与 mermaid.ink 图片', () => {
-  assert.equal(countMermaidDiagrams(''), 0);
-  assert.equal(countMermaidDiagrams('```mermaid\ngraph TD;\n```'), 1);
-  assert.equal(countMermaidDiagrams('![](https://mermaid.ink/img/abc)'), 1);
-  assert.equal(countMermaidDiagrams('```mermaid\ngraph TD;\n```\nhttps://mermaid.ink/img/xyz'), 2);
-});
-
-test('countOutlineMermaidDiagrams 只累加叶子（分支节点自身的 content 不参与统计）', () => {
-  const items = [
-    { ...aiLeaf('1'), content: '```mermaid\na\n```', children: [{ ...aiLeaf('1.1'), content: 'https://mermaid.ink/img/b' }] },
-    { ...aiLeaf('2'), content: '无图' },
-  ];
-  assert.equal(countOutlineMermaidDiagrams(items), 1);
 });
 
 test('formatCountRange 四种区间写法', () => {

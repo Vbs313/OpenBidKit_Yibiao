@@ -17,9 +17,9 @@ import type { ExportFormatConfig, ExportTemplateRecord } from '../../../shared/t
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
 import type { SectionId } from '../../../shared/types/navigation';
 import { buildExportFormatCssVars } from '../../../shared/utils/exportFormatCss';
-import { areRequiredBidAnalysisTasksReady, buildWordControlWarningDialog, countOutlineMermaidDiagrams, hasRunningTechnicalPlanTask, hasWorkflowSpecificProgress, isOutlineLeafCountOutsideRange, workflowKindFromSection, workflowLabel } from '../technicalPlanHomeModel';
+import { areRequiredBidAnalysisTasksReady, buildWordControlWarningDialog, hasRunningTechnicalPlanTask, hasWorkflowSpecificProgress, isOutlineLeafCountOutsideRange, workflowKindFromSection, workflowLabel } from '../technicalPlanHomeModel';
 import type { WordControlWarningDialogState } from '../technicalPlanHomeModel';
-import { collectLeafItems } from '../outlineTree';
+import { collectLeafItems, countOutlineMermaidDiagrams } from '../../../shared/utils/outlineMetrics';
 import { applyTaskEventToState, trimTaskLogs, updateOutlineItemContent } from '../taskEventMapping';
 
 

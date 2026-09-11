@@ -7,7 +7,7 @@ import type { BackgroundTaskState, BidAnalysisTasks, TechnicalPlanState, Technic
 import type { OutlineData, OutlineItem, OutlineWordControlOptions } from '../../shared/types';
 import { countReadableWords } from '../../shared/utils/wordCount';
 import { getBidAnalysisTasks } from './services/bidAnalysisWorkflow';
-import { collectLeafItems } from './outlineTree';
+import { collectLeafItems } from '../../shared/utils/outlineMetrics';
 
 export interface WordControlWarningMetric {
   label: string;
@@ -44,16 +44,6 @@ export function isOutlineLeafCountOutsideRange(outlineData: OutlineData, options
   const maximumLeafCount = options.maximumWords > 0 ? Math.floor(options.maximumWords / effectiveSectionWords) : null;
   return (minimumLeafCount !== null && leafCount < minimumLeafCount)
     || (maximumLeafCount !== null && leafCount > maximumLeafCount);
-}
-
-export function countMermaidDiagrams(content: string) {
-  const mermaidBlocks = (String(content || '').match(/```mermaid[\s\S]*?```/gi) || []).length;
-  const mermaidInkImages = (String(content || '').match(/https:\/\/mermaid\.ink\/img\//gi) || []).length;
-  return mermaidBlocks + mermaidInkImages;
-}
-
-export function countOutlineMermaidDiagrams(items: OutlineItem[]) {
-  return collectLeafItems(items).reduce((sum, item) => sum + countMermaidDiagrams(item.content || ''), 0);
 }
 
 export function formatCountRange(minimum: number, maximum: number, unit: string) {

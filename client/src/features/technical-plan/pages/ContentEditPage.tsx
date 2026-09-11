@@ -15,7 +15,8 @@ import mermaidImageExampleUrl from '../../../../assets/generate_img_example/merm
 import htmlImageExampleUrl from '../../../../assets/generate_img_example/html.png';
 import { DEFAULT_HTML_IMAGE_TYPES, buildOutlineMeta, consistencyRepairModeOptions, defaultContentGenerationOptions, getLeafContent, getLeafStatus, normalizeGenerationOptions, originalPlanCoverageRepairModeOptions, tableRequirementOptions } from '../contentEditModel';
 import type { OutlineNodeMeta, TreeStatus } from '../contentEditModel';
-import { collectLeafItems, findOutlineItem } from '../outlineTree';
+import { findOutlineItem } from '../outlineTree';
+import { collectLeafItems } from '../../../shared/utils/outlineMetrics';
 import { ContinuePostProcessingDialog, GenerationDialog, HtmlImageTypesDialog, RequirementItemDialog, PreviewImageDialog } from '../components/contentEditDialogs';
 
 
