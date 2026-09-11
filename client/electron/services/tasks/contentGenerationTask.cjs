@@ -134,6 +134,7 @@ const { createConsistencyAuditStage } = require('./generation/stages/consistency
 const { createAgentRun } = require('./generation/agentRun.cjs');
 const { createOriginalCoverageAuditStage } = require('./generation/stages/originalCoverageAudit.cjs');
 const { createAgentConsistencyAuditStage } = require('./generation/stages/agentConsistencyAudit.cjs');
+const { createIllustrationStage } = require('./generation/stages/illustration.cjs');
 
 const { TABLE_REQUIREMENT_LABELS } = require('./generation/markdownTables.cjs');
 const {
@@ -1930,6 +1931,25 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     isAgentBusyResult,
     agentErrorDiagnostics,
   });
+  // 配图子阶段（规划 + 生成）：实现见 generation/stages/illustration.cjs。
+  const { runIllustrationPlanning, runIllustrationGeneration } = createIllustrationStage({
+    state: ctx,
+    aiService,
+    workspaceStore,
+    generationOptions,
+    contentStats,
+    contentConcurrency,
+    imageConcurrency,
+    publishTaskUpdate,
+    checkpointTask,
+    syncRuntime,
+    statsSnapshot,
+    writeDeveloperLog,
+    pauseIfRequested,
+    isPauseRequested,
+    rebuildContentWordCounts,
+    runContentAgentTask,
+  });
   // 正文去表格子阶段：状态与副作用显式注入，实现见 generation/stages/tableCleanup.cjs。
   const { removeTablesBeforeIllustration } = createTableCleanupStage({
     state: ctx,
@@ -1947,289 +1967,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     saveSection,
   });
 
-  async function runIllustrationPlanning() {
-    contentStats.phase = 'illustration-planning';
-    contentStats.illustration_planning_step_total = 3;
-    contentStats.illustration_planning_step_completed = 0;
-    contentStats.illustration_planning_step_label = '正在准备全文和目录输入';
-    const strippedDocument = stripGeneratedIllustrationsFromDocument(outlineData, sections);
-    outlineData = strippedDocument.outlineData;
-    sections = strippedDocument.sections;
-    rebuildContentWordCounts();
-    workspaceStore.clearIllustrationFiles?.();
-    const phaseRuntime = syncRuntime({ phase: 'illustration-planning' });
-    logs = [...logs, '正文后处理完成，开始使用 Agent 编排全文图片计划。'];
-    checkpointTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, {
-      outlineData,
-      contentGenerationSections: sections,
-      contentGenerationRuntime: phaseRuntime,
-    }, {
-      outlineData,
-      contentRuntime: phaseRuntime,
-    });
-    workspaceStore.clearUnreferencedGeneratedImages?.();
-
-    const imageAvailability = aiService.getImageModelAvailability
-      ? aiService.getImageModelAvailability()
-      : { available: false };
-    const planningContext = buildIllustrationPlanningContext({
-      outlineData,
-      sections,
-      options: generationOptions,
-      aiImagesAvailable: imageAvailability.available,
-    });
-    contentStats.illustration_planning_step_completed = 1;
-    contentStats.illustration_planning_step_label = '正在执行全文图片编排 Agent';
-    pauseIfRequested('正文生成已在图片编排输入准备后暂停，本次 Agent 未启动；继续后将重新执行。');
-
-    const enabledKinds = ['html', 'ai', 'mermaid'].filter((kind) => planningContext.config[kind].enabled);
-    let resolved;
-    if (!planningContext.eligibleSectionIds.length || !enabledKinds.length) {
-      resolved = resolveIllustrationPlan({ items: [] }, planningContext);
-      logs = [...logs, planningContext.eligibleSectionIds.length
-        ? '所有图片类型均未启用，已生成空的全文图片计划。'
-        : '没有可编排的成功正文小节，已生成空的全文图片计划。'];
-    } else {
-      let validatedPlan = null;
-      const { agentResult, outputContent } = await runContentAgentTask({
-        title: '技术方案全文图片编排 Agent',
-        prompt: buildIllustrationPlanningPrompt(),
-        outputFile: 'illustration-plan.json',
-        files: planningContext.files,
-        eventPrefix: 'illustration_planning.agent',
-        activityLabel: 'Agent 正在阅读全文并编排图片',
-        startPauseMessage: '正文生成已在全文图片编排 Agent 开始前暂停，本次 Agent 未启动；继续后将重新执行。',
-        resultPauseMessage: '正文生成已在全文图片编排结果保存前暂停，本次 Agent 输出未保存；继续后将重新执行。',
-        pausedLogMessage: '全文图片编排 Agent 已暂停：本轮 Agent 已取消并清理，继续后将重新执行。',
-        validateOutput: (resultForValidation) => {
-          validatedPlan = resolveIllustrationPlan(resultForValidation?.output_content || '', planningContext);
-          return validatedPlan;
-        },
-      });
-      resolved = validatedPlan || resolveIllustrationPlan(outputContent, planningContext);
-      writeDeveloperLog('illustration_planning.agent.done', {
-        agent_task_id: agentResult?.task_id || '',
-        agent_session_id: agentResult?.session_id || '',
-        candidate_stats: resolved.stats.candidate,
-        selected_stats: resolved.stats.selected,
-        selected_items: resolved.plan.items.map((item) => ({
-          item_id: item.item_id,
-          kind: item.kind,
-          image_type: item.image_type,
-          title: item.title,
-          section_ids: item.section_ids,
-        })),
-      });
-    }
-
-    pauseIfRequested('正文生成已在全文图片编排结果保存前暂停，本次计划未保存；继续后将重新执行。');
-    contentStats.illustration_planning_step_completed = 2;
-    contentStats.illustration_planning_step_label = '正在保存全文图片计划';
-    contentStats.illustration_candidate_ai = resolved.stats.candidate.ai;
-    contentStats.illustration_candidate_mermaid = resolved.stats.candidate.mermaid;
-    contentStats.illustration_candidate_html = resolved.stats.candidate.html;
-    contentStats.illustration_selected_ai = resolved.stats.selected.ai;
-    contentStats.illustration_selected_mermaid = resolved.stats.selected.mermaid;
-    contentStats.illustration_selected_html = resolved.stats.selected.html;
-    const planRuntime = syncRuntime({ phase: 'illustration-planning' });
-    contentStats.illustration_planning_step_completed = 3;
-    contentStats.illustration_planning_step_label = '全文图片编排完成';
-    logs = [...logs, `全文图片编排完成：候选 ${resolved.stats.candidate.html + resolved.stats.candidate.mermaid + resolved.stats.candidate.ai} 项，最终保留 HTML ${resolved.stats.selected.html} 项、Mermaid ${resolved.stats.selected.mermaid} 项、AI ${resolved.stats.selected.ai} 项。`];
-    checkpointTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, {
-      contentIllustrationPlan: resolved.plan,
-      contentGenerationRuntime: planRuntime,
-    }, {
-      contentRuntime: planRuntime,
-      technicalPlanPatch: { contentIllustrationPlan: resolved.plan, contentGenerationRuntime: planRuntime },
-    });
-    return resolved.plan;
-  }
-
-  async function runIllustrationGeneration(initialPlan) {
-    let illustrationPlan = initialPlan;
-    if (Number(illustrationPlan?.plan_version) !== ILLUSTRATION_PLAN_VERSION) {
-      throw new Error('图片计划版本无效');
-    }
-    if (!illustrationPlan?.items?.length) {
-      logs = [...logs, '全文图片计划为空，跳过图片生成。'];
-      publishTaskUpdate({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() });
-      return illustrationPlan;
-    }
-
-    illustrationPlan = {
-      ...illustrationPlan,
-      items: illustrationPlan.items.map((item) => item.generation?.status === 'running'
-        ? { ...item, generation: { ...item.generation, status: 'pending', error: undefined, updated_at: now() } }
-        : item),
-    };
-    const executions = buildIllustrationExecutionContexts(illustrationPlan, leaves, sections);
-    const aiExecutions = executions.filter(({ planItem }) => planItem.kind === 'ai');
-    const normalTextExecutions = executions.filter(({ planItem, reference }) => planItem.kind === 'mermaid'
-      || (planItem.kind === 'html' && reference.length <= HTML_AGENT_THRESHOLD_CHARS));
-    const agentHtmlExecutions = executions.filter(({ planItem, reference }) => planItem.kind === 'html' && reference.length > HTML_AGENT_THRESHOLD_CHARS);
-
-    function countCompleted(kind) {
-      return illustrationPlan.items.filter((item) => item.kind === kind && ['success', 'error'].includes(item.generation?.status)).length;
-    }
-
-    function refreshIllustrationGenerationStats(label) {
-      contentStats.illustration_generation_total = illustrationPlan.items.length;
-      contentStats.illustration_generation_completed = illustrationPlan.items.filter((item) => ['success', 'error'].includes(item.generation?.status)).length;
-      contentStats.illustration_generation_ai_total = aiExecutions.length;
-      contentStats.illustration_generation_ai_completed = countCompleted('ai');
-      contentStats.illustration_generation_mermaid_total = executions.filter(({ planItem }) => planItem.kind === 'mermaid').length;
-      contentStats.illustration_generation_mermaid_completed = countCompleted('mermaid');
-      contentStats.illustration_generation_html_total = executions.filter(({ planItem }) => planItem.kind === 'html').length;
-      contentStats.illustration_generation_html_completed = countCompleted('html');
-      contentStats.illustration_generation_step_label = label || contentStats.illustration_generation_step_label;
-    }
-
-    function persistIllustrationGeneration(itemId, generation, label) {
-      illustrationPlan = {
-        ...illustrationPlan,
-        items: illustrationPlan.items.map((item) => item.item_id === itemId
-          ? { ...item, generation: { ...(item.generation || {}), ...generation, updated_at: now() } }
-          : item),
-        updated_at: now(),
-      };
-      refreshIllustrationGenerationStats(label);
-      const runtime = syncRuntime({ phase: 'illustration-generating' });
-      const changedItem = illustrationPlan.items.find((item) => item.item_id === itemId);
-      const taskPatch = { status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() };
-      const eventPatch = {
-        contentRuntime: runtime,
-        technicalPlanPatch: { contentIllustrationPlan: illustrationPlan, contentGenerationRuntime: runtime },
-      };
-      if (changedItem && ['success', 'error'].includes(changedItem.generation?.status)) {
-        checkpointTask(taskPatch, {
-          contentIllustrationItem: changedItem,
-          contentGenerationRuntime: runtime,
-        }, eventPatch);
-        return;
-      }
-      publishTaskUpdate(taskPatch, eventPatch);
-    }
-
-    async function runExecution(execution) {
-      const { planItem } = execution;
-      if (['success', 'error'].includes(planItem.generation?.status)) return;
-      persistIllustrationGeneration(planItem.item_id, { status: 'running', error: undefined }, `正在生成${planItem.kind === 'ai' ? ' AI' : planItem.kind === 'mermaid' ? ' Mermaid' : ' HTML'} 图片`);
-      try {
-        let result;
-        if (planItem.kind === 'ai') {
-          result = await generateAiIllustration(aiService, execution);
-          logs = [...logs, `AI 配图完成：${planItem.section_ids[0]} ${planItem.title}`];
-        } else if (planItem.kind === 'mermaid') {
-          result = await generateMermaidIllustration(aiService, execution, isPauseLikeError);
-          logs = [...logs, result.attempts
-            ? `Mermaid 配图已修复并完成：${planItem.section_ids[0]} ${planItem.title}（修复 ${result.attempts} 轮）`
-            : `Mermaid 配图完成：${planItem.section_ids[0]} ${planItem.title}`];
-        } else {
-          result = await generateHtmlIllustration({
-            aiService,
-            execution,
-            plan: illustrationPlan,
-            workspaceStore,
-            onSourceSaved: (source) => persistIllustrationGeneration(
-              planItem.item_id,
-              { status: 'running', error: undefined, ...source },
-              'HTML 源文件已保存，正在转换图片',
-            ),
-            runAgentHtml: async ({ title, prompt, outputFile, files, validateOutput }) => {
-              const response = await runContentAgentTask({
-                title,
-                prompt,
-                outputFile,
-                files,
-                eventPrefix: 'html_illustration.agent',
-                activityLabel: 'Agent 正在生成 HTML 图片',
-                startPauseMessage: '正文生成已在 HTML 图片 Agent 开始前暂停，本次 Agent 未启动；继续后将重新执行。',
-                resultPauseMessage: '正文生成已在 HTML 图片 Agent 结果保存前暂停，本次输出未保存；继续后将重新执行。',
-                pausedLogMessage: 'HTML 图片 Agent 已暂停：本轮 Agent 已取消并清理，继续后将重新执行。',
-                validateOutput,
-              });
-              return response.outputContent;
-            },
-            onRenderRetry: (attempt, error) => writeDeveloperLog('illustration.html.render.retry', {
-              item_id: planItem.item_id,
-              attempt,
-              error: compactError(error?.message || error),
-            }),
-            isPauseRequested,
-            createPauseError: createContentGenerationPausedError,
-          });
-        }
-        persistIllustrationGeneration(planItem.item_id, { status: 'success', error: undefined, ...result }, '正在汇总已生成图片');
-      } catch (error) {
-        if (isPauseLikeError(error) || isPauseRequested()) throw error;
-        const partial = error?.illustrationGeneration || {};
-        persistIllustrationGeneration(planItem.item_id, {
-          status: 'error',
-          ...partial,
-          error: compactError(error?.message || error),
-        }, '正在继续生成其他图片');
-        writeDeveloperLog(`illustration.${planItem.kind}.failed`, {
-          item_id: planItem.item_id,
-          section_ids: planItem.section_ids,
-          image_type: planItem.image_type,
-          title: planItem.title,
-          error: compactError(error?.message || error),
-        });
-        const kindLabel = planItem.kind === 'ai' ? 'AI' : planItem.kind === 'mermaid' ? 'Mermaid' : 'HTML';
-        logs = [...logs, `${kindLabel} 配图失败：${planItem.section_ids[0]}，${error.message || '生成失败'}，已保留正文。`];
-      }
-    }
-
-    contentStats.phase = 'illustration-generating';
-    refreshIllustrationGenerationStats('正在启动文本组和生图组');
-    logs = [...logs, `开始生成图片：文本组 ${normalTextExecutions.length} 项（并发 ${contentConcurrency}），超长 HTML Agent ${agentHtmlExecutions.length} 项（串行），AI 生图组 ${aiExecutions.length} 项（并发 ${imageConcurrency}）。`];
-    const runtime = syncRuntime({ phase: 'illustration-generating' });
-    checkpointTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, {
-      contentGenerationRuntime: runtime,
-    }, {
-      contentRuntime: runtime,
-      technicalPlanPatch: { contentIllustrationPlan: illustrationPlan, contentGenerationRuntime: runtime },
-    });
-
-    async function runTextGroup() {
-      await runItemsWithWorkerPool(normalTextExecutions, contentConcurrency, runExecution, isPauseRequested);
-      pauseIfRequested('正文生成已在普通文本图片完成后暂停，超长 HTML Agent 尚未继续执行。');
-      for (const execution of agentHtmlExecutions) {
-        pauseIfRequested('正文生成已在超长 HTML 图片 Agent 开始前暂停，继续后将重新执行。');
-        await runExecution(execution);
-      }
-    }
-
-    const settled = await Promise.allSettled([
-      runTextGroup(),
-      runItemsWithWorkerPool(aiExecutions, imageConcurrency, runExecution, isPauseRequested),
-    ]);
-    const rejected = settled.find((result) => result.status === 'rejected');
-    if (rejected?.reason) throw rejected.reason;
-    pauseIfRequested('正文生成已在图片生成阶段暂停，可导出当前已完成正文，稍后继续。');
-
-    const applied = applyGeneratedIllustrationsToDocument(illustrationPlan, outlineData, sections);
-    outlineData = applied.outlineData;
-    sections = applied.sections;
-    rebuildContentWordCounts();
-    refreshIllustrationGenerationStats('图片生成和正文插入完成');
-    const completedRuntime = syncRuntime({ phase: 'illustration-generating' });
-    logs = [...logs, '图片生成阶段完成。'];
-    checkpointTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, {
-      outlineData,
-      contentGenerationSections: sections,
-      contentGenerationRuntime: completedRuntime,
-    }, {
-      outlineData,
-      contentRuntime: completedRuntime,
-      technicalPlanPatch: {
-        contentGenerationSections: sections,
-        contentIllustrationPlan: illustrationPlan,
-        contentGenerationRuntime: completedRuntime,
-      },
-    });
-    return illustrationPlan;
-  }
 
   try {
     if (continuePostProcessing) {
