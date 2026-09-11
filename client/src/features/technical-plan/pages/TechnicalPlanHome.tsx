@@ -1,27 +1,26 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DocumentAnalysisPage from './DocumentAnalysisPage';
 import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
 import ContentEditPage from './ContentEditPage';
 import { ExportProgressDialog, ExportTemplateDialog, OutlineWordControlLeaveDialog, PetInstallDialog, SortLeaveDialog, WordControlWarningDialog, WorkflowSwitchDialog } from '../components/technicalPlanDialogs';
-import { initialExportProgress } from '../components/technicalPlanDialogs';
-import type { ExportProgressState, WorkflowSwitchRequest } from '../components/technicalPlanDialogs';
+import type { WorkflowSwitchRequest } from '../components/technicalPlanDialogs';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
+import { useExportWord } from '../hooks/useExportWord';
 import { bidAnalysisTasks, isMissingBidAnalysisResult } from '../services/bidAnalysisWorkflow';
 import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, ToolbarSparkleIcon, useToast } from '../../../shared/ui';
 import type { BackgroundTaskState, ContentGenerationOptions, GlobalFactGroupState, GlobalFactsMode, SaveOutlineRequest, SaveOutlineSelectionRequest, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
 import { DEFAULT_OUTLINE_WORD_CONTROL_OPTIONS } from '../../../shared/types';
-import type { OutlineItem, OutlineWordControlOptions, WordExportProgressEvent } from '../../../shared/types';
-import type { ExportFormatConfig, ExportTemplateRecord } from '../../../shared/types/exportFormat';
+import type { OutlineItem, OutlineWordControlOptions } from '../../../shared/types';
+import type { ExportFormatConfig } from '../../../shared/types/exportFormat';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
 import type { SectionId } from '../../../shared/types/navigation';
-import { buildExportFormatCssVars } from '../../../shared/utils/exportFormatCss';
 import { areRequiredBidAnalysisTasksReady, buildWordControlWarningDialog, hasRunningTechnicalPlanTask, hasWorkflowSpecificProgress, isOutlineLeafCountOutsideRange, workflowKindFromSection, workflowLabel } from '../technicalPlanHomeModel';
 import type { WordControlWarningDialogState } from '../technicalPlanHomeModel';
-import { collectLeafItems, countOutlineMermaidDiagrams } from '../../../shared/utils/outlineMetrics';
+import { collectLeafItems } from '../../../shared/utils/outlineMetrics';
 import { applyTaskEventToState, trimTaskLogs, updateOutlineItemContent } from '../taskEventMapping';
 
 
@@ -116,13 +115,28 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
   const { showToast } = useToast();
   const [tenderMarkdown, setTenderMarkdown] = useState('');
   const [originalPlanMarkdown, setOriginalPlanMarkdown] = useState('');
-  const [exportProgress, setExportProgress] = useState<ExportProgressState>(initialExportProgress);
   const [exportFormat, setExportFormat] = useState<ExportFormatConfig>(DEFAULT_EXPORT_FORMAT);
-  const [exportTemplateDialogOpen, setExportTemplateDialogOpen] = useState(false);
-  const [exportTemplates, setExportTemplates] = useState<ExportTemplateRecord[]>([]);
-  const [exportTemplatesLoading, setExportTemplatesLoading] = useState(false);
-  const [exportTemplateSearch, setExportTemplateSearch] = useState('');
-  const [selectedExportTemplateId, setSelectedExportTemplateId] = useState('');
+
+  const {
+    exportProgress,
+    resetExportProgress,
+    exportTemplateDialogOpen,
+    setExportTemplateDialogOpen,
+    exportTemplates,
+    exportTemplatesLoading,
+    exportTemplateSearch,
+    setExportTemplateSearch,
+    selectedExportTemplateId,
+    setSelectedExportTemplateId,
+    filteredExportTemplates,
+    selectedExportTemplate,
+    exportTemplatePreviewStyle,
+    isExporting,
+    openExportTemplateDialog,
+    handleOpenExportedFile,
+    confirmExportTemplate,
+    createExportTemplate,
+  } = useExportWord({ outlineData: state.outlineData, exportFormat, onSectionChange });
   const [sortLeaveDialogOpen, setSortLeaveDialogOpen] = useState(false);
   const [outlineWordControlLeaveDialogOpen, setOutlineWordControlLeaveDialogOpen] = useState(false);
   const [wordControlWarningDialog, setWordControlWarningDialog] = useState<WordControlWarningDialogState | null>(null);
@@ -162,14 +176,6 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
   const contentTaskStatus = state.contentGenerationTask?.status;
   const isContentGenerating = contentTaskStatus === 'running' || contentTaskStatus === 'pausing';
   const isContentPaused = contentTaskStatus === 'paused';
-  const isExporting = exportProgress.running;
-  const filteredExportTemplates = useMemo(() => {
-    const keyword = exportTemplateSearch.trim().toLowerCase();
-    if (!keyword) return exportTemplates;
-    return exportTemplates.filter((template) => template.template_name.toLowerCase().includes(keyword));
-  }, [exportTemplateSearch, exportTemplates]);
-  const selectedExportTemplate = filteredExportTemplates.find((template) => template.template_id === selectedExportTemplateId) || filteredExportTemplates[0] || null;
-  const exportTemplatePreviewStyle = useMemo(() => buildExportFormatCssVars(selectedExportTemplate?.config || exportFormat), [exportFormat, selectedExportTemplate]);
   const requiresOriginalPlan = workflowKind === 'existing-plan-expansion';
   const isNextDisabled = activeIndex >= steps.length - 1
     || (state.step === 'document-analysis' && (!state.tenderFile || (requiresOriginalPlan && !state.originalPlanFile)))
@@ -539,138 +545,11 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
     };
   }, [requiresOriginalPlan, showToast, state.originalPlanFile, state.step]);
 
-  const loadExportTemplates = useCallback(async () => {
-    setExportTemplatesLoading(true);
-    try {
-      const templates = await window.yibiao?.templates.list();
-      const nextTemplates = templates || [];
-      setExportTemplates(nextTemplates);
-      setSelectedExportTemplateId((prev) => nextTemplates.some((template) => template.template_id === prev) ? prev : nextTemplates[0]?.template_id || '');
-    } catch (error) {
-      setExportTemplates([]);
-      setSelectedExportTemplateId('');
-      showToast(error instanceof Error ? error.message : '读取导出模板失败', 'error');
-    } finally {
-      setExportTemplatesLoading(false);
-    }
-  }, [showToast]);
 
-  const openExportTemplateDialog = async () => {
-    if (!state.outlineData?.outline?.length) {
-      showToast('请先生成目录', 'info');
-      return;
-    }
 
-    setExportTemplateDialogOpen(true);
-    setExportTemplateSearch('');
-    await loadExportTemplates();
-  };
 
-  const runExportWord = async (latestExportFormat: ExportFormatConfig) => {
-    if (!state.outlineData?.outline?.length) {
-      showToast('请先生成目录', 'info');
-      return;
-    }
 
-    const requestId = `export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const mermaidCount = countOutlineMermaidDiagrams(state.outlineData.outline);
-    let unsubscribe: (() => void) | undefined;
 
-    try {
-      setExportProgress({
-        open: true,
-        running: true,
-        progress: 2,
-        message: mermaidCount
-          ? `检测到 ${mermaidCount} 张 Mermaid 图，导出时会转换为 Word 图片，可能需要稍等。`
-          : '正在准备导出 Word。',
-        warnings: [],
-        mermaidCount,
-      });
-
-      unsubscribe = window.yibiao?.export.onWordExportProgress((event: WordExportProgressEvent) => {
-        if (event.requestId && event.requestId !== requestId) {
-          return;
-        }
-
-        setExportProgress((prev) => ({
-          ...prev,
-          open: true,
-          running: event.phase === 'running',
-          progress: event.progress,
-          message: event.message,
-          warnings: event.warnings || prev.warnings,
-          error: event.phase === 'error' ? event.message : undefined,
-        }));
-      });
-
-      const result = await window.yibiao?.export.exportWord({
-        requestId,
-        project_name: state.outlineData.project_name,
-        outline: state.outlineData.outline,
-        export_format: latestExportFormat,
-      });
-      if (result?.canceled) {
-        setExportProgress(initialExportProgress);
-        showToast('已取消导出', 'info');
-        return;
-      }
-      setExportProgress((prev) => ({
-        ...prev,
-        open: true,
-        running: false,
-        progress: 100,
-        message: result?.message || 'Word 已导出，请打开文档核对图片、表格和版式。',
-        warnings: result?.warnings || prev.warnings,
-        filePath: result?.path,
-      }));
-      showToast(result?.message || 'Word 已导出', result?.warnings?.length ? 'info' : 'success');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '导出 Word 失败';
-      setExportProgress((prev) => ({
-        ...prev,
-        open: true,
-        running: false,
-        progress: 100,
-        message,
-        error: message,
-      }));
-      showToast(message, 'error');
-    } finally {
-      unsubscribe?.();
-    }
-  };
-
-  const handleOpenExportedFile = async () => {
-    if (!exportProgress.filePath) return;
-
-    try {
-      await window.yibiao?.export.openFile(exportProgress.filePath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '打开文件失败';
-      showToast(message, 'error');
-    }
-  };
-
-  const confirmExportTemplate = async () => {
-    if (!selectedExportTemplate) {
-      showToast('请先选择导出模板', 'info');
-      return;
-    }
-
-    setExportTemplateDialogOpen(false);
-    await runExportWord(selectedExportTemplate.config);
-  };
-
-  const createExportTemplate = () => {
-    if (!onSectionChange) {
-      showToast('请从左侧菜单进入模板设置新建模板', 'info');
-      return;
-    }
-
-    setExportTemplateDialogOpen(false);
-    onSectionChange('new-template');
-  };
 
   const saveChapterContent = async (item: OutlineItem, content: string) => {
     if (!state.outlineData?.outline?.length) {
@@ -1104,7 +983,7 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
 
       <ExportProgressDialog
         progress={exportProgress}
-        onReset={() => setExportProgress(initialExportProgress)}
+        onReset={resetExportProgress}
         onOpenFile={handleOpenExportedFile}
       />
 
