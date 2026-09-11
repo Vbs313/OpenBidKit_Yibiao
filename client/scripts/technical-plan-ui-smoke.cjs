@@ -6,6 +6,7 @@
  *
  * 覆盖：用真实 IPC 预置一份大纲，再把 5 个子页面（STEP 01~05）逐个真实渲染一遍；
  *       再打开目录生成配置弹窗、保存配置（真实 IPC 落库），覆盖 OutlineEditPage 的生成配置簇；
+ *       在 STEP 02 打开解析配置弹窗并取消，覆盖 BidAnalysisConfigDialog 的接线；
  *       在 STEP 05 打开正文生成配置弹窗并保存配置，覆盖 ContentEditPage 的生成控制簇；
  *       最后切一次工作流模式，覆盖 TechnicalPlanHome 的离开守卫与模式切换确认；
  *       全程监听渲染器错误，并用探针自检「监听器真的能收到」。
@@ -240,6 +241,25 @@ async function run() {
     console.log('[technical-plan-ui] 正文生成配置：保存配置走真实 IPC 落库并关闭弹窗');
   };
 
+  // 解析配置弹窗：打开 → 断言四个配置分区渲染 → 取消关闭。
+  const exerciseBidAnalysisConfigDialog = async () => {
+    const opened = String(await click('开始解析'));
+    assert(opened.startsWith('CLICKED'), '找不到「开始解析」按钮：' + opened);
+    await waitFor('解析配置弹窗渲染', async () => {
+      const text = String(await pageText());
+      return ['招标文件解析配置', '投标范围', '解析范围', '关键项', '其他项'].every((marker) => text.includes(marker));
+    }, { timeoutMs: 20000 });
+    console.log('[technical-plan-ui] 解析配置弹窗：打开且四个配置分区渲染正常');
+
+    const closed = String(await click('取消'));
+    assert(closed.startsWith('CLICKED'), '找不到解析配置弹窗的「取消」按钮：' + closed);
+    await waitFor('解析配置弹窗关闭', async () => {
+      const text = String(await pageText());
+      return !text.includes('招标文件解析配置');
+    }, { timeoutMs: 15000 });
+    console.log('[technical-plan-ui] 解析配置弹窗：取消后关闭');
+  };
+
   try {
     services = registerIpcHandlers({
       app,
@@ -291,6 +311,9 @@ async function run() {
       if (step === 'outline-generation') {
         await exerciseOutlineGenerationDialog();
         await exerciseOutlineTree();
+      }
+      if (step === 'bid-analysis') {
+        await exerciseBidAnalysisConfigDialog();
       }
       if (step === 'content-edit') {
         await exerciseContentGenerationDialog();
