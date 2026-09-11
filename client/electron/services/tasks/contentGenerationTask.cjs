@@ -137,6 +137,8 @@ const { createOriginalCoverageAuditStage } = require('./generation/stages/origin
 const { createAgentConsistencyAuditStage } = require('./generation/stages/agentConsistencyAudit.cjs');
 const { createIllustrationStage } = require('./generation/stages/illustration.cjs');
 const { createWordAdjustmentStage } = require('./generation/stages/wordAdjustment.cjs');
+const { createOriginalMaterialState } = require('./generation/originalMaterialState.cjs');
+const { createOriginalMaterialRestoreStage } = require('./generation/stages/originalMaterialRestore.cjs');
 
 const { TABLE_REQUIREMENT_LABELS } = require('./generation/markdownTables.cjs');
 const {
@@ -400,6 +402,57 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
   let allowedKnowledgeItemIds = new Set();
   let knowledgeContentMap = new Map();
   let sections = createInitialSections(leaves, fullRegenerate ? {} : storedPlan.contentGenerationSections);
+
+  // 阶段模块的注入门面：把会被重新赋值的闭包变量暴露成 getter/setter，
+  // 编排函数内部继续使用原来的裸变量，两者始终指向同一份状态。
+  // 后续把阶段搬到 generation/stages/ 时直接传 ctx 即可，不必改动上面的代码。
+  const ctx = {
+    get outlineData() { return outlineData; },
+    set outlineData(value) { outlineData = value; },
+    get originalPlanMarkdown() { return originalPlanMarkdown; },
+    set originalPlanMarkdown(value) { originalPlanMarkdown = value; },
+    get originalPlanSegments() { return originalPlanSegments; },
+    set originalPlanSegments(value) { originalPlanSegments = value; },
+    get contentRuntime() { return contentRuntime; },
+    set contentRuntime(value) { contentRuntime = value; },
+    get leaves() { return leaves; },
+    set leaves(value) { leaves = value; },
+    get maxTables() { return maxTables; },
+    set maxTables(value) { maxTables = value; },
+    get storedContentPlans() { return storedContentPlans; },
+    set storedContentPlans(value) { storedContentPlans = value; },
+    get knowledgeItems() { return knowledgeItems; },
+    set knowledgeItems(value) { knowledgeItems = value; },
+    get allowedKnowledgeItemIds() { return allowedKnowledgeItemIds; },
+    set allowedKnowledgeItemIds(value) { allowedKnowledgeItemIds = value; },
+    get knowledgeContentMap() { return knowledgeContentMap; },
+    set knowledgeContentMap(value) { knowledgeContentMap = value; },
+    get sections() { return sections; },
+    set sections(value) { sections = value; },
+    get tasksToRun() { return tasksToRun; },
+    set tasksToRun(value) { tasksToRun = value; },
+    get runLimits() { return runLimits; },
+    set runLimits(value) { runLimits = value; },
+    get logs() { return logs; },
+    set logs(value) { logs = value; },
+    get lastTaskProgress() { return lastTaskProgress; },
+    set lastTaskProgress(value) { lastTaskProgress = value; },
+    get totalContentWords() { return totalContentWords; },
+    set totalContentWords(value) { totalContentWords = value; },
+    appendLog(message) {
+      logs = [...logs, message];
+    },
+  };
+
+  // 原方案还原状态派生：tasksToRun 计算阶段就要用到，必须先于下面的流程装配。
+  // 实现见 generation/originalMaterialState.cjs。
+  const { getOriginalMaterialRuntimeState, buildOriginalMaterialFromSegments } = createOriginalMaterialState({
+    state: ctx,
+    contentPlans,
+    originalPlanSegmentById,
+    allowedFactTitles,
+    getStoredContentPlan,
+  });
   const touchedItemIds = new Set(contentRuntime.touched_item_ids);
   let tasksToRun = leaves.filter(({ item }) => {
     const section = sections[item.id];
@@ -871,43 +924,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     return storedContentPlans[itemId];
   }
 
-  function getOriginalMaterialRuntimeState(itemOrId) {
-    const itemId = typeof itemOrId === 'string' ? itemOrId : String(itemOrId?.id || '').trim();
-    const item = typeof itemOrId === 'string' ? leaves.find((context) => context.item.id === itemId)?.item : itemOrId;
-    const plan = contentPlans.get(itemId) || getStoredContentPlan(itemId)?.plan || normalizeContentPlan({}, allowedKnowledgeItemIds, allowedFactTitles);
-    const originalMaterial = normalizeOriginalMaterial(plan.original_material);
-    const sourceSegments = originalMaterial.source_ids.map((sourceId) => originalPlanSegmentById.get(sourceId)).filter(Boolean);
-    const allSourcesValid = Boolean(originalMaterial.source_ids.length) && sourceSegments.length === originalMaterial.source_ids.length;
-    const content = sections[itemId]?.content || item?.content || '';
-    const hasContent = Boolean(String(content || '').trim());
-    const validRestored = Boolean(originalMaterial.restored && allSourcesValid && hasContent);
-    const needsRestoreRepair = Boolean(originalMaterial.restored && !validRestored);
-    return {
-      plan,
-      originalMaterial,
-      sourceSegments,
-      allSourcesValid,
-      content,
-      hasContent,
-      validRestored,
-      needsRestoreRepair,
-      canRebuildRestoredContent: Boolean(originalMaterial.restored && allSourcesValid && !hasContent),
-      needsOptimization: Boolean(validRestored && !originalMaterial.optimized),
-    };
-  }
-
-  function buildOriginalMaterialFromSegments(segments, previous = {}) {
-    const restoredContent = segments.map((segment) => segment.content).join('\n\n').trim();
-    return normalizeOriginalMaterial({
-      restored: true,
-      optimized: false,
-      source_ids: segments.map((segment) => segment.id),
-      source_titles: segments.map((segment) => segment.title_path?.join(' > ') || segment.id),
-      source_hashes: segments.map((segment) => segment.hash),
-      restored_chars: restoredContent.length,
-      restored_at: previous.restored_at || now(),
-    });
-  }
 
   function saveSectionAndContentPlan(item, partial, contentForOutline, plan, taskPartial = {}) {
     const hasPartialContent = Object.prototype.hasOwnProperty.call(partial || {}, 'content');
@@ -1096,153 +1112,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     publishTaskUpdate({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() });
   }
 
-  async function restoreOriginalMaterialsIfNeeded(targets) {
-    if (!isExpansionWorkflow || !originalPlanSegments.length || !targets?.length) {
-      return;
-    }
-
-    const targetStates = targets.map((context) => ({ context, state: getOriginalMaterialRuntimeState(context.item) }));
-    const rebuildTargets = targetStates.filter(({ state }) => state.canRebuildRestoredContent || (targetItemId && regenerate && state.validRestored));
-    const restoreTargets = targetStates
-      .filter(({ state }) => !state.validRestored && !state.canRebuildRestoredContent)
-      .map(({ context }) => context);
-    if (!restoreTargets.length && !rebuildTargets.length) {
-      logs = [...logs, '原方案还原：当前待生成小节均已完成还原，跳过还原阶段。'];
-      publishTaskUpdate({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() });
-      return;
-    }
-
-    contentStats.phase = 'restoring';
-    contentStats.restoration_total = rebuildTargets.length + restoreTargets.length;
-    contentStats.restoration_completed = 0;
-    logs = [...logs, `开始原方案还原：${originalPlanSegments.length} 个原文段，${restoreTargets.length} 个候选叶子小节，${rebuildTargets.length} 个小节可直接重建原文。`];
-    const restoringRuntime = syncRuntime({ phase: 'restoring' });
-    checkpointTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, {
-      contentGenerationRuntime: restoringRuntime,
-    }, { contentRuntime: restoringRuntime });
-
-    const assignedSourceIds = new Set();
-    const completedRestoreTargetIds = new Set();
-    let restoredCount = 0;
-    for (const { context, state } of rebuildTargets) {
-      const segments = state.sourceSegments;
-      segments.forEach((segment) => assignedSourceIds.add(segment.id));
-      const restoredContent = segments.map((segment) => segment.content).join('\n\n').trim();
-      const originalMaterial = buildOriginalMaterialFromSegments(segments, state.originalMaterial);
-      completedRestoreTargetIds.add(context.item.id);
-      contentStats.restoration_completed = completedRestoreTargetIds.size;
-      saveSectionAndContentPlan(context.item, { status: 'idle', content: restoredContent, error: undefined }, restoredContent, {
-        ...state.plan,
-        original_material: originalMaterial,
-      }, { logs });
-      restoredCount += 1;
-    }
-
-    if (restoreTargets.length) {
-      const allowedNodeIds = new Set(restoreTargets.map(({ item }) => item.id).filter(Boolean));
-      const allowedSourceIds = new Set(originalPlanSegments.map((segment) => segment.id));
-      const restoreMessages = buildOriginalMaterialRestoreMessages({
-        targets: restoreTargets,
-        originalSegments: originalPlanSegments,
-        projectOverview,
-        bidAnalysisFactsText,
-        globalFactTitlesText,
-      });
-      let result;
-      if (shouldUseAgentForMessages(aiService, restoreMessages)) {
-        const messagesLength = getMessagesContentLength(restoreMessages);
-        const contextLengthLimit = getTextContextLengthLimit(aiService);
-        logs = [...logs, `原方案还原映射提示词 ${messagesLength} 字符，超过上下文阈值 ${Math.floor(contextLengthLimit * AGENT_CONTEXT_THRESHOLD_RATIO)}，切换 Agent 文件模式。`];
-        writeDeveloperLog('original_restore.agent.start', {
-          message_chars: messagesLength,
-          context_length_limit: contextLengthLimit,
-          threshold_ratio: AGENT_CONTEXT_THRESHOLD_RATIO,
-          target_count: restoreTargets.length,
-          original_segment_count: originalPlanSegments.length,
-        });
-        publishTaskUpdate({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() });
-        let validatedRestoreResult = null;
-        const { agentResult, outputContent } = await runContentAgentTask({
-          title: '原方案正文还原映射 Agent',
-          prompt: buildAgentOriginalMaterialRestorePrompt(),
-          outputFile: 'original-restore-result.json',
-          files: buildAgentOriginalMaterialRestoreFiles({
-            targets: restoreTargets,
-            originalSegments: originalPlanSegments,
-            projectOverview,
-            bidAnalysisFactsText,
-            globalFactTitlesText,
-          }),
-          eventPrefix: 'original_restore.agent',
-          activityLabel: 'Agent 正在判断原方案段落归属',
-          startPauseMessage: '正文生成已在原方案还原 Agent 映射开始前暂停，本次 Agent 未启动；继续后将重新执行。',
-          resultPauseMessage: '正文生成已在原方案还原 Agent 映射回写前暂停，本次 Agent 输出未回写；继续后将重新执行。',
-          pausedLogMessage: '原方案还原 Agent 映射已暂停：本轮 Agent 已取消并清理，继续后将重新执行。',
-          validateOutput: (resultForValidation) => {
-            const outputForValidation = String(resultForValidation?.output_content || '').trim();
-            const parsedForValidation = parseAgentJsonContent(outputForValidation);
-            validatedRestoreResult = normalizeOriginalRestoreAssignments(parsedForValidation, { allowedNodeIds, allowedSourceIds });
-            validateOriginalRestoreAssignments(validatedRestoreResult);
-            return validatedRestoreResult;
-          },
-        });
-        result = validatedRestoreResult || normalizeOriginalRestoreAssignments(parseAgentJsonContent(outputContent), { allowedNodeIds, allowedSourceIds });
-        pauseIfRequested('正文生成已在原方案还原 Agent 映射回写前暂停，本次 Agent 输出未回写；继续后将重新执行。');
-        writeDeveloperLog('original_restore.agent.validated', {
-          assignment_count: result.assignments.length,
-          agent_task_id: agentResult?.task_id || '',
-          agent_session_id: agentResult?.session_id || '',
-          output_metrics: textMetrics(outputContent),
-        });
-      } else {
-        result = await aiService.collectJsonResponse({
-          messages: restoreMessages,
-          logTitle: '原方案正文还原映射',
-          progressLabel: '原方案还原',
-          failureMessage: '模型返回的原方案还原映射格式无效',
-          normalizer: (value) => normalizeOriginalRestoreAssignments(value, { allowedNodeIds, allowedSourceIds }),
-          validator: validateOriginalRestoreAssignments,
-          repairMessagesBuilder: (context) => buildOriginalRestoreRepairMessages(context, restoreTargets, originalPlanSegments),
-          progressCallback: (message) => {
-            logs = [...logs, message || '原方案还原映射格式校验失败，正在修复'];
-            publishTaskUpdate({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() });
-          },
-        });
-      }
-
-      const targetById = new Map(restoreTargets.map((context) => [context.item.id, context]));
-      for (const assignment of result.assignments || []) {
-        const context = targetById.get(assignment.node_id);
-        if (!context) {
-          continue;
-        }
-        const segments = (assignment.source_ids || []).map((sourceId) => originalPlanSegmentById.get(sourceId)).filter(Boolean);
-        if (!segments.length) {
-          continue;
-        }
-        segments.forEach((segment) => assignedSourceIds.add(segment.id));
-        const restoredContent = segments.map((segment) => segment.content).join('\n\n').trim();
-        const plan = getContentPlanForItem(context.item.id);
-        const originalMaterial = buildOriginalMaterialFromSegments(segments);
-        completedRestoreTargetIds.add(context.item.id);
-        contentStats.restoration_completed = completedRestoreTargetIds.size;
-        saveSectionAndContentPlan(context.item, { status: 'idle', content: restoredContent, error: undefined }, restoredContent, {
-          ...plan,
-          original_material: originalMaterial,
-        }, { logs });
-        restoredCount += 1;
-      }
-    }
-
-    contentStats.restoration_completed = contentStats.restoration_total;
-    const unassignedCount = originalPlanSegments.filter((segment) => !assignedSourceIds.has(segment.id)).length;
-    logs = [...logs, `原方案还原完成：已还原 ${restoredCount} 个小节，未分配原文段 ${unassignedCount} 个。`];
-    contentStats.phase = 'generating';
-    const generatingRuntime = syncRuntime({ phase: 'generating' });
-    checkpointTask({ status: 'running', progress: progressFor(leaves, sections), logs, stats: statsSnapshot() }, {
-      contentGenerationRuntime: generatingRuntime,
-    }, { contentRuntime: generatingRuntime });
-  }
 
   async function prepareSingleSectionPlan() {
     const context = tasksToRun[0];
@@ -1500,47 +1369,6 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
   // 每轮最多选择十个小节，批次总预算不超过当前全文差额。
 
 
-  // 阶段模块的注入门面：把会被重新赋值的闭包变量暴露成 getter/setter，
-  // 编排函数内部继续使用原来的裸变量，两者始终指向同一份状态。
-  // 后续把阶段搬到 generation/stages/ 时直接传 ctx 即可，不必改动上面的代码。
-  const ctx = {
-    get outlineData() { return outlineData; },
-    set outlineData(value) { outlineData = value; },
-    get originalPlanMarkdown() { return originalPlanMarkdown; },
-    set originalPlanMarkdown(value) { originalPlanMarkdown = value; },
-    get originalPlanSegments() { return originalPlanSegments; },
-    set originalPlanSegments(value) { originalPlanSegments = value; },
-    get contentRuntime() { return contentRuntime; },
-    set contentRuntime(value) { contentRuntime = value; },
-    get leaves() { return leaves; },
-    set leaves(value) { leaves = value; },
-    get maxTables() { return maxTables; },
-    set maxTables(value) { maxTables = value; },
-    get storedContentPlans() { return storedContentPlans; },
-    set storedContentPlans(value) { storedContentPlans = value; },
-    get knowledgeItems() { return knowledgeItems; },
-    set knowledgeItems(value) { knowledgeItems = value; },
-    get allowedKnowledgeItemIds() { return allowedKnowledgeItemIds; },
-    set allowedKnowledgeItemIds(value) { allowedKnowledgeItemIds = value; },
-    get knowledgeContentMap() { return knowledgeContentMap; },
-    set knowledgeContentMap(value) { knowledgeContentMap = value; },
-    get sections() { return sections; },
-    set sections(value) { sections = value; },
-    get tasksToRun() { return tasksToRun; },
-    set tasksToRun(value) { tasksToRun = value; },
-    get runLimits() { return runLimits; },
-    set runLimits(value) { runLimits = value; },
-    get logs() { return logs; },
-    set logs(value) { logs = value; },
-    get lastTaskProgress() { return lastTaskProgress; },
-    set lastTaskProgress(value) { lastTaskProgress = value; },
-    get totalContentWords() { return totalContentWords; },
-    set totalContentWords(value) { totalContentWords = value; },
-    appendLog(message) {
-      logs = [...logs, message];
-    },
-  };
-
   // Agent 子任务执行层：错误诊断、忙碌判定、进度透传与失败输出恢复，
   // 实现见 generation/agentRun.cjs。
   const {
@@ -1564,6 +1392,30 @@ async function runContentGenerationTask({ aiService, agentService, workspaceStor
     state: ctx,
     rememberTouchedItem,
     saveSection,
+  });
+  // 原方案正文还原子阶段：实现见 generation/stages/originalMaterialRestore.cjs。
+  const { restoreOriginalMaterialsIfNeeded } = createOriginalMaterialRestoreStage({
+    state: ctx,
+    aiService,
+    contentStats,
+    originalPlanSegmentById,
+    projectOverview,
+    bidAnalysisFactsText,
+    globalFactTitlesText,
+    isExpansionWorkflow,
+    targetItemId,
+    regenerate,
+    publishTaskUpdate,
+    checkpointTask,
+    syncRuntime,
+    statsSnapshot,
+    writeDeveloperLog,
+    pauseIfRequested,
+    getOriginalMaterialRuntimeState,
+    buildOriginalMaterialFromSegments,
+    getContentPlanForItem,
+    saveSectionAndContentPlan,
+    runContentAgentTask,
   });
   // 原方案覆盖子阶段（正常审计 + Agent 修复两种模式）：
   // 状态与副作用显式注入，实现见 generation/stages/originalCoverageAudit.cjs。
