@@ -6,9 +6,9 @@ import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
 import ContentEditPage from './ContentEditPage';
 import { ExportProgressDialog, ExportTemplateDialog, OutlineWordControlLeaveDialog, PetInstallDialog, SortLeaveDialog, WordControlWarningDialog, WorkflowSwitchDialog } from '../components/technicalPlanDialogs';
-import type { WorkflowSwitchRequest } from '../components/technicalPlanDialogs';
 import { useTechnicalPlanWorkflow } from '../hooks/useTechnicalPlanWorkflow';
 import { useExportWord } from '../hooks/useExportWord';
+import { useTechnicalPlanLeaveGuards } from '../hooks/useTechnicalPlanLeaveGuards';
 import { bidAnalysisTasks, isMissingBidAnalysisResult } from '../services/bidAnalysisWorkflow';
 import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, ToolbarSparkleIcon, useToast } from '../../../shared/ui';
@@ -18,7 +18,7 @@ import type { OutlineItem, OutlineWordControlOptions } from '../../../shared/typ
 import type { ExportFormatConfig } from '../../../shared/types/exportFormat';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
 import type { SectionId } from '../../../shared/types/navigation';
-import { areRequiredBidAnalysisTasksReady, buildWordControlWarningDialog, hasRunningTechnicalPlanTask, hasWorkflowSpecificProgress, isOutlineLeafCountOutsideRange, workflowKindFromSection, workflowLabel } from '../technicalPlanHomeModel';
+import { areRequiredBidAnalysisTasksReady, buildWordControlWarningDialog, isOutlineLeafCountOutsideRange } from '../technicalPlanHomeModel';
 import type { WordControlWarningDialogState } from '../technicalPlanHomeModel';
 import { collectLeafItems } from '../../../shared/utils/outlineMetrics';
 import { applyTaskEventToState, trimTaskLogs, updateOutlineItemContent } from '../taskEventMapping';
@@ -28,12 +28,6 @@ interface TechnicalPlanHomeProps {
   workflowKind: TechnicalPlanWorkflowKind;
   registerLeaveGuard?: (guard: ((nextSection?: string) => Promise<boolean>) | null) => void;
   onSectionChange?: (section: SectionId) => void;
-}
-
-interface OutlineSortGuard {
-  hasUnsavedSort: () => boolean;
-  saveSort: () => Promise<void>;
-  discardSort: () => void;
 }
 
 
@@ -137,25 +131,40 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
     confirmExportTemplate,
     createExportTemplate,
   } = useExportWord({ outlineData: state.outlineData, exportFormat, onSectionChange });
-  const [sortLeaveDialogOpen, setSortLeaveDialogOpen] = useState(false);
-  const [outlineWordControlLeaveDialogOpen, setOutlineWordControlLeaveDialogOpen] = useState(false);
+
+  const {
+    setSortGuard,
+    sortLeaveDialogOpen,
+    outlineWordControlLeaveDialogOpen,
+    savingSortBeforeLeave,
+    workflowSwitchRequest,
+    switchingWorkflow,
+    resolveOutlineWordControlLeave,
+    confirmOutlineWordControlLeave,
+    confirmPendingSortLeave,
+    continueSorting,
+    discardSortAndLeave,
+    saveSortAndLeave,
+    cancelWorkflowSwitch,
+    confirmWorkflowSwitch,
+  } = useTechnicalPlanLeaveGuards({
+    hydrated,
+    state,
+    setState,
+    workflowKind,
+    onSectionChange,
+    setOriginalPlanMarkdown,
+    registerLeaveGuard,
+    showToast,
+  });
   const [wordControlWarningDialog, setWordControlWarningDialog] = useState<WordControlWarningDialogState | null>(null);
   const [pendingWordControlWarningTaskId, setPendingWordControlWarningTaskId] = useState<string | null>(null);
-  const [savingSortBeforeLeave, setSavingSortBeforeLeave] = useState(false);
-  const [workflowSwitchRequest, setWorkflowSwitchRequest] = useState<WorkflowSwitchRequest | null>(null);
-  const [switchingWorkflow, setSwitchingWorkflow] = useState(false);
   const [petInstallDialogOpen, setPetInstallDialogOpen] = useState(false);
   const [installingPetPlugin, setInstallingPetPlugin] = useState(false);
   const [bidAnalysisFocusRequest, setBidAnalysisFocusRequest] = useState<{ taskId: string } | null>(null);
   const [globalFactsFocusRequest, setGlobalFactsFocusRequest] = useState<{ groupId: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
-  const sortGuardRef = useRef<OutlineSortGuard | null>(null);
-  const sortLeaveResolverRef = useRef<((allowed: boolean) => void) | null>(null);
-  const outlineWordControlLeaveResolverRef = useRef<((allowed: boolean) => void) | null>(null);
   const shownWordControlWarningTaskIdsRef = useRef(new Set<string>());
-  const workflowSwitchResolverRef = useRef<((allowed: boolean) => void) | null>(null);
-  const skippedWorkflowSwitchPromptRef = useRef<TechnicalPlanWorkflowKind | null>(null);
-  const lastExecutedWorkflowSwitchRef = useRef<TechnicalPlanWorkflowKind | null>(null);
   const activeIndex = steps.indexOf(state.step);
   const requiredBidAnalysisReady = areRequiredBidAnalysisTasksReady(state.bidAnalysisTasks);
   const isBidSectionExtractionRunning = state.bidSectionExtractionTask?.status === 'running' || state.bidSectionExtractionTask?.status === 'pausing';
@@ -212,146 +221,6 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
                           ? '当前已经是最后一步'
                           : `进入${stepLabels[steps[activeIndex + 1]]}`;
 
-  const resolveSortLeave = (allowed: boolean) => {
-    sortLeaveResolverRef.current?.(allowed);
-    sortLeaveResolverRef.current = null;
-    setSortLeaveDialogOpen(false);
-  };
-
-  const resolveOutlineWordControlLeave = (allowed: boolean) => {
-    outlineWordControlLeaveResolverRef.current?.(allowed);
-    outlineWordControlLeaveResolverRef.current = null;
-    setOutlineWordControlLeaveDialogOpen(false);
-  };
-
-  const confirmOutlineWordControlLeave = () => {
-    setOutlineWordControlLeaveDialogOpen(true);
-    return new Promise<boolean>((resolve) => {
-      outlineWordControlLeaveResolverRef.current = resolve;
-    });
-  };
-
-  const executeWorkflowSwitch = useCallback(async (targetWorkflowKind: TechnicalPlanWorkflowKind) => {
-    if (!window.yibiao?.technicalPlan.switchWorkflowKind) {
-      showToast('技术方案工作流切换服务尚未初始化', 'error');
-      return false;
-    }
-
-    try {
-      setSwitchingWorkflow(true);
-      await window.yibiao.technicalPlan.switchWorkflowKind(targetWorkflowKind);
-      const saved = await window.yibiao.technicalPlan.loadState();
-      lastExecutedWorkflowSwitchRef.current = targetWorkflowKind;
-      setState((prev) => ({ ...prev, ...saved, workflowKind: targetWorkflowKind }));
-      setOriginalPlanMarkdown('');
-      showToast(`已切换到${workflowLabel(targetWorkflowKind)}`, 'success');
-      return true;
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '切换技术方案工作流失败', 'error');
-      return false;
-    } finally {
-      setSwitchingWorkflow(false);
-    }
-  }, [setState, showToast]);
-
-  const resolveWorkflowSwitch = useCallback((allowed: boolean) => {
-    const request = workflowSwitchRequest;
-    workflowSwitchResolverRef.current?.(allowed);
-    workflowSwitchResolverRef.current = null;
-    setWorkflowSwitchRequest(null);
-    if (!allowed && request?.navigateBackOnCancel) {
-      skippedWorkflowSwitchPromptRef.current = request.to;
-      onSectionChange?.(request.from);
-    }
-  }, [onSectionChange, workflowSwitchRequest]);
-
-  const openWorkflowSwitchDialog = useCallback((targetWorkflowKind: TechnicalPlanWorkflowKind, navigateBackOnCancel: boolean) => {
-    setWorkflowSwitchRequest({
-      from: state.workflowKind,
-      to: targetWorkflowKind,
-      navigateBackOnCancel,
-    });
-    return new Promise<boolean>((resolve) => {
-      workflowSwitchResolverRef.current = resolve;
-    });
-  }, [state.workflowKind]);
-
-  const confirmSortLeaveOnly = useCallback(async () => {
-    const guard = sortGuardRef.current;
-    if (!guard?.hasUnsavedSort()) {
-      return true;
-    }
-
-    setSortLeaveDialogOpen(true);
-    return new Promise<boolean>((resolve) => {
-      sortLeaveResolverRef.current = resolve;
-    });
-  }, []);
-
-  const confirmPendingSortLeave = useCallback(async (nextSection?: string) => {
-    const targetWorkflowKind = workflowKindFromSection(nextSection);
-    if (!targetWorkflowKind || targetWorkflowKind === state.workflowKind) {
-      return confirmSortLeaveOnly();
-    }
-
-    if (hasRunningTechnicalPlanTask(state)) {
-      showToast('当前有技术方案任务正在运行，请等待任务结束后再切换模式', 'info');
-      return false;
-    }
-
-    const sortAllowed = await confirmSortLeaveOnly();
-    if (!sortAllowed) {
-      return false;
-    }
-
-    if (hasWorkflowSpecificProgress(state)) {
-      return openWorkflowSwitchDialog(targetWorkflowKind, false);
-    }
-
-    return executeWorkflowSwitch(targetWorkflowKind);
-  }, [confirmSortLeaveOnly, executeWorkflowSwitch, openWorkflowSwitchDialog, showToast, state]);
-
-  const continueSorting = () => {
-    resolveSortLeave(false);
-  };
-
-  const discardSortAndLeave = () => {
-    sortGuardRef.current?.discardSort();
-    resolveSortLeave(true);
-  };
-
-  const saveSortAndLeave = async () => {
-    const guard = sortGuardRef.current;
-    if (!guard) {
-      resolveSortLeave(true);
-      return;
-    }
-
-    try {
-      setSavingSortBeforeLeave(true);
-      await guard.saveSort();
-      resolveSortLeave(true);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '保存排序失败', 'error');
-    } finally {
-      setSavingSortBeforeLeave(false);
-    }
-  };
-
-  const cancelWorkflowSwitch = () => {
-    resolveWorkflowSwitch(false);
-  };
-
-  const confirmWorkflowSwitch = async () => {
-    if (!workflowSwitchRequest) {
-      return;
-    }
-
-    const switched = await executeWorkflowSwitch(workflowSwitchRequest.to);
-    if (switched) {
-      resolveWorkflowSwitch(true);
-    }
-  };
 
   useEffect(() => {
     if (!hydrated) return;
@@ -359,40 +228,6 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
     trackPageView(`${workflowKind}/${state.step}`);
     void window.yibiao?.ui?.setCurrentView({ section: workflowKind, step: state.step });
   }, [hydrated, state.step, workflowKind]);
-
-  useEffect(() => {
-    if (!hydrated || state.workflowKind === workflowKind) return;
-    if (skippedWorkflowSwitchPromptRef.current === workflowKind) return;
-    if (lastExecutedWorkflowSwitchRef.current === state.workflowKind) return;
-    if (workflowSwitchRequest || switchingWorkflow) return;
-
-    const run = async () => {
-      if (hasRunningTechnicalPlanTask(state)) {
-        showToast('当前有技术方案任务正在运行，请等待任务结束后再切换模式', 'info');
-        onSectionChange?.(state.workflowKind);
-        return;
-      }
-
-      if (hasWorkflowSpecificProgress(state)) {
-        await openWorkflowSwitchDialog(workflowKind, true);
-        return;
-      }
-
-      const switched = await executeWorkflowSwitch(workflowKind);
-      if (!switched) {
-        onSectionChange?.(state.workflowKind);
-      }
-    };
-
-    void run();
-  }, [executeWorkflowSwitch, hydrated, onSectionChange, openWorkflowSwitchDialog, showToast, state, switchingWorkflow, workflowKind, workflowSwitchRequest]);
-
-  useEffect(() => {
-    if (state.workflowKind === workflowKind) {
-      skippedWorkflowSwitchPromptRef.current = null;
-      lastExecutedWorkflowSwitchRef.current = null;
-    }
-  }, [state.workflowKind, workflowKind]);
 
   useEffect(() => {
     if (!hydrated || wordControlWarningDialog) return;
@@ -422,12 +257,6 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (!registerLeaveGuard) return;
-    registerLeaveGuard(confirmPendingSortLeave);
-    return () => registerLeaveGuard(null);
-  }, [confirmPendingSortLeave, registerLeaveGuard]);
 
   const switchStep = async (step: TechnicalPlanStep) => {
     if (step === state.step) {
@@ -881,9 +710,7 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
           onOutlineSelectionSaved={saveOutlineSelection}
           bidTemplateExists={Boolean(state.bidTemplateExists)}
           onOpenBidTemplate={openBidTemplate}
-          onSortGuardChange={(guard) => {
-            sortGuardRef.current = guard;
-          }}
+          onSortGuardChange={setSortGuard}
         />
       )}
       {state.step === 'global-facts' && (
