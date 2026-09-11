@@ -1,14 +1,19 @@
 /*
  * 主进程服务图启动冒烟：真实 SQLite + 真实 store + 真实 service 接线。
  *
- * 覆盖范围：registerIpcHandlers 完整跑一遍——包含 createTaskService 的构造，
- * 以及它在构造期执行的中断恢复驱动（taskRecovery）。这条路径此前没有任何自动化覆盖，
- * 而它一旦抛错就是「应用起不来」，属于最高危的回归面。
+ * 覆盖两段此前没有任何自动化覆盖、一旦出错就是「应用起不来 / 功能静默失效」的路径：
+ *   1) registerIpcHandlers 完整跑一遍（含 createTaskService 构造与其中断恢复驱动）；
+ *   2) createPiRuntimeService 构造（它是懒创建的，注册期不会走到，自检模块的接线就在这里验证）。
  *
  * 用法：npm run smoke:ipc-boot
  */
 const { app } = require('electron');
 const { registerIpcHandlers } = require('../electron/ipc/index.cjs');
+const { createConfigStore } = require('../electron/services/stores/configStore.cjs');
+const { createAiService } = require('../electron/services/aiService.cjs');
+const { createPiRuntimeService } = require('../electron/services/pi/piRuntimeService.cjs');
+
+const PI_RUNTIME_PUBLIC_API = ['warmup', 'runTask', 'deleteTaskArchive', 'runSelfCheck', 'getStatus', 'restart', 'handleConfigChanged', 'onStatus', 'close'];
 
 // 只需要一个「不会崩」的窗口替身：注册期会读 isLoading / isDestroyed / 发事件。
 function makeStubWindow() {
@@ -54,22 +59,50 @@ function makeStubWindow() {
   };
 }
 
+function bootServiceGraph() {
+  const services = registerIpcHandlers({
+    app,
+    mainWindow: makeStubWindow(),
+    checkAndDownloadUpdate: async () => ({ success: false }),
+    triggerUpdateDownload: async () => ({ success: false }),
+    quitAndInstall: async () => ({ success: false }),
+    getLatestVersion: async () => '0.0.0',
+    getUpdateDownloadUrl: async () => '',
+  });
+  console.log('[ipc-boot-smoke] 服务图构造成功，导出:', Object.keys(services).join(', '));
+  return services;
+}
+
+function bootPiRuntime() {
+  const configStore = createConfigStore(app);
+  const aiService = createAiService({ app, configStore });
+  const runtime = createPiRuntimeService({
+    app,
+    configStore,
+    aiService,
+    isMonitorActive: () => false,
+    onMonitorEvent: () => {},
+    requestUserQuestion: async () => ({ answers: [] }),
+  });
+  const missing = PI_RUNTIME_PUBLIC_API.filter((name) => typeof runtime[name] !== 'function');
+  if (missing.length) throw new Error('Pi runtime 公开 API 缺方法: ' + missing.join(', '));
+  console.log('[ipc-boot-smoke] Pi runtime 构造成功，status.phase =', runtime.getStatus()?.phase);
+  return runtime;
+}
+
 app.whenReady().then(() => {
   try {
-    const services = registerIpcHandlers({
-      app,
-      mainWindow: makeStubWindow(),
-      checkAndDownloadUpdate: async () => ({ success: false }),
-      triggerUpdateDownload: async () => ({ success: false }),
-      quitAndInstall: async () => ({ success: false }),
-      getLatestVersion: async () => '0.0.0',
-      getUpdateDownloadUrl: async () => '',
-    });
-    console.log('[ipc-boot-smoke] 服务图构造成功，导出:', Object.keys(services).join(', '));
+    const services = bootServiceGraph();
+    const piRuntime = bootPiRuntime();
     try {
       services.closeServices?.();
     } catch (error) {
       console.log('[ipc-boot-smoke] closeServices 忽略:', error?.message);
+    }
+    try {
+      piRuntime.close?.();
+    } catch (error) {
+      console.log('[ipc-boot-smoke] piRuntime.close 忽略:', error?.message);
     }
     console.log('[ipc-boot-smoke] all checks passed');
     app.exit(0);
