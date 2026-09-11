@@ -189,3 +189,14 @@ export function buildOutlineMeta(items: OutlineItem[], sections: ContentGenerati
 }
 
 export const illustrationKinds: ContentIllustrationKind[] = ['html', 'mermaid', 'ai'];
+
+export const statusLabels: Record<TreeStatus, string> = {
+  idle: '待生成',
+  running: '生成中',
+  success: '已生成',
+  error: '失败',
+  ignored: '已忽略',
+  partial: '部分生成',
+  planning: '编排中',
+  pending: '待处理',
+};
