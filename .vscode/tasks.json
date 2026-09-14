@@ -1,85 +1,94 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "启动前端开发服务器",
-            "type": "shell",
-            "command": "npm",
-            "args": ["start"],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new",
-                "showReuseMessage": true,
-                "clear": false
-            },
-
-            "isBackground": true,
-            "problemMatcher": {
-                "owner": "webpack",
-                "source": "webpack",
-                "fileLocation": "relative",
-                "pattern": {
-                    "regexp": "ERROR in (.*)",
-                    "file": 1
-                },
-                "background": {
-                    "activeOnStart": true,
-                    "beginsPattern": ".*webpack.*",
-                    "endsPattern": ".*compiled.*"
-                }
-            }
-        },
-        {
-            "label": "构建前端",
-            "type": "shell", 
-            "command": "npm",
-            "args": ["run", "build"],
-            "options": {
-                "cwd": "${workspaceFolder}/frontend"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            }
-        },
-        {
-            "label": "复制前端构建到后端",
-            "type": "shell",
-            "command": "python",
-            "args": [
-                "-c", 
-                "import shutil; shutil.copytree('frontend/build', 'backend/static', dirs_exist_ok=True); print('前端构建文件已复制到backend/static')"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "dependsOn": "构建前端"
-        },
-        {
-            "label": "完整构建流程",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "构建前端",
-                "复制前端构建到后端"
-            ]
-        }
-    ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "安装依赖 (npm ci)",
+      "type": "shell",
+      "command": "npm ci",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "problemMatcher": []
+    },
+    {
+      "label": "开发模式 (npm run dev)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "构建 (npm run build)",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "单元测试 (npm test)",
+      "type": "shell",
+      "command": "npm test",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Electron ABI 测试 (test:electron-abi)",
+      "type": "shell",
+      "command": "npm run test:electron-abi",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "结构门禁 (verify:module-graph)",
+      "type": "shell",
+      "command": "npm run verify:module-graph",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "冒烟：页面挂载",
+      "type": "shell",
+      "command": "npm run smoke:pages-mount",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "冒烟：IPC 启动",
+      "type": "shell",
+      "command": "npm run smoke:ipc-boot",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "冒烟：原生依赖 / Schema",
+      "type": "shell",
+      "command": "npm run smoke:electron-native && npm run smoke:schema",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "打包 Windows (dist:win)",
+      "type": "shell",
+      "command": "npm run dist:win",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "打包 macOS (dist:mac)",
+      "type": "shell",
+      "command": "npm run dist:mac",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    }
+  ]
 }

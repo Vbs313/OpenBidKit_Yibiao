@@ -139,6 +139,12 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
+      - name: Run unit tests
+        run: npm test
+
+      - name: Verify module graph
+        run: npm run verify:module-graph
+
       - name: Verify Agent tools
         run: node scripts/verify-agent-tools.cjs --platform win32 --arch x64
 
@@ -188,6 +194,9 @@ jobs:
 
       - name: Build renderer
         run: npm run build
+
+      - name: Smoke test pages mount
+        run: npm run smoke:pages-mount
 
       - name: Build Windows NSIS and ZIP artifacts
         run: npx electron-builder --win nsis zip --publish never -c.npmRebuild=false
@@ -276,6 +285,12 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
+      - name: Run unit tests
+        run: npm test
+
+      - name: Verify module graph
+        run: npm run verify:module-graph
+
       - name: Verify Agent tools
         run: node scripts/verify-agent-tools.cjs --platform darwin --arch ${{ matrix.arch }}
 
@@ -341,6 +356,9 @@ jobs:
 
       - name: Build renderer
         run: npm run build
+
+      - name: Smoke test pages mount
+        run: npm run smoke:pages-mount
 
       - name: Preload Electron macOS runtime
         run: |
