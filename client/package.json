@@ -185,7 +185,7 @@
         }
       ]
     },
-    "artifactName": "Yibiao-${version}-${os}-${arch}.${ext}"
+    "artifactName": "数据集团投标工具箱-${version}-${os}-${arch}.${ext}"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.80.10",

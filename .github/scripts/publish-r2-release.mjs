@@ -177,7 +177,9 @@ function extractVersionFromKey(key, prefix) {
   const expectedPrefix = prefix ? `${prefix}/` : '';
   if (!key.startsWith(expectedPrefix)) return '';
   const fileName = key.slice(expectedPrefix.length);
-  return fileName.match(/^Yibiao-(.+?)-(?:win|mac|linux)-/i)?.[1] || '';
+  // 产物名 2026-09 起由 Yibiao-<版本>-<平台>-<架构> 改为「数据集团投标工具箱-<版本>-<平台>-<架构>」，
+  // 这里两种都认，免得历史 Release 的版本号解析不出来。
+  return fileName.match(/^(?:数据集团投标工具箱|Yibiao)-(.+?)-(?:win|mac|linux)-/i)?.[1] || '';
 }
 
 function parseVersion(value) {

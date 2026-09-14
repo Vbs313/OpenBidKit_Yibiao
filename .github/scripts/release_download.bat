@@ -84,7 +84,7 @@ set "ATOMGIT_ENV_FILE=%~dp0.env"
 >> "%PS1_FILE%" echo Write-Host 'Fetching latest GitHub release...'
 >> "%PS1_FILE%" echo $release = Invoke-RestMethod -Uri $githubApi -Headers $githubHeaders
 >> "%PS1_FILE%" echo $tag = $release.tag_name
->> "%PS1_FILE%" echo $out = Join-Path (Get-Location) "Yibiao-$tag"
+>> "%PS1_FILE%" echo $out = Join-Path (Get-Location) "数据集团投标工具箱-$tag"
 >> "%PS1_FILE%" echo New-Item -ItemType Directory -Force -Path $out ^| Out-Null
 >> "%PS1_FILE%" echo Write-Host "Latest version: $tag"
 >> "%PS1_FILE%" echo if (-not $release.assets -or $release.assets.Count -eq 0) {
