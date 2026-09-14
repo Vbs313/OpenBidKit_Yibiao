@@ -4,7 +4,6 @@ const crypto = require('node:crypto');
 const { dialog } = require('electron');
 const { createPiRuntimeService } = require('./pi/piRuntimeService.cjs');
 const { buildPiSelfCheckReportMarkdown } = require('./pi/piSelfCheckService.cjs');
-const { createAgentErrorReporter } = require('./agent/agentErrorReporter.cjs');
 const { resolveAgentAbortReason } = require('./agent/agentInterruption.cjs');
 const {
   createPersistentAgentTask,
@@ -106,17 +105,6 @@ function normalizeRunError(error) {
   return error;
 }
 
-// 读取后台父任务提供的最新诊断上下文，采集失败不影响原始异常上报。
-function resolveUserTaskContext(provider) {
-  if (typeof provider !== 'function') return provider && typeof provider === 'object' ? provider : null;
-  try {
-    const context = provider();
-    return context && typeof context === 'object' ? context : null;
-  } catch (error) {
-    return { capture_error: error?.message || String(error) };
-  }
-}
-
 function normalizeSelfCheckResult(rawResult = {}) {
   return {
     ...rawResult,
@@ -147,8 +135,7 @@ function normalizeSelfCheckResult(rawResult = {}) {
 }
 
 // 协调共享 Pi 运行基础设施，并为每个 Agent 任务创建独立 Runtime/Session。
-function createAgentService({ app, configStore, aiService, licenseService, autoConfirmationService }) {
-  const agentErrorReporter = createAgentErrorReporter({ app, configStore, licenseService });
+function createAgentService({ app, configStore, aiService, autoConfirmationService }) {
   const listeners = new Set();
   const monitorListeners = new Set();
   const questionListeners = new Set();
@@ -522,7 +509,7 @@ function createAgentService({ app, configStore, aiService, licenseService, autoC
     return resolveAgentAbortReason(signal);
   }
 
-  function startTask(payload = {}, userTaskContextProvider) {
+  function startTask(payload = {}) {
     if (closing) return Promise.reject(new Error('Agent 服务正在关闭'));
     if (payload.signal?.aborted) return Promise.reject(createAbortError(payload.signal));
     const taskId = payload.task_id || crypto.randomUUID();
@@ -539,7 +526,6 @@ function createAgentService({ app, configStore, aiService, licenseService, autoC
       primaryRequested: payload.primary_session === true,
       primaryRequestSequence: payload.primary_session === true ? ++latestPrimaryRequestSequence : 0,
       payload: { ...payload, task_id: taskId },
-      userTaskContextProvider,
       runtime: null,
       runtimeUnsubscribe: null,
       promise: null,
@@ -572,17 +558,7 @@ function createAgentService({ app, configStore, aiService, licenseService, autoC
       .catch((error) => {
         const normalizedError = normalizeRunError(error);
         const persistentTask = Boolean(taskKey);
-        const shouldReport = !runtimePayload.signal?.aborted
-          && !['AGENT_DISCONNECTED', 'TASK_CANCELLED'].includes(normalizedError?.code);
-        if (shouldReport) {
-          void agentErrorReporter.reportFailure({
-            payload: runtimePayload,
-            error: normalizedError,
-            userTaskContext: resolveUserTaskContext(userTaskContextProvider),
-          }).finally(() => {
-            if (!persistentTask) void entry.runtime?.deleteTaskArchive?.(taskId);
-          });
-        } else if (!persistentTask) {
+        if (!persistentTask) {
           void entry.runtime?.deleteTaskArchive?.(taskId);
         }
         throw normalizedError;
@@ -599,7 +575,7 @@ function createAgentService({ app, configStore, aiService, licenseService, autoC
   }
 
   function runTask(payload = {}) {
-    return startTask(payload, null);
+    return startTask(payload);
   }
 
   function loadPersistentTask(taskKey) {
@@ -666,7 +642,7 @@ function createAgentService({ app, configStore, aiService, licenseService, autoC
   }
 
   // 为后台父任务绑定最新诊断上下文和统一 AI 队列作用域。
-  function bindTaskContext(userTaskContextProvider, options = {}) {
+  function bindTaskContext(options = {}) {
     const queueScopeId = safeText(options.queueScopeId || options.queue_scope_id);
     const signal = options.signal;
     const primarySessionRequested = options.primary_session === true;
@@ -680,7 +656,7 @@ function createAgentService({ app, configStore, aiService, licenseService, autoC
           ...(queueScopeId && !payload.queueScopeId && !payload.queue_scope_id ? { queue_scope_id: queueScopeId } : {}),
           ...((payload.primary_session === true || primarySessionRequested) ? { primary_session: true } : {}),
           ...(taskSignal ? { signal: taskSignal } : {}),
-        }, userTaskContextProvider);
+        });
       },
       getStatus,
       hasPersistentTaskSession,
@@ -770,7 +746,6 @@ function createAgentService({ app, configStore, aiService, licenseService, autoC
     primarySessionListeners.clear();
     monitorListeners.clear();
     clearPendingMonitorEvents();
-    agentErrorReporter.close();
 
     const entries = [...activeEntries.values()];
     await Promise.all(entries.map((entry) => entry.runtime?.close?.().catch(() => undefined)));

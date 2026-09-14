@@ -53,16 +53,16 @@ const TAB_SECTION_COUNT = "document.querySelectorAll('.settings-page-section').l
 const TAB_SECTION_CHARS = "Array.from(document.querySelectorAll('.settings-page-section')).map((el) => String(el.textContent || '').length)";
 const ACTIVE_TAB_TEXT = "(() => { const el = document.querySelector('.settings-tab-shell .is-active'); return el ? String(el.textContent || '').trim() : ''; })()";
 
-// 「弄脏 -> 保存」闭环用的探针：改一个真实下拉框，再读工具条保存按钮的可用态。
-const PICK_OTHER_CHANNEL = `(() => {
-  const sel = Array.from(document.querySelectorAll("select")).find((node) => !node.disabled && Array.from(node.options).length > 1);
-  if (!sel) return "MISSING";
-  const before = sel.value;
-  const next = Array.from(sel.options).map((option) => option.value).find((value) => value !== before);
-  if (!next) return "NO_OPTION";
-  sel.value = next;
-  sel.dispatchEvent(new Event("change", { bubbles: true }));
-  return before + "->" + next;
+// 「弄脏 -> 保存」闭环用的探针：切一次「GPU 硬件加速」开关，再读工具条保存按钮的可用态。
+// 说明：自动更新渠道已被移除（定制版不做自动更新），所以这里换成一个仍然存在且可持久化的开关。
+const TOGGLE_GPU_SWITCH = `(() => {
+  const row = Array.from(document.querySelectorAll("label")).find((el) => String(el.textContent || "").includes("GPU 硬件加速"));
+  if (!row) return "MISSING";
+  const sw = row.querySelector('[role="switch"]');
+  if (!sw) return "NO_SWITCH";
+  const before = String(sw.getAttribute("aria-checked"));
+  sw.click();
+  return before;
 })()`;
 const SAVE_BUTTON_ENABLED = `(() => {
   const btn = Array.from(document.querySelectorAll("button")).find((el) => String(el.innerText || "").trim() === "保存");
@@ -111,11 +111,6 @@ async function run() {
     services = registerIpcHandlers({
       app,
       mainWindow: window,
-      checkAndDownloadUpdate: async () => ({ success: false }),
-      triggerUpdateDownload: async () => ({ success: false }),
-      quitAndInstall: async () => ({ success: false }),
-      getLatestVersion: async () => '0.0.0',
-      getUpdateDownloadUrl: async () => '',
     });
 
     await window.loadFile(DIST_INDEX);
@@ -147,9 +142,9 @@ async function run() {
     // 保存链路：草稿 / 脏检查 / 保存已搬进 useSettingsConfig，所以这里真的改一次配置再保存。
     const back = String(await click('通用'));
     assert(back.startsWith('CLICKED'), '切回「通用」分页失败：' + back);
-    const picked = String(await window.webContents.executeJavaScript(PICK_OTHER_CHANNEL));
-    assert(picked.includes('->'), '找不到可修改的更新渠道下拉框：' + picked);
-    const [beforeChannel, nextChannel] = picked.split('->');
+    const beforeSwitch = String(await window.webContents.executeJavaScript(TOGGLE_GPU_SWITCH));
+    assert(beforeSwitch === 'true' || beforeSwitch === 'false', '找不到可切换的 GPU 硬件加速开关：' + beforeSwitch);
+    const expectedGpuEnabled = beforeSwitch !== 'true';
     await waitFor('保存按钮变为可用（脏检查生效）', async () => {
       const enabled = await window.webContents.executeJavaScript(SAVE_BUTTON_ENABLED);
       const label = await window.webContents.executeJavaScript(SAVE_LABEL);
@@ -163,9 +158,11 @@ async function run() {
       return enabled === false && label === '已保存';
     }, { timeoutMs: 15000 });
     const persisted = await window.webContents.executeJavaScript('window.yibiao?.config?.load()');
-    assert(persisted && persisted.update_channel === nextChannel,
-      `保存未落库：期望 update_channel=${nextChannel}，实际 ${persisted && persisted.update_channel}`);
-    console.log(`[settings-ui] 配置保存闭环通过（update_channel ${beforeChannel} -> ${nextChannel} 已持久化，脏状态已复位）`);
+    assert(persisted && persisted.gpu_hardware_acceleration_enabled === expectedGpuEnabled,
+      `保存未落库：期望 gpu_hardware_acceleration_enabled=${expectedGpuEnabled}，实际 ${persisted && persisted.gpu_hardware_acceleration_enabled}`);
+    assert(!Object.prototype.hasOwnProperty.call(persisted, 'update_channel'),
+      '自动更新渠道已移除，配置里不应再出现 update_channel：' + JSON.stringify(persisted?.update_channel));
+    console.log(`[settings-ui] 配置保存闭环通过（GPU 硬件加速 ${beforeSwitch} -> ${expectedGpuEnabled} 已持久化，脏状态已复位；update_channel 已不存在）`);
 
     console.log('[settings-ui] all checks passed');
     app.exit(0);

@@ -1,6 +1,5 @@
 ﻿import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, ProgressBar, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
@@ -121,7 +120,6 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   }, []);
 
   useEffect(() => {
-    trackPageView(mode === 'edit' ? 'my-templates/edit' : 'new-template');
     let cancelled = false;
     (async () => {
       setLoaded(false);

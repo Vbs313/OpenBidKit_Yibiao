@@ -3,11 +3,10 @@
 // 这些原本是 aiService.cjs 的模块级函数；搬出来后只依赖同目录的请求工具，可单独测试。
 
 const { normalizeGoogleImageSize, safeImageResponse, createAiResponseDataError, ensureOk } = require('./requestUtils.cjs');
-const { extractGoogleUsage, extractGoogleCandidateParts } = require('./providerParsers.cjs');
+const { extractGoogleCandidateParts } = require('./providerParsers.cjs');
 const { readSseJsonStream } = require('./streamReading.cjs');
 const { markAiRequestError, runWithAiRetry } = require('../../utils/aiRetry.cjs');
 const { createAiRequestId: createRequestId, resolveAiLogTitle, writeAiLog, getAiErrorLogResponse, getAiErrorLogError } = require('../../utils/aiLog.cjs');
-const { trackAiRequest } = require('./requestTracking.cjs');
 const { emitAiHttpErrorToWindows } = require('../../utils/aiHttpError.cjs');
 const {
   AI_REQUEST_TIMEOUT_MS,
@@ -119,7 +118,6 @@ function getGoogleText(responseData) {
 
 async function testGoogleImageModel(app, config) {
   const imageConfig = config.image_model || {};
-  let analyticsTracked = false;
 
   if (!imageConfig.api_key) {
     throw new Error('请先填写 Google AI Studio API Key');
@@ -160,8 +158,6 @@ async function testGoogleImageModel(app, config) {
       ),
       AI_REQUEST_TIMEOUT_MS,
     ));
-    trackAiRequest(app, config, { ai_request_type: 'image', usage: extractGoogleUsage(responseData) });
-    analyticsTracked = true;
     const text = getGoogleText(responseData);
     const inlineData = getGoogleImageInlineData(responseData);
 
@@ -191,9 +187,6 @@ async function testGoogleImageModel(app, config) {
       mime_type: inlineData?.mimeType || inlineData?.mime_type || 'image/png',
     };
   } catch (error) {
-    if (!analyticsTracked) {
-      trackAiRequest(app, config, { ai_request_type: 'image' });
-    }
     const errorMessage = error?.name === 'AbortError' ? IMAGE_MODEL_TEST_TIMEOUT_MESSAGE : error?.message || '生图模型测试失败';
     writeAiLog(app, config, {
       request_id: requestId,
@@ -221,7 +214,6 @@ async function generateGoogleImage(app, config, request) {
   const baseUrl = requireBaseUrl(imageConfig.base_url, 'Google AI Studio Base URL 缺失，请重新选择服务商后保存配置');
   const url = createGoogleImageUrl(baseUrl, imageConfig.model_name, requestMode);
   let responseData = null;
-  let analyticsTracked = false;
 
   try {
     writeAiLog(app, config, {
@@ -247,8 +239,6 @@ async function generateGoogleImage(app, config, request) {
       AI_REQUEST_TIMEOUT_MS,
       request.signal,
     ));
-    trackAiRequest(app, config, { ai_request_type: 'image', usage: extractGoogleUsage(responseData) });
-    analyticsTracked = true;
     const inlineData = getGoogleImageInlineData(responseData);
 
     if (!inlineData?.data) {
@@ -272,10 +262,6 @@ async function generateGoogleImage(app, config, request) {
     });
     return { success: true, title: request.title || '', ...saved };
   } catch (error) {
-    if (!analyticsTracked) {
-      trackAiRequest(app, config, { ai_request_type: 'image' });
-      analyticsTracked = true;
-    }
     writeAiLog(app, config, {
       request_id: requestId,
       log_title: logTitle,

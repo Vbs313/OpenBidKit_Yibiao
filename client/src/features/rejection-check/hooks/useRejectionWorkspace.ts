@@ -4,7 +4,7 @@
 // 其中 applyWorkspaceState 一次要写 15 个 state —— 页面既装不下、也没法单独测。
 //
 // 边界：本 hook 只做「工作区数据」，向导步骤 / 分页 / 弹窗 / 上传忙碌位仍归页面。
-// 因此把两件事做成注入：onRestoreViewState（水合后页面自己切步骤与分页）、onHydrated（页面据此开埋点）。
+// 因此把恢复视图状态做成注入：onRestoreViewState（水合后页面自己切步骤与分页）。
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '../../../shared/ui';
@@ -52,7 +52,6 @@ export interface UseRejectionWorkspaceOptions {
   activeResultTab: RejectionResultTab;
   activeCheckResultTab: RejectionCheckResultTab;
   onRestoreViewState: (view: RestoredRejectionViewState) => void;
-  onHydrated?: () => void;
 }
 
 export function useRejectionWorkspace({
@@ -61,7 +60,6 @@ export function useRejectionWorkspace({
   activeResultTab,
   activeCheckResultTab,
   onRestoreViewState,
-  onHydrated,
 }: UseRejectionWorkspaceOptions) {
   const { showToast } = useToast();
 
@@ -292,7 +290,6 @@ export function useRejectionWorkspace({
       .finally(() => {
         if (!canceled) {
           hydratedRef.current = true;
-          onHydrated?.();
           if (activeTaskTypesRef.current) {
             markStaleTasksWithoutActive(activeTaskTypesRef.current);
           }

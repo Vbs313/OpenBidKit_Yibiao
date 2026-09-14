@@ -1,22 +1,8 @@
-// 设置页「about」分页。
+// 设置页「about」分页：版本信息与文档入口。
 //
-// 原本是 SettingsPage.tsx 中 {activeTab === 'about'} 的 JSX 分支。
-// JSX 原样搬出，页面局部量改为同名 props——渲染结果不变。
-import type { Dispatch, SetStateAction } from 'react';
-
-import { LicenseRuntimeStatus } from '../../../../shared/types';
-import type { UpdateStatus } from '../../types';
-
+// 定制版（数据集团）已移除自动更新与授权验证，这里只展示当前版本号，不再提供更新/激活入口。
 type AboutTabProps = {
   appVersion: string;
-  checkForUpdates: () => Promise<void>;
-  installDownloadedUpdate: () => Promise<void>;
-  licenseSourceLabel: "读取中" | "官方发行版" | "不可信的客户端来源";
-  licenseStatus: LicenseRuntimeStatus | null;
-  setOfflineLicenseDialogOpen: Dispatch<SetStateAction<boolean>>;
-  updateBusy: boolean;
-  updateStatus: UpdateStatus;
-  updateStatusText: string;
 };
 
 export function AboutTab(props: AboutTabProps) {
@@ -25,24 +11,10 @@ export function AboutTab(props: AboutTabProps) {
           <div className="about-overview">
             <article className="about-update-card">
               <div className="about-card-head">
-                <span>自动更新</span>
+                <span>版本信息</span>
                 <strong>当前版本 {props.appVersion || '...'}</strong>
               </div>
-              <p>{props.updateStatusText}</p>
-              <button
-                type="button"
-                className="update-button"
-                disabled={props.updateBusy}
-                onClick={() => {
-                  if (props.updateStatus === 'downloaded') {
-                    void props.installDownloadedUpdate();
-                    return;
-                  }
-                  void props.checkForUpdates();
-                }}
-              >
-                {props.updateStatus === 'downloaded' ? '安装并重启' : props.updateBusy ? '检查中...' : '检查更新'}
-              </button>
+              <p>本版本为本地部署版，不检查也不下载自动更新；升级请联系管理员获取安装包。</p>
             </article>
             <article className="about-info-card about-links-card">
               <span>信息与授权</span>
@@ -69,16 +41,7 @@ export function AboutTab(props: AboutTabProps) {
                     wiki.agnet.top
                   </a>
                 </li>
-                <li className="about-links-item">
-                  <span className="about-links-label">客户端授权状态</span>
-                  <span className={`about-links-value ${props.licenseStatus?.sourceTrusted ? 'is-trusted' : 'is-untrusted'}`}>
-                    {props.licenseSourceLabel}
-                  </span>
-                </li>
               </ul>
-              <button type="button" className="about-links-activate" onClick={() => props.setOfflineLicenseDialogOpen(true)}>
-                离线激活授权
-              </button>
             </article>
           </div>
           <div className="privacy-statement">

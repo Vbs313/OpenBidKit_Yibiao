@@ -11,43 +11,7 @@ const bridge = {
   requiredOnlineServices: {
     getStatus: () => ipcRenderer.invoke('required-online-services:get-status'),
   },
-  donation: {
-    getConfig: () => ipcRenderer.invoke('donation:get-config'),
-    createTip: (request) => ipcRenderer.invoke('donation:create-tip', request),
-    getOrderStatus: (merchantOrderNo) => ipcRenderer.invoke('donation:get-order-status', merchantOrderNo),
-    finalizeOrderStatus: (merchantOrderNo) => ipcRenderer.invoke('donation:finalize-order-status', merchantOrderNo),
-    onPrompt: (callback) => {
-      const listener = (_event, payload) => callback(payload);
-      ipcRenderer.on('donation:prompt', listener);
-      return () => ipcRenderer.removeListener('donation:prompt', listener);
-    },
-    onPaid: (callback) => {
-      const listener = () => callback();
-      ipcRenderer.on('donation:paid', listener);
-      return () => ipcRenderer.removeListener('donation:paid', listener);
-    },
-  },
-  getLatestVersion: () => ipcRenderer.invoke('app:get-latest-version'),
-  getUpdateDownloadUrl: () => ipcRenderer.invoke('app:get-update-download-url'),
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
-  checkUpdate: () => ipcRenderer.invoke('app:check-update'),
-  startUpdate: () => ipcRenderer.invoke('app:start-update'),
-  quitAndInstall: () => ipcRenderer.invoke('app:quit-and-install'),
-  onUpdateProgress: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on('app:update-progress', listener);
-    return () => ipcRenderer.removeListener('app:update-progress', listener);
-  },
-  onUpdateDownloaded: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on('app:update-downloaded', listener);
-    return () => ipcRenderer.removeListener('app:update-downloaded', listener);
-  },
-  onUpdateError: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on('app:update-error', listener);
-    return () => ipcRenderer.removeListener('app:update-error', listener);
-  },
   onPluginUpdatesAvailable: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('plugins:updates-available', listener);
@@ -70,12 +34,6 @@ const bridge = {
     listModels: (config) => ipcRenderer.invoke('config:list-models', config),
     getModelInfo: (modelName) => ipcRenderer.invoke('config:get-model-info', modelName),
     openConfigFolder: () => ipcRenderer.invoke('config:open-config-folder'),
-  },
-  license: {
-    getStatus: () => ipcRenderer.invoke('license:get-status'),
-    refresh: () => ipcRenderer.invoke('license:refresh'),
-    importOfflineFile: () => ipcRenderer.invoke('license:import-offline-file'),
-    activateOfflineCode: (code) => ipcRenderer.invoke('license:activate-offline-code', code),
   },
   ai: {
     chat: (request) => ipcRenderer.invoke('ai:chat', request),

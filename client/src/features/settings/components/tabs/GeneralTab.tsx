@@ -3,7 +3,6 @@
 // 原本是 SettingsPage.tsx 中 {activeTab === 'general'} 的 JSX 分支。
 // JSX 原样搬出，页面局部量改为同名 props——渲染结果不变。
 
-import { UpdateChannel } from '../../../../shared/types';
 import { AppSwitch } from '../../../../shared/ui';
 import { SettingsPageState } from '../../types';
 
@@ -12,12 +11,10 @@ type GeneralTabProps = {
   openDeveloperAgentMonitorWindow: () => Promise<void>;
   openDeveloperTokenStatsWindow: () => Promise<void>;
   state: SettingsPageState;
-  updateChannelOptions: { value: UpdateChannel; label: string; description: string; }[];
   updateDeveloperAgentMonitorAutoOpen: (autoOpen: boolean) => void;
   updateDeveloperMode: (developerMode: boolean) => void;
   updateDeveloperTokenStatsAutoOpen: (autoOpen: boolean) => void;
   updateGpuHardwareAcceleration: (enabled: boolean) => void;
-  updateUpdateChannel: (updateChannel: UpdateChannel) => void;
 };
 
 export function GeneralTab(props: GeneralTabProps) {
@@ -54,22 +51,8 @@ export function GeneralTab(props: GeneralTabProps) {
             </div>
           </div>
 
-          <div className="settings-group-title">更新与系统</div>
+          <div className="settings-group-title">系统</div>
           <div className="settings-list">
-            <label className="settings-row">
-              <div className="settings-row-copy">
-                <strong>自动更新渠道</strong>
-                <span>{props.updateChannelOptions.find((option) => option.value === props.state.general.update_channel)?.description || '选择自动检查更新和下载客户端安装包的来源'}</span>
-              </div>
-              <select
-                value={props.state.general.update_channel}
-                onChange={(event) => props.updateUpdateChannel(event.target.value as UpdateChannel)}
-              >
-                {props.updateChannelOptions.map((option) => (
-                  <option value={option.value} key={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
             <label className="settings-row">
               <div className="settings-row-copy">
                 <strong>GPU 硬件加速</strong>

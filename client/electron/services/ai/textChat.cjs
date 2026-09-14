@@ -13,7 +13,6 @@ const {
 const { runWithAiRetry, markAiRequestError, copyAiRequestErrorMeta } = require('../../utils/aiRetry.cjs');
 const { createAiHttpErrorFromResponse, emitAiHttpErrorToWindows } = require('../../utils/aiHttpError.cjs');
 const { extractOpenAIUsage } = require('./providerParsers.cjs');
-const { trackAiRequest } = require('./requestTracking.cjs');
 const { readOpenAIChatStream, readSseJsonStream } = require('./streamReading.cjs');
 const {
   buildJsonRepairMessages,
@@ -288,7 +287,6 @@ async function chatWithConfig(app, config, request) {
   let requestBody = createChatRequestBody(config, preparedRequest, { stream: requestMode === 'stream' });
   let responseData = null;
   let errorMessage = '';
-  let analyticsTracked = false;
   const timeoutMs = normalizeRequestTimeoutMs(request);
 
   try {
@@ -318,8 +316,6 @@ async function chatWithConfig(app, config, request) {
 
     responseData = result.responseData;
     recordTextTokenStats(config, result.usage);
-    trackAiRequest(app, config, { ai_request_type: 'text', usage: result.usage });
-    analyticsTracked = true;
     const content = result.content || '';
     writeAiLog(app, config, {
       request_id: requestId,
@@ -337,11 +333,7 @@ async function chatWithConfig(app, config, request) {
     errorMessage = error.name === 'AbortError'
       ? request.timeout_message || `AI 请求超时（${timeoutMs / 1000} 秒）`
       : error.message;
-    if (!analyticsTracked) {
-      recordTextTokenStats(config, null);
-      trackAiRequest(app, config, { ai_request_type: 'text' });
-      analyticsTracked = true;
-    }
+    recordTextTokenStats(config, null);
     writeAiLog(app, config, {
       request_id: requestId,
       log_title: logTitle,
@@ -385,7 +377,6 @@ async function runAgentChatCompletionWithConfig(app, config, request) {
   const requestMode = requestBody.stream ? 'stream' : 'normal';
   const logTitle = resolveAiLogTitle(request, 'Pi Agent');
   let responseData = null;
-  let analyticsTracked = false;
 
   try {
     writeAiLog(app, config, {
@@ -408,8 +399,6 @@ async function runAgentChatCompletionWithConfig(app, config, request) {
     });
     responseData = result?.responseData ?? null;
     recordTextTokenStats(config, result?.usage);
-    trackAiRequest(app, config, { ai_request_type: 'text', usage: result?.usage });
-    analyticsTracked = true;
     writeAiLog(app, config, {
       request_id: requestId,
       log_title: logTitle,
@@ -423,10 +412,7 @@ async function runAgentChatCompletionWithConfig(app, config, request) {
     });
     return result;
   } catch (error) {
-    if (!analyticsTracked) {
-      recordTextTokenStats(config, null);
-      trackAiRequest(app, config, { ai_request_type: 'text' });
-    }
+    recordTextTokenStats(config, null);
     writeAiLog(app, config, {
       request_id: requestId,
       log_title: logTitle,

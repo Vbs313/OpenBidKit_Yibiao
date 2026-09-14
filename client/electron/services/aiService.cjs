@@ -35,7 +35,6 @@ const {
   extractComfyUIHistoryWorkflow,
   extractComfyUIImages,
 } = require('./ai/providerParsers.cjs');
-const { trackAiRequest } = require('./ai/requestTracking.cjs');
 const { repairInvalidJsonStringEscapes } = require('./ai/jsonRepair.cjs');
 const {
   parseJsonContent,
@@ -288,23 +287,16 @@ function createAiService({ app, configStore }) {
     },
 
     async testImageModel(config) {
-      const currentConfig = configStore.load();
-      const trackedConfig = {
-        ...config,
-        analytics_client_id: config.analytics_client_id || currentConfig.analytics_client_id,
-        analytics_created_at: config.analytics_created_at || currentConfig.analytics_created_at,
-      };
-
-      if (trackedConfig.image_model?.provider === 'jinlong' || trackedConfig.image_model?.provider === 'volcengine' || trackedConfig.image_model?.provider === 'agnes' || trackedConfig.image_model?.provider === 'custom') {
-        return testOpenAICompatibleImageModel(app, trackedConfig, trackedConfig.image_model.provider);
+      if (config.image_model?.provider === 'jinlong' || config.image_model?.provider === 'volcengine' || config.image_model?.provider === 'agnes' || config.image_model?.provider === 'custom') {
+        return testOpenAICompatibleImageModel(app, config, config.image_model.provider);
       }
 
-      if (trackedConfig.image_model?.provider === 'google-ai-studio') {
-        return testGoogleImageModel(app, trackedConfig);
+      if (config.image_model?.provider === 'google-ai-studio') {
+        return testGoogleImageModel(app, config);
       }
 
-      if (trackedConfig.image_model?.provider === 'comfyui') {
-        return testComfyUIImageModel(app, trackedConfig);
+      if (config.image_model?.provider === 'comfyui') {
+        return testComfyUIImageModel(app, config);
       }
 
       throw new Error('当前服务商暂不支持测试');

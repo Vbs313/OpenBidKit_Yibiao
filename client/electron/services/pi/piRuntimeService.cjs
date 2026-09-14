@@ -4,8 +4,7 @@ const path = require('node:path');
 const perfTrace = require('../../utils/perfTrace.cjs');
 const { getDeveloperLogsDir } = require('../../utils/paths.cjs');
 const { createAgentOpenAiProxy } = require('../agent/agentOpenAiProxy.cjs');
-const { isExpectedAgentInterruption, resolveAgentAbortReason } = require('../agent/agentInterruption.cjs');
-const { trackAgentRuntime } = require('../agent/agentRuntimeAnalytics.cjs');
+const { resolveAgentAbortReason } = require('../agent/agentInterruption.cjs');
 const { preparePiEnvironment } = require('./piEnvironment.cjs');
 const { restorePiErrorMessage } = require('./piRetryErrorNormalizer.cjs');
 const { createPiSession, loadPiModules } = require('./piSessionFactory.cjs');
@@ -1051,7 +1050,6 @@ function createPiRuntimeService({ app, configStore, aiService, isMonitorActive, 
         retry_count: retryCount,
         model_retry_count: modelRetryStats.count,
       });
-      trackAgentRuntime(app, configStore, 'success', { modelRetryCount: modelRetryStats.count });
       return result;
     } catch (error) {
       if (activeController.signal.aborted && activeController.signal.reason instanceof Error) {
@@ -1105,9 +1103,6 @@ function createPiRuntimeService({ app, configStore, aiService, isMonitorActive, 
         output_content: output.content,
         message: error?.message || String(error),
       });
-      if (!isExpectedAgentInterruption(error)) {
-        trackAgentRuntime(app, configStore, 'failed', { modelRetryCount: modelRetryStats.count });
-      }
       throw error;
     } finally {
       unsubscribe?.();

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { AppDialog, FloatingToolbar, isLibreOfficeRequiredMessage, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, UploadBoard, UploadEmpty, UploadFilePill, UploadRow, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import { hasExportableDuplicateResults } from '../exportState';
@@ -51,7 +50,6 @@ function DuplicateCheckPage() {
   const [busy, setBusy] = useState<'tender' | 'bid' | null>(null);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportedExcelPath, setExportedExcelPath] = useState('');
-  const [analyticsReady, setAnalyticsReady] = useState(false);
   const startedMetadataSignatureRef = useRef<string | null>(null);
   const currentAnalysisSignatureRef = useRef('');
   const hydratedRef = useRef(false);
@@ -91,14 +89,6 @@ function DuplicateCheckPage() {
       : '请先上传至少一份投标文件';
 
   useEffect(() => {
-    if (!analyticsReady) return;
-
-    trackPageView(step === 'analysis'
-      ? `duplicate-check/analysis/${activeAnalysisTab}`
-      : 'duplicate-check/upload');
-  }, [activeAnalysisTab, analyticsReady, step]);
-
-  useEffect(() => {
     let canceled = false;
 
     void window.yibiao?.duplicateCheck.loadState()
@@ -112,7 +102,6 @@ function DuplicateCheckPage() {
       .finally(() => {
         if (!canceled) {
           hydratedRef.current = true;
-          setAnalyticsReady(true);
         }
       });
 

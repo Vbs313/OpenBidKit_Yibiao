@@ -1,6 +1,5 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { AppDialog, isLibreOfficeRequiredMessage, ProgressBar, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { KnowledgeBaseIndex, KnowledgeDocument } from '../../../shared/types/domains/knowledge-base';
 import {
@@ -89,7 +88,6 @@ function KnowledgeBasePage() {
   const visibleDocuments = documents.slice(0, Math.min(visibleDocumentCount, documents.length));
 
   useEffect(() => {
-    trackPageView(viewer ? `knowledge-base/viewer/${viewer.mode}` : 'knowledge-base/library');
   }, [viewer?.mode]);
 
   useEffect(() => {

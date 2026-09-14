@@ -1,6 +1,5 @@
 export type TextModelProvider = 'jinlong' | 'volcengine' | 'deepseek' | 'agnes' | 'custom';
 export type AiRequestMode = 'normal' | 'stream';
-export type UpdateChannel = 'github' | 'cloudflare' | 'atomgit';
 
 export interface TextModelConfig {
   api_key: string;
@@ -87,7 +86,6 @@ export interface ClientConfig extends AiConfig {
   components: ComponentsConfig;
   agent_mode_scenarios: AgentModeScenariosConfig;
   agent_auto_answer_enabled?: boolean;
-  update_channel?: UpdateChannel;
   gpu_hardware_acceleration_enabled?: boolean;
   gpu_hardware_acceleration_configured?: boolean;
   export_format?: import('./exportFormat').ExportFormatConfig;
@@ -95,8 +93,6 @@ export interface ClientConfig extends AiConfig {
   developer_token_stats_auto_open?: boolean;
   developer_agent_monitor_auto_open?: boolean;
   storage_cleanup_version?: number;
-  analytics_client_id?: string;
-  analytics_created_at?: string;
 }
 
 export type ModelImageInputStatus = 'supported' | 'unsupported' | 'mixed' | 'unknown';

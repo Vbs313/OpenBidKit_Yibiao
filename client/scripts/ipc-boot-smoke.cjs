@@ -63,11 +63,6 @@ function bootServiceGraph() {
   const services = registerIpcHandlers({
     app,
     mainWindow: makeStubWindow(),
-    checkAndDownloadUpdate: async () => ({ success: false }),
-    triggerUpdateDownload: async () => ({ success: false }),
-    quitAndInstall: async () => ({ success: false }),
-    getLatestVersion: async () => '0.0.0',
-    getUpdateDownloadUrl: async () => '',
   });
   console.log('[ipc-boot-smoke] 服务图构造成功，导出:', Object.keys(services).join(', '));
   return services;

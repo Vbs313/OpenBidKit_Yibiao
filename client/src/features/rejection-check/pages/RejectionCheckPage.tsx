@@ -1,6 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { AppDialog, FloatingToolbar, ProgressBar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import { useRejectionWorkspace } from '../hooks/useRejectionWorkspace';
@@ -72,7 +71,6 @@ function RejectionCheckPage() {
   const [busy, setBusy] = useState<RejectionDocumentBusyState>(null);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportedExcelPath, setExportedExcelPath] = useState('');
-  const [analyticsReady, setAnalyticsReady] = useState(false);
 
   // 工作区域（持久化状态 + 水合/落盘/后台任务事件）走独立 hook；页面只保留向导视图状态。
   const {
@@ -119,7 +117,6 @@ function RejectionCheckPage() {
       setActiveResultTab(view.activeResultTab);
       setActiveCheckResultTab(view.activeCheckResultTab);
     },
-    onHydrated: () => setAnalyticsReady(true),
   });
   const autoStartedSignatureRef = useRef('');
   const { showToast } = useToast();
@@ -247,17 +244,6 @@ function RejectionCheckPage() {
     showDocumentParseNotice,
   });
 
-
-  useEffect(() => {
-    if (!analyticsReady) return;
-
-    const page = step === 'documents'
-      ? `rejection-check/documents/${activeDocumentTab === 'tender' || activeTenderSourceDocument ? 'tender' : 'bid'}`
-      : step === 'items'
-        ? `rejection-check/items/${activeResultTab}`
-        : `rejection-check/results/${activeCheckResultTab}`;
-    trackPageView(page);
-  }, [activeCheckResultTab, activeDocumentTab, activeResultTab, activeTenderSourceDocument, analyticsReady, step]);
 
 
 

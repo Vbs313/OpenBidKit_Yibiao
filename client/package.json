@@ -14,13 +14,12 @@
     "dist:mac": "npm run build && node scripts/prepare-openxml-helper.cjs --platform darwin --arch all && node scripts/prepare-compliance-checker.cjs --platform darwin --arch all && electron-builder --mac",
     "postinstall": "electron-builder install-app-deps",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "generate-build-attestation": "node scripts/generate-build-attestation.cjs",
     "prepare-agent-tools": "node scripts/prepare-agent-tools.cjs",
     "prepare-openxml-helper": "node scripts/prepare-openxml-helper.cjs",
     "prepare-compliance-checker": "node scripts/prepare-compliance-checker.cjs",
     "verify-agent-tools": "node scripts/verify-agent-tools.cjs",
     "verify:module-graph": "node scripts/verify-module-graph.cjs",
-    "test": "node --test \"electron/ipc/*.test.cjs\" \"electron/services/ai/*.test.cjs\" \"electron/services/compliance/*.test.cjs\" \"electron/services/duplicates/*.test.cjs\" \"electron/services/export/*.test.cjs\" \"electron/services/knowledge/*.test.cjs\" \"electron/services/stores/*.test.cjs\" \"electron/services/tasks/**/*.test.cjs\" \"electron/services/checkResultExportService.test.cjs\" \"electron/services/contentIllustrationGeneration.html.test.cjs\" \"electron/services/localImageRenderService.test.cjs\" \"electron/services/outlineGenerationTaskV2.test.cjs\" \"electron/services/updateService.test.cjs\" \"electron/utils/*.test.cjs\" \"src/**/*.test.cjs\"",
+    "test": "node --test \"electron/ipc/*.test.cjs\" \"electron/services/ai/*.test.cjs\" \"electron/services/compliance/*.test.cjs\" \"electron/services/duplicates/*.test.cjs\" \"electron/services/export/*.test.cjs\" \"electron/services/knowledge/*.test.cjs\" \"electron/services/stores/*.test.cjs\" \"electron/services/tasks/**/*.test.cjs\" \"electron/services/checkResultExportService.test.cjs\" \"electron/services/contentIllustrationGeneration.html.test.cjs\" \"electron/services/localImageRenderService.test.cjs\" \"electron/services/outlineGenerationTaskV2.test.cjs\" \"electron/utils/*.test.cjs\" \"src/**/*.test.cjs\"",
     "test:electron-abi": "cross-env ELECTRON_RUN_AS_NODE=1 electron --test \"electron/services/knowledgeBaseStore.search.test.cjs\"",
     "smoke:electron-native": "electron scripts/electron-native-smoke.cjs",
     "smoke:compliance-checker": "electron scripts/compliance-checker-smoke.cjs",
@@ -50,14 +49,6 @@
       "electron/**/*",
       "assets/**/*",
       "package.json"
-    ],
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "FB208",
-        "repo": "OpenBidKit_Yibiao",
-        "releaseType": "release"
-      }
     ],
     "win": {
       "icon": "assets/icon.ico",
@@ -109,7 +100,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "differentialPackage": false
     },
     "msi": {
       "oneClick": false,
@@ -210,7 +202,6 @@
     "chardet": "^2.1.1",
     "cheerio": "^1.2.0",
     "docx": "^9.6.1",
-    "electron-updater": "^6.8.3",
     "iconv-lite": "^0.7.2",
     "image-size": "^2.0.2",
     "mammoth": "^1.12.0",
@@ -226,7 +217,6 @@
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2",
     "typebox": "^1.1.38",
-    "undici": "^7.25.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

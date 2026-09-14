@@ -8,8 +8,6 @@ const {
   appendOpenAICompatibleImagePayload,
   normalizeImageRequestMode,
 } = require('./imagePayloads.cjs');
-const { trackAiRequest } = require('./requestTracking.cjs');
-const { extractOpenAIUsage } = require('./providerParsers.cjs');
 const { readSseJsonStream } = require('./streamReading.cjs');
 const { markAiRequestError, runWithAiRetry } = require('../../utils/aiRetry.cjs');
 const { createAiHttpErrorFromResponse, emitAiHttpErrorToWindows } = require('../../utils/aiHttpError.cjs');
@@ -124,7 +122,6 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
   const imageConfig = config.image_model || {};
   const meta = OPENAI_IMAGE_PROVIDER_META[provider] || OPENAI_IMAGE_PROVIDER_META.volcengine;
   let responseData = null;
-  let analyticsTracked = false;
 
   if (!imageConfig.api_key) {
     throw new Error(`请先填写${meta.label} API Key`);
@@ -179,8 +176,6 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
       throw error;
     }
 
-    trackAiRequest(app, config, { ai_request_type: 'image', usage: extractOpenAIUsage(responseData) });
-    analyticsTracked = true;
     const firstImage = responseData.data?.[0] || {};
     const imageUrl = firstImage.url || '';
     const imageData = firstImage.b64_json || '';
@@ -213,9 +208,6 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
       mime_type: 'image/png',
     };
   } catch (error) {
-    if (!analyticsTracked) {
-      trackAiRequest(app, config, { ai_request_type: 'image' });
-    }
     const errorMessage = error?.name === 'AbortError' ? IMAGE_MODEL_TEST_TIMEOUT_MESSAGE : error?.message || '生图模型测试失败';
     writeAiLog(app, config, {
       request_id: requestId,
@@ -248,7 +240,6 @@ async function generateOpenAICompatibleImage(app, config, request, provider) {
   );
   const baseUrl = requireBaseUrl(imageConfig.base_url, `${meta.label} Base URL 缺失，请重新选择服务商后保存配置`);
   let responseData = null;
-  let analyticsTracked = false;
 
   try {
     writeAiLog(app, config, {
@@ -273,8 +264,6 @@ async function generateOpenAICompatibleImage(app, config, request, provider) {
       AI_REQUEST_TIMEOUT_MS,
       request.signal,
     ));
-    trackAiRequest(app, config, { ai_request_type: 'image', usage: extractOpenAIUsage(responseData) });
-    analyticsTracked = true;
 
     const item = responseData.data?.[0] || {};
     const image = await runWithOperationTimeout(
@@ -301,10 +290,6 @@ async function generateOpenAICompatibleImage(app, config, request, provider) {
     });
     return { success: true, title: request.title || '', ...saved };
   } catch (error) {
-    if (!analyticsTracked) {
-      trackAiRequest(app, config, { ai_request_type: 'image' });
-      analyticsTracked = true;
-    }
     writeAiLog(app, config, {
       request_id: requestId,
       log_title: logTitle,

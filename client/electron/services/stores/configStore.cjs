@@ -1,12 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { getConfigFilePath } = require('./../../utils/paths.cjs');
-const { createAnalyticsClientId } = require('./../../utils/machineIdentity.cjs');
 
 const textModelProviders = ['jinlong', 'volcengine', 'deepseek', 'agnes', 'custom'];
 const imageModelProviders = ['jinlong', 'volcengine', 'google-ai-studio', 'agnes', 'custom', 'comfyui'];
 const aiRequestModes = ['normal', 'stream'];
-const updateChannels = ['github', 'cloudflare', 'atomgit'];
 const DEFAULT_TEXT_CONTEXT_LENGTH_LIMIT = 400000;
 const DEFAULT_TEXT_CONCURRENCY_LIMIT = 10;
 const DEFAULT_TEXT_TEMPERATURE = 0.7;
@@ -272,7 +270,6 @@ const defaultConfig = {
     mermaid_concurrency_limit: DEFAULT_COMPONENT_CONCURRENCY_LIMIT,
     html_concurrency_limit: DEFAULT_COMPONENT_CONCURRENCY_LIMIT,
   },
-  update_channel: 'atomgit',
   gpu_hardware_acceleration_enabled: true,
   gpu_hardware_acceleration_configured: true,
   export_format: defaultExportFormat,
@@ -282,20 +279,7 @@ const defaultConfig = {
   developer_token_stats_auto_open: false,
   developer_agent_monitor_auto_open: false,
   storage_cleanup_version: 0,
-  analytics_client_id: '',
-  analytics_created_at: '',
 };
-
-function createAnalyticsCreatedAt() {
-  const parts = new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
 
 function isTextModelProvider(value) {
   return textModelProviders.includes(value);
@@ -307,10 +291,6 @@ function isImageModelProvider(value) {
 
 function normalizeAiRequestMode(value, fallback = 'stream') {
   return aiRequestModes.includes(value) ? value : fallback;
-}
-
-function normalizeUpdateChannel(value, fallback = defaultConfig.update_channel) {
-  return updateChannels.includes(value) ? value : fallback;
 }
 
 function normalizeTextContextLengthLimit(value, fallback = DEFAULT_TEXT_CONTEXT_LENGTH_LIMIT) {
@@ -729,7 +709,6 @@ function normalizeConfig(config) {
     image_model: activeImageProfile,
     image_model_profiles: imageModelProfiles,
     components: normalizeComponentsConfig(source.components),
-    update_channel: normalizeUpdateChannel(source.update_channel),
     gpu_hardware_acceleration_enabled: gpuHardwareAccelerationEnabled,
     gpu_hardware_acceleration_configured: gpuHardwareAccelerationConfigured === false ? true : gpuHardwareAccelerationConfigured,
     export_format: normalizeExportFormat(source.export_format),
@@ -743,8 +722,6 @@ function normalizeConfig(config) {
     storage_cleanup_version: Number.isFinite(Number(source.storage_cleanup_version))
       ? Math.max(0, Math.floor(Number(source.storage_cleanup_version)))
       : defaultConfig.storage_cleanup_version,
-    analytics_client_id: source.analytics_client_id || defaultConfig.analytics_client_id,
-    analytics_created_at: source.analytics_created_at || defaultConfig.analytics_created_at,
   };
 }
 
@@ -766,18 +743,6 @@ function createConfigStore(app) {
     }
   }
 
-  function withAnalyticsIdentity(config) {
-    if (config.analytics_client_id && config.analytics_created_at) {
-      return config;
-    }
-
-    return {
-      ...config,
-      analytics_client_id: config.analytics_client_id || createAnalyticsClientId(),
-      analytics_created_at: config.analytics_created_at || createAnalyticsCreatedAt(),
-    };
-  }
-
   return {
     getConfigFilePath() {
       return configFile;
@@ -785,7 +750,7 @@ function createConfigStore(app) {
 
     load() {
       if (!fs.existsSync(configFile)) {
-        const config = withAnalyticsIdentity(normalizeConfig());
+        const config = normalizeConfig();
         persist(config);
         return config;
       }
@@ -794,7 +759,7 @@ function createConfigStore(app) {
         const raw = fs.readFileSync(configFile, 'utf-8');
         const parsedConfig = JSON.parse(raw);
         const config = normalizeConfig(parsedConfig);
-        const nextConfig = withAnalyticsIdentity(config);
+        const nextConfig = config;
         if (JSON.stringify(parsedConfig) !== JSON.stringify(nextConfig)) {
           persist(nextConfig);
         }
@@ -809,7 +774,7 @@ function createConfigStore(app) {
         const currentConfig = fs.existsSync(configFile)
           ? normalizeConfig(JSON.parse(fs.readFileSync(configFile, 'utf-8')))
           : normalizeConfig();
-        const nextConfig = withAnalyticsIdentity(normalizeConfig({
+        const nextConfig = normalizeConfig({
           ...currentConfig,
           ...config,
           text_model_profiles: {
@@ -824,9 +789,7 @@ function createConfigStore(app) {
             ...currentConfig.agent_mode_scenarios,
             ...(config && config.agent_mode_scenarios ? config.agent_mode_scenarios : {}),
           },
-          analytics_client_id: config?.analytics_client_id || currentConfig.analytics_client_id,
-          analytics_created_at: config?.analytics_created_at || currentConfig.analytics_created_at,
-        }));
+        });
         persist(nextConfig);
         return { success: true, message: '配置已保存', config_path: configFile };
       } catch (error) {

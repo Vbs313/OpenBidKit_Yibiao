@@ -3,7 +3,7 @@
 // 原本全部堆在 SettingsPage.tsx 的模块顶层（约 600 行）。它们不依赖 React、不读组件状态，
 // 因此下沉为独立模块；页面与后续的自定义 hook 都从这里 import。
 import { AgentSelfCheckUiStatus, SettingsPageState } from './types';
-import { AgentModeScenariosConfig, AgentSelfCheckStepStatus, AiRequestMode, ComponentsConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelRatio, ImageModelSize, ImageModelStatus, LicenseRuntimeStatus, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateChannel } from '../../shared/types';
+import { AgentModeScenariosConfig, AgentSelfCheckStepStatus, AiRequestMode, ComponentsConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelRatio, ImageModelSize, ImageModelStatus, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../shared/types';
 
 type SettingsTab = 'general' | 'text-model' | 'image-model' | 'components' | 'agent' | 'about';
 
@@ -33,22 +33,9 @@ const agentDiagnosticStatusMeta: Record<AgentSelfCheckStepStatus, { label: strin
   skipped: { label: '已跳过', description: '因前置条件不足或无需执行而跳过。' },
 };
 
-const updateChannelOptions: Array<{ value: UpdateChannel; label: string; description: string }> = [
-  { value: 'github', label: 'GitHub', description: '使用 GitHub Release 检查和下载更新' },
-  { value: 'cloudflare', label: 'Cloudflare', description: '使用 Cloudflare R2 镜像检查和下载更新' },
-  { value: 'atomgit', label: 'AtomGit', description: '使用 AtomGit Release 检查和下载更新' },
-];
-
 const defaultAgentModeScenarios: AgentModeScenariosConfig = {
   existing_plan_expansion_original_outline_extraction: true,
 };
-
-function normalizeUpdateChannel(value?: string): UpdateChannel {
-  if (value === 'github' || value === 'cloudflare' || value === 'atomgit') {
-    return value;
-  }
-  return 'atomgit';
-}
 
 function normalizeAgentModeScenarios(value?: Partial<AgentModeScenariosConfig>): AgentModeScenariosConfig {
   return {
@@ -56,11 +43,6 @@ function normalizeAgentModeScenarios(value?: Partial<AgentModeScenariosConfig>):
       ? defaultAgentModeScenarios.existing_plan_expansion_original_outline_extraction
       : Boolean(value.existing_plan_expansion_original_outline_extraction),
   };
-}
-
-function getLicenseSourceLabel(status: LicenseRuntimeStatus | null) {
-  if (!status) return '读取中';
-  return status.sourceTrusted ? '官方发行版' : '不可信的客户端来源';
 }
 
 const textModelProviders: Array<{ value: TextModelProvider; label: string }> = [
@@ -598,7 +580,6 @@ const initialState: SettingsPageState = {
     developer_mode: false,
     developer_token_stats_auto_open: false,
     developer_agent_monitor_auto_open: false,
-    update_channel: 'atomgit',
     gpu_hardware_acceleration_enabled: true,
     gpu_hardware_acceleration_configured: true,
   },
@@ -617,11 +598,8 @@ export {
   settingsTabs,
   agentSelfCheckStatusMeta,
   agentDiagnosticStatusMeta,
-  updateChannelOptions,
   defaultAgentModeScenarios,
-  normalizeUpdateChannel,
   normalizeAgentModeScenarios,
-  getLicenseSourceLabel,
   textModelProviders,
   aiRequestModeOptions,
   DEFAULT_TEXT_CONTEXT_LENGTH_LIMIT,

@@ -151,11 +151,6 @@ async function run() {
     services = registerIpcHandlers({
       app,
       mainWindow: window,
-      checkAndDownloadUpdate: async () => ({ success: false }),
-      triggerUpdateDownload: async () => ({ success: false }),
-      quitAndInstall: async () => ({ success: false }),
-      getLatestVersion: async () => '0.0.0',
-      getUpdateDownloadUrl: async () => '',
     });
 
     await window.loadURL(DEV_URL);

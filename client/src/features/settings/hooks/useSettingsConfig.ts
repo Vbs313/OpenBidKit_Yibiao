@@ -9,8 +9,7 @@
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useToast } from '../../../shared/ui';
-import { trackConfigUsage } from '../../../shared/analytics/analytics';
-import type { AgentModeScenariosConfig, ClientConfig, ImageModelProfiles, TextModelProfiles, UpdateChannel } from '../../../shared/types';
+import type { AgentModeScenariosConfig, ClientConfig, ImageModelProfiles, TextModelProfiles } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import type { SettingsTab } from '../model';
 import {
@@ -23,7 +22,6 @@ import {
   normalizeImageModelProfiles,
   normalizeTextModelProfile,
   normalizeTextModelProfiles,
-  normalizeUpdateChannel,
   resetImageModelStatus,
   textProfileFromState,
 } from '../model';
@@ -73,7 +71,6 @@ export function useSettingsConfig({
           developer_mode: Boolean(config.developer_mode),
           developer_token_stats_auto_open: Boolean(config.developer_token_stats_auto_open),
           developer_agent_monitor_auto_open: Boolean(config.developer_agent_monitor_auto_open),
-          update_channel: normalizeUpdateChannel(config.update_channel),
           gpu_hardware_acceleration_enabled: Boolean(config.gpu_hardware_acceleration_enabled),
           gpu_hardware_acceleration_configured: Boolean(config.gpu_hardware_acceleration_configured),
         },
@@ -127,7 +124,6 @@ export function useSettingsConfig({
       ...(options.includeAgentSettings
         ? { agent_auto_answer_enabled: agentAutoAnswerDraft }
         : savedConfig ? { agent_auto_answer_enabled: Boolean(savedConfig.agent_auto_answer_enabled) } : {}),
-      update_channel: state.general.update_channel,
       gpu_hardware_acceleration_enabled: state.general.gpu_hardware_acceleration_enabled,
       gpu_hardware_acceleration_configured: state.general.gpu_hardware_acceleration_configured,
       developer_mode: state.general.developer_mode,
@@ -159,7 +155,6 @@ export function useSettingsConfig({
       if (result?.success) {
         setSavedConfig(config);
         onDeveloperModeChange?.(Boolean(config.developer_mode));
-        trackConfigUsage({}, config);
       }
       return Boolean(result?.success);
     } catch (error) {
@@ -192,13 +187,6 @@ export function useSettingsConfig({
     setState((prev) => ({
       ...prev,
       general: { ...prev.general, developer_agent_monitor_auto_open: autoOpen },
-    }));
-  };
-
-  const updateUpdateChannel = (updateChannel: UpdateChannel) => {
-    setState((prev) => ({
-      ...prev,
-      general: { ...prev.general, update_channel: updateChannel },
     }));
   };
 
@@ -251,14 +239,12 @@ export function useSettingsConfig({
         developer_mode: Boolean(state.general.developer_mode),
         developer_token_stats_auto_open: Boolean(state.general.developer_token_stats_auto_open),
         developer_agent_monitor_auto_open: Boolean(state.general.developer_agent_monitor_auto_open),
-        update_channel: state.general.update_channel,
         gpu_hardware_acceleration_enabled: Boolean(state.general.gpu_hardware_acceleration_enabled),
         gpu_hardware_acceleration_configured: Boolean(state.general.gpu_hardware_acceleration_configured),
       }) !== JSON.stringify({
         developer_mode: Boolean(savedConfig.developer_mode),
         developer_token_stats_auto_open: Boolean(savedConfig.developer_token_stats_auto_open),
         developer_agent_monitor_auto_open: Boolean(savedConfig.developer_agent_monitor_auto_open),
-        update_channel: normalizeUpdateChannel(savedConfig.update_channel),
         gpu_hardware_acceleration_enabled: Boolean(savedConfig.gpu_hardware_acceleration_enabled),
         gpu_hardware_acceleration_configured: Boolean(savedConfig.gpu_hardware_acceleration_configured),
       });
@@ -384,7 +370,6 @@ export function useSettingsConfig({
     updateDeveloperMode,
     updateDeveloperTokenStatsAutoOpen,
     updateDeveloperAgentMonitorAutoOpen,
-    updateUpdateChannel,
     updateGpuHardwareAcceleration,
     updateAgentModeScenario,
     patchSavedAgentAutoAnswer,

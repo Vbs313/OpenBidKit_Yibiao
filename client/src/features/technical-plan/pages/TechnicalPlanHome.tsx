@@ -12,7 +12,6 @@ import { useTechnicalPlanLeaveGuards } from '../hooks/useTechnicalPlanLeaveGuard
 import { usePetAiAdjust } from '../hooks/usePetAiAdjust';
 import { useTechnicalPlanPersistence } from '../hooks/useTechnicalPlanPersistence';
 import { bidAnalysisTasks, isMissingBidAnalysisResult } from '../services/bidAnalysisWorkflow';
-import { trackPageView } from '../../../shared/analytics/analytics';
 import { FloatingToolbar, ToolbarArrowLeftIcon, ToolbarArrowRightIcon, ToolbarDocumentIcon, ToolbarSparkleIcon, useToast } from '../../../shared/ui';
 import type { BackgroundTaskState, GlobalFactGroupState, GlobalFactsMode, TechnicalPlanStep, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
 import { DEFAULT_OUTLINE_WORD_CONTROL_OPTIONS } from '../../../shared/types';
@@ -245,7 +244,6 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
   useEffect(() => {
     if (!hydrated) return;
 
-    trackPageView(`${workflowKind}/${state.step}`);
     void window.yibiao?.ui?.setCurrentView({ section: workflowKind, step: state.step });
   }, [hydrated, state.step, workflowKind]);
 

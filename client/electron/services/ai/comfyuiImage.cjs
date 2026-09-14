@@ -4,7 +4,6 @@
 
 const path = require('node:path');
 const { buildComfyUIImageWorkflow } = require('./imagePayloads.cjs');
-const { trackAiRequest } = require('./requestTracking.cjs');
 const { extractComfyUIHistoryWorkflow, extractComfyUIImages } = require('./providerParsers.cjs');
 const { markAiRequestError, runWithAiRetry } = require('../../utils/aiRetry.cjs');
 const { emitAiHttpErrorToWindows } = require('../../utils/aiHttpError.cjs');
@@ -297,7 +296,6 @@ async function runComfyUIImageGeneration(app, config, request, options = {}) {
   const logTitle = resolveAiLogTitle(request, request.title ? `AI生图-${request.title}` : 'AI生图');
   const logExtra = options.logExtra || {};
   let responseData = null;
-  let analyticsTracked = false;
 
   try {
     const template = await resolveComfyUIWorkflowTemplate(baseUrl, imageConfig, { signal: request.signal });
@@ -329,8 +327,6 @@ async function runComfyUIImageGeneration(app, config, request, options = {}) {
       request.signal,
     );
     responseData = { prompt_id: promptId, status: entry?.status || null, images };
-    trackAiRequest(app, config, { ai_request_type: 'image' });
-    analyticsTracked = true;
 
     const image = await runWithOperationTimeout(
       (signal) => fetchComfyUIImage(baseUrl, images[0], { signal }),
@@ -367,9 +363,6 @@ async function runComfyUIImageGeneration(app, config, request, options = {}) {
     });
     return { success: true, title: request.title || '', ...saved };
   } catch (error) {
-    if (!analyticsTracked) {
-      trackAiRequest(app, config, { ai_request_type: 'image' });
-    }
     const errorMessage = options.isTest && error?.name === 'AbortError' ? IMAGE_MODEL_TEST_TIMEOUT_MESSAGE : error?.message || 'ComfyUI 生图失败';
     writeAiLog(app, config, {
       request_id: requestId,

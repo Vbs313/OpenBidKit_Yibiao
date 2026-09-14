@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { useToast } from '../../../shared/ui';
 import type { ClientConfig, ImageModelStatus, OutlineData, OutlineItem } from '../../../shared/types';
 import type { ContentGenerationOptions, ContentIllustrationPlanState } from '../../../shared/types/domains/technical-plan';
@@ -174,7 +173,6 @@ export function useContentGeneration({
     if (!awaitingContentDecision || !unresolvedCount || taskBlocksGeneration) return;
     try {
       await window.yibiao?.tasks.startContentGeneration({ retryFailedSections: true });
-      trackConfigUsage({ content_generation_action: 'retry_failed_sections' });
       showToast('失败小节重试任务已在后台启动', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '启动失败小节重试失败', 'error');
@@ -186,7 +184,6 @@ export function useContentGeneration({
     if (!awaitingContentDecision || taskBlocksGeneration) return;
     try {
       await window.yibiao?.tasks.startContentGeneration({ continuePostProcessing: true });
-      trackConfigUsage({ content_generation_action: 'continue_with_ignored_sections' });
       setContinuePostProcessingDialogOpen(false);
       showToast('后续处理任务已在后台启动', 'success');
     } catch (error) {
@@ -201,7 +198,6 @@ export function useContentGeneration({
 
     try {
       await window.yibiao?.tasks.startContentGeneration({ rerunIllustrations: true });
-      trackConfigUsage({ content_generation_action: 'rerun_illustrations' });
       showToast('仅重新配图任务已在后台启动', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '启动仅重新配图任务失败', 'error');
@@ -272,16 +268,6 @@ export function useContentGeneration({
         originalPlanCoverageRepairMode: isExpansionWorkflow ? savedGenerationOptions.originalPlanCoverageRepairMode : undefined,
       },
     });
-    trackConfigUsage({
-      table_requirement: savedGenerationOptions.tableRequirement,
-      use_mermaid_images: savedGenerationOptions.useMermaidImages,
-      use_ai_images: nextImageModelAvailable && savedGenerationOptions.useAiImages,
-      content_generation_action: contentGenerationAction,
-      enable_consistency_audit: savedGenerationOptions.enableConsistencyAudit,
-      consistency_repair_mode: savedGenerationOptions.enableConsistencyAudit ? savedGenerationOptions.consistencyRepairMode : undefined,
-      enable_original_plan_coverage_audit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
-      original_plan_coverage_repair_mode: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit ? savedGenerationOptions.originalPlanCoverageRepairMode : undefined,
-    }, config);
     setGenerationDialogOpen(false);
     showToast(simulatePartialFailures
       ? '随机失败模式正文生成任务已在后台启动'
@@ -342,16 +328,6 @@ export function useContentGeneration({
           originalPlanCoverageRepairMode: isExpansionWorkflow ? 'normal' : undefined,
         },
       });
-      trackConfigUsage({
-        table_requirement: savedGenerationOptions.tableRequirement,
-        use_mermaid_images: savedGenerationOptions.useMermaidImages,
-        use_ai_images: nextImageModelAvailable && savedGenerationOptions.useAiImages,
-        content_generation_action: 'regenerate_section',
-        enable_consistency_audit: savedGenerationOptions.enableConsistencyAudit,
-        consistency_repair_mode: savedGenerationOptions.enableConsistencyAudit ? savedGenerationOptions.consistencyRepairMode : undefined,
-        enable_original_plan_coverage_audit: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit,
-        original_plan_coverage_repair_mode: isExpansionWorkflow && savedGenerationOptions.enableOriginalPlanCoverageAudit ? 'normal' : undefined,
-      }, config);
       setSelectedItemId(requirementItem.id);
       setRequirementItem(null);
       setRegenerateRequirement('');

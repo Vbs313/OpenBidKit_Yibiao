@@ -181,17 +181,6 @@ jobs:
           VERSION="${TAG_NAME#v}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      - name: Generate build attestation
-        env:
-          YIBIAO_LICENSE_PRIVATE_KEY_JWK: ${{ secrets.YIBIAO_LICENSE_PRIVATE_KEY_JWK }}
-          YIBIAO_LICENSE_KEY_ID: ${{ vars.YIBIAO_LICENSE_KEY_ID || 'official-build-key-2026-01' }}
-        run: |
-          if [ -z "$YIBIAO_LICENSE_PRIVATE_KEY_JWK" ]; then
-            echo "YIBIAO_LICENSE_PRIVATE_KEY_JWK is required for official release builds."
-            exit 1
-          fi
-          npm run generate-build-attestation
-
       - name: Build renderer
         run: npm run build
 
@@ -213,7 +202,7 @@ jobs:
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
         run: |
           shopt -s nullglob
-          files=(release/*.exe release/*.msi release/*.zip release/*.blockmap release/*.yml)
+          files=(release/*.exe release/*.msi release/*.zip release/*.yml)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No release assets found."
             exit 1
@@ -327,17 +316,6 @@ jobs:
           VERSION="${TAG_NAME#v}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      - name: Generate build attestation
-        env:
-          YIBIAO_LICENSE_PRIVATE_KEY_JWK: ${{ secrets.YIBIAO_LICENSE_PRIVATE_KEY_JWK }}
-          YIBIAO_LICENSE_KEY_ID: ${{ vars.YIBIAO_LICENSE_KEY_ID || 'official-build-key-2026-01' }}
-        run: |
-          if [ -z "$YIBIAO_LICENSE_PRIVATE_KEY_JWK" ]; then
-            echo "YIBIAO_LICENSE_PRIVATE_KEY_JWK is required for official release builds."
-            exit 1
-          fi
-          npm run generate-build-attestation
-
       - name: Generate macOS icon
         run: |
           rm -rf assets/icon.iconset
@@ -415,93 +393,20 @@ jobs:
           shopt -s nullglob
           dmgs=(release/*-mac-${{ matrix.arch }}.dmg)
           zips=(release/*-mac-${{ matrix.arch }}.zip)
-          blockmaps=(release/*.blockmap)
 
           if [ ${#dmgs[@]} -ne 1 ] || [ ${#zips[@]} -ne 1 ]; then
             echo "Expected exactly one macOS ${{ matrix.arch }} DMG and ZIP."
             exit 1
           fi
 
-          gh release upload "$TAG_NAME" "${dmgs[@]}" "${zips[@]}" "${blockmaps[@]}" --clobber
+          gh release upload "$TAG_NAME" "${dmgs[@]}" "${zips[@]}" --clobber
 
-      - name: Stage macOS update manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ matrix.arch }}
-          path: client/release/*-mac.yml
-          if-no-files-found: error
-
-  publish-macos:
-    name: Publish macOS
-    needs:
-      - create-release
-      - build-macos
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag_name || github.ref }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-
-      - name: Install manifest tooling
-        working-directory: client
-        run: npm ci --ignore-scripts --omit=optional --prefer-offline --no-audit --no-fund
-
-      - name: Download macOS update manifests
-        uses: actions/download-artifact@v4
-        with:
-          pattern: macos-*
-          path: artifacts
-          merge-multiple: false
-
-      - name: Merge macOS update manifests
-        run: |
-          shopt -s nullglob
-          x64_manifests=(artifacts/macos-x64/*-mac.yml)
-          arm64_manifests=(artifacts/macos-arm64/*-mac.yml)
-
-          if [ ${#x64_manifests[@]} -ne 1 ] || [ ${#arm64_manifests[@]} -ne 1 ]; then
-            echo "Expected exactly one macOS update manifest for each architecture."
-            exit 1
-          fi
-
-          manifest_name="$(basename "${x64_manifests[0]}")"
-          if [ "$manifest_name" != "$(basename "${arm64_manifests[0]}")" ]; then
-            echo "macOS update manifest names do not match."
-            exit 1
-          fi
-
-          node client/scripts/merge-mac-update-manifests.cjs \
-            "${x64_manifests[0]}" \
-            "${arm64_manifests[0]}" \
-            "artifacts/$manifest_name"
-
-      - name: Upload merged macOS update manifest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
-        run: |
-          shopt -s nullglob
-          manifests=(artifacts/*-mac.yml)
-          if [ ${#manifests[@]} -ne 1 ]; then
-            echo "Expected exactly one merged macOS update manifest."
-            exit 1
-          fi
-          gh release upload "$TAG_NAME" "${manifests[@]}" --clobber
 
   dispatch-mirror-releases:
     name: Dispatch mirror Release sync
     needs:
       - build-windows
-      - publish-macos
+      - build-macos
     runs-on: ubuntu-latest
 
     steps:

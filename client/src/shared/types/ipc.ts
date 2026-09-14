@@ -1,6 +1,6 @@
 import type { AiHttpErrorPayload, ChatCompletionRequest, JsonCompletionRequest } from './ai';
 import type { DuplicateCheckWorkspacePatch, DuplicateCheckWorkspaceState, FileSelectionResult } from './bid';
-import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelInfoResult, ModelListResult, UpdateChannel } from './config';
+import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelInfoResult, ModelListResult } from './config';
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseIndexMutationResult, KnowledgeBaseMutationResult, KnowledgeBaseSearchRequest, KnowledgeBaseSearchPage, KnowledgeBaseRetryDocumentResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from './domains/knowledge-base';
 import type { RejectionCheckWorkspacePatch, RejectionCheckWorkspaceState, RejectionDocumentRole } from './domains/rejection-check';
 import type { ComplianceCheckDefinition, ComplianceCheckFileSelectionResult, ComplianceCheckInput, ComplianceCheckModelConfig, ComplianceCheckPingResult, ComplianceCheckResponse, ComplianceCheckState, ComplianceCheckTaskState, ComplianceCheckWorkspacePatch } from './domains/compliance-check';
@@ -135,31 +135,6 @@ export interface DeveloperExpansionReplaceTestResult {
   nextContent: string;
 }
 
-export interface LatestReleaseInfo {
-  version: string;
-  name: string;
-  body: string;
-  published_at: string;
-  html_url: string;
-  download_url?: string;
-  channel?: UpdateChannel;
-}
-
-export interface UpdateCheckResult {
-  enabled: boolean;
-  updateAvailable: boolean;
-  version?: string;
-  downloaded?: boolean;
-  failed?: boolean;
-  message?: string;
-  channel?: UpdateChannel;
-}
-
-export interface UpdateInstallResult {
-  success: boolean;
-  message?: string;
-}
-
 export interface PluginUpdateInfo {
   id: string;
   name: string;
@@ -251,40 +226,6 @@ export interface AgentQuestionAnswerPayload {
 
 export interface AgentQuestionAnswerResult {
   success: boolean;
-}
-
-export type LicenseStatusValue = 'missing' | 'active' | 'expired' | 'invalid' | 'invalidated' | 'machine_mismatch' | 'refresh_failed' | 'debug_disabled';
-
-export interface LicenseRuntimeStatus {
-  status: LicenseStatusValue | string;
-  plan: 'free' | 'personal_premium' | 'enterprise_premium' | string;
-  expiresAt: string;
-  licenseExpiresAt: string;
-  licenseStatus: string;
-  activationMode: 'online' | 'offline' | 'debug_disabled' | string;
-  sourceTrusted: boolean;
-  sourceTrustedText: string;
-  untrustedReason: string;
-  machineFingerprintHash: string;
-  fingerprintVersion: string;
-  buildTrusted: boolean;
-  buildChanged: boolean;
-  buildId: string;
-  keyId: string;
-  lastCheckedAt: string;
-  refreshError?: string;
-  config: {
-    freeLicenseDays: number;
-    expirePopupEnabled: boolean;
-    expirePopupDismissible: boolean;
-  };
-}
-
-export interface LicenseOfflineActivationResult {
-  success: boolean;
-  canceled?: boolean;
-  message: string;
-  status: LicenseRuntimeStatus;
 }
 
 export interface AgentRuntimeStatus {
@@ -499,45 +440,6 @@ export interface AgentSelfCheckReportExportResult {
   message: string;
 }
 
-export interface DonationPaymentConfig {
-  channel: 'xorpay' | 'afdian';
-  xorpay_min_order_amount: string;
-}
-
-export interface DonationCreateRequest {
-  amount: string;
-  nickname?: string;
-  email?: string;
-}
-
-export interface DonationIntent {
-  channel: 'xorpay' | 'afdian';
-  payment_url?: string | null;
-  instructions: string;
-  order_id?: number | null;
-  merchant_order_no?: string | null;
-  amount?: string | null;
-  min_amount?: string | null;
-  status?: string | null;
-  qr?: string | null;
-  qr_image_url?: string | null;
-  expires_in?: number | null;
-}
-
-export interface DonationOrderStatus {
-  merchant_order_no: string;
-  amount: string;
-  channel: 'xorpay' | 'afdian';
-  status: string;
-  paid_at: string | null;
-}
-
-export interface DonationPromptPayload {
-  reason: 'runtime' | 'word-export';
-  accumulatedRuntimeMs: number;
-  wordExportClicks: number;
-}
-
 export interface YibiaoBridge {
   appName: string;
   platform: string;
@@ -549,23 +451,7 @@ export interface YibiaoBridge {
   requiredOnlineServices: {
     getStatus: () => Promise<RequiredOnlineServicesStatus>;
   };
-  donation: {
-    getConfig: () => Promise<DonationPaymentConfig>;
-    createTip: (request: DonationCreateRequest) => Promise<DonationIntent>;
-    getOrderStatus: (merchantOrderNo: string) => Promise<DonationOrderStatus>;
-    finalizeOrderStatus: (merchantOrderNo: string) => Promise<DonationOrderStatus>;
-    onPrompt: (callback: (payload: DonationPromptPayload) => void) => () => void;
-    onPaid: (callback: () => void) => () => void;
-  };
-  getLatestVersion: () => Promise<LatestReleaseInfo>;
-  getUpdateDownloadUrl: () => Promise<string>;
   openExternal: (url: string) => Promise<{ success: boolean; message?: string }>;
-  checkUpdate: () => Promise<UpdateCheckResult>;
-  startUpdate: () => Promise<UpdateCheckResult>;
-  quitAndInstall: () => Promise<UpdateInstallResult>;
-  onUpdateProgress: (callback: (event: { percent: number }) => void) => () => void;
-  onUpdateDownloaded: (callback: (event: { version: string }) => void) => () => void;
-  onUpdateError: (callback: (event: { message: string }) => void) => () => void;
   onPluginUpdatesAvailable: (callback: (updates: PluginUpdateInfo[]) => void) => () => void;
   database: {
     getStatus: () => Promise<WorkspaceDatabaseStatus>;
@@ -580,12 +466,6 @@ export interface YibiaoBridge {
     listModels: (config?: ClientConfig) => Promise<ModelListResult>;
     getModelInfo: (modelName: string) => Promise<ModelInfoResult>;
     openConfigFolder: () => Promise<{ success: boolean; path: string }>;
-  };
-  license: {
-    getStatus: () => Promise<LicenseRuntimeStatus>;
-    refresh: () => Promise<LicenseRuntimeStatus>;
-    importOfflineFile: () => Promise<LicenseOfflineActivationResult>;
-    activateOfflineCode: (code: string) => Promise<LicenseOfflineActivationResult>;
   };
   ai: {
     chat: (request: ChatCompletionRequest) => Promise<string>;

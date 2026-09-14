@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import { ProgressBar, useToast } from '../../../shared/ui';
 import type { BackgroundTaskState, OutlineSelectionItem, SaveOutlineRequest, SaveOutlineSelectionRequest, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
 import { OUTLINE_CONTENT_MODE_LABELS } from '../../../shared/types';
@@ -401,14 +400,6 @@ function OutlineEditPage({
         outline_mode: nextOutlineMode,
         outline_expansion_mode: nextOutlineExpansionMode,
         word_control_options: wordControlOptions,
-      });
-      trackConfigUsage({
-        outline_mode: isExpansionWorkflow ? nextOutlineExpansionMode : nextOutlineMode,
-        word_control_enabled: wordControlOptions.minimumWords > 0 || wordControlOptions.maximumWords > 0 || wordControlOptions.sectionWords > 0,
-        minimum_words: wordControlOptions.minimumWords,
-        maximum_words: wordControlOptions.maximumWords,
-        section_words: wordControlOptions.sectionWords,
-        strict_section_words: wordControlOptions.strictSectionWords,
       });
       showToast('目录生成任务已在后台启动', 'success');
     } catch (error) {

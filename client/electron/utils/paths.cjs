@@ -8,14 +8,6 @@ function getConfigFilePath(app) {
   return path.join(getUserDataPath(app), 'user_config.json');
 }
 
-function getLicenseFilePath(app) {
-  return path.join(getUserDataPath(app), 'license.json');
-}
-
-function getDonationStateFilePath(app) {
-  return path.join(getUserDataPath(app), 'donation_state.json');
-}
-
 function getGpuStartupProbePath(app) {
   return path.join(getUserDataPath(app), 'gpu_startup_probe.json');
 }
@@ -248,14 +240,12 @@ module.exports = {
   getComplianceCheckerScriptPath,
   getComplianceCheckerSourceDir,
   getConfigFilePath,
-  getDonationStateFilePath,
   getGpuStartupProbePath,
   getFeasibilityReportDir,
   getFeasibilityReportSourcesDir,
   getGeneratedImagesDir,
   getImportedImagesDir,
   getKnowledgeBaseDir,
-  getLicenseFilePath,
   getOpenXmlHelperDebugExecutablePath,
   getOpenXmlHelperProjectPath,
   getOpenXmlJobDir,

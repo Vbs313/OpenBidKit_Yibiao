@@ -1,11 +1,10 @@
 
-import { useAppUpdate } from '../hooks/useAppUpdate';
 import { useSettingsConfig } from '../hooks/useSettingsConfig';
 import { useModelCatalog } from '../hooks/useModelCatalog';
 import { useEffect, useState } from 'react';
-import { FloatingToolbar, OfflineLicenseActivationDialog, useAutoAnswer, useToast } from '../../../shared/ui';
+import { FloatingToolbar, useAutoAnswer, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
-import type { AgentSelfCheckResult, ImageModelProvider, ImageModelStatus, LicenseRuntimeStatus, TextModelProvider } from '../../../shared/types';
+import type { AgentSelfCheckResult, ImageModelProvider, ImageModelStatus, TextModelProvider } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import { GeneralTab } from '../components/tabs/GeneralTab';
 import { TextModelTab } from '../components/tabs/TextModelTab';
@@ -20,8 +19,6 @@ import {
   settingsTabs,
   agentSelfCheckStatusMeta,
   agentDiagnosticStatusMeta,
-  updateChannelOptions,
-  getLicenseSourceLabel,
   textModelProviders,
   aiRequestModeOptions,
   textProviderDefaults,
@@ -53,18 +50,8 @@ import {
 } from '../model';
 
 function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
-  const {
-    updateStatus,
-    updateVersion,
-    updateBusy,
-    updateStatusText,
-    checkForUpdates,
-    installDownloadedUpdate,
-  } = useAppUpdate();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [appVersion, setAppVersion] = useState('');
-  const [licenseStatus, setLicenseStatus] = useState<LicenseRuntimeStatus | null>(null);
-  const [offlineLicenseDialogOpen, setOfflineLicenseDialogOpen] = useState(false);
   const [agentSelfCheckStatus, setAgentSelfCheckStatus] = useState<AgentSelfCheckUiStatus>('untested');
   const [agentSelfCheckResult, setAgentSelfCheckResult] = useState<AgentSelfCheckResult | null>(null);
   const [exportingAgentSelfCheckReport, setExportingAgentSelfCheckReport] = useState(false);
@@ -88,7 +75,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
     updateDeveloperMode,
     updateDeveloperTokenStatsAutoOpen,
     updateDeveloperAgentMonitorAutoOpen,
-    updateUpdateChannel,
     updateGpuHardwareAcceleration,
     updateAgentModeScenario,
     patchSavedAgentAutoAnswer,
@@ -104,8 +90,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
   useEffect(() => {
     void loadTextConfig();
     void window.yibiao?.getVersion().then(setAppVersion);
-    void window.yibiao?.license?.getStatus().then(setLicenseStatus).catch(() => setLicenseStatus(null));
-
   }, []);
 
   // 弹窗中的自动确认开关实时保存后，同步刷新设置页草稿和已保存基准。
@@ -399,7 +383,6 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
       ]
     : [];
 
-  const licenseSourceLabel = getLicenseSourceLabel(licenseStatus);
   const currentImageSizeOptions = getImageSizeOptions(state.imageModel.provider, state.imageModel.model_name);
   const currentImageSizeSupported = currentImageSizeOptions.some((option) => option.value === state.imageModel.image_size);
 
@@ -421,7 +404,7 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
           ))}
         </div>
 
-      {activeTab === 'general' && <GeneralTab openConfigFolder={openConfigFolder} openDeveloperAgentMonitorWindow={openDeveloperAgentMonitorWindow} openDeveloperTokenStatsWindow={openDeveloperTokenStatsWindow} state={state} updateChannelOptions={updateChannelOptions} updateDeveloperAgentMonitorAutoOpen={updateDeveloperAgentMonitorAutoOpen} updateDeveloperMode={updateDeveloperMode} updateDeveloperTokenStatsAutoOpen={updateDeveloperTokenStatsAutoOpen} updateGpuHardwareAcceleration={updateGpuHardwareAcceleration} updateUpdateChannel={updateUpdateChannel} />}
+      {activeTab === 'general' && <GeneralTab openConfigFolder={openConfigFolder} openDeveloperAgentMonitorWindow={openDeveloperAgentMonitorWindow} openDeveloperTokenStatsWindow={openDeveloperTokenStatsWindow} state={state} updateDeveloperAgentMonitorAutoOpen={updateDeveloperAgentMonitorAutoOpen} updateDeveloperMode={updateDeveloperMode} updateDeveloperTokenStatsAutoOpen={updateDeveloperTokenStatsAutoOpen} updateGpuHardwareAcceleration={updateGpuHardwareAcceleration} />}
 
       {activeTab === 'text-model' && <TextModelTab aiRequestModeOptions={aiRequestModeOptions} currentTextProviderDefault={currentTextProviderDefault} fetchTextModelInfo={fetchTextModelInfo} fetchTextModels={fetchTextModels} loadingModelInfo={loadingModelInfo} loadingModels={loadingModels} openTextProviderApiKeyPage={openTextProviderApiKeyPage} parseTextConcurrencyLimitInput={parseTextConcurrencyLimitInput} parseTextContextLengthInput={parseTextContextLengthInput} parseTextTemperatureInput={parseTextTemperatureInput} reasoningEfforts={reasoningEfforts} state={state} testTextConfig={testTextConfig} testingTextModel={testingTextModel} textModelProviders={textModelProviders} textModels={textModels} textProviderApiKeyUrls={textProviderApiKeyUrls} updateTextModelConfig={updateTextModelConfig} updateTextModelName={updateTextModelName} updateTextModelProvider={updateTextModelProvider} />}
 
@@ -431,13 +414,8 @@ function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
 
       {activeTab === 'agent' && <AgentTab agentAutoAnswerDraft={agentAutoAnswerDraft} agentDiagnosticStatusMeta={agentDiagnosticStatusMeta} agentSelfCheckResult={agentSelfCheckResult} agentSelfCheckStatus={agentSelfCheckStatus} currentAgentSelfCheckStatus={currentAgentSelfCheckStatus} exportAgentSelfCheckReport={exportAgentSelfCheckReport} exportingAgentSelfCheckReport={exportingAgentSelfCheckReport} runAgentSelfCheck={runAgentSelfCheck} setAgentAutoAnswerDraft={setAgentAutoAnswerDraft} state={state} updateAgentModeScenario={updateAgentModeScenario} />}
 
-      {activeTab === 'about' && <AboutTab appVersion={appVersion} checkForUpdates={checkForUpdates} installDownloadedUpdate={installDownloadedUpdate} licenseSourceLabel={licenseSourceLabel} licenseStatus={licenseStatus} setOfflineLicenseDialogOpen={setOfflineLicenseDialogOpen} updateBusy={updateBusy} updateStatus={updateStatus} updateStatusText={updateStatusText} />}
+      {activeTab === 'about' && <AboutTab appVersion={appVersion} />}
       </div>
-      <OfflineLicenseActivationDialog
-        open={offlineLicenseDialogOpen}
-        onOpenChange={setOfflineLicenseDialogOpen}
-        onActivated={setLicenseStatus}
-      />
       <FloatingToolbar groups={settingsToolbarGroups} label="设置保存工具条" />
     </div>
   );

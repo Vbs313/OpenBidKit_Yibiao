@@ -10,7 +10,6 @@
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useToast } from '../../../shared/ui';
-import { trackConfigUsage } from '../../../shared/analytics/analytics';
 import type { ClientConfig, ImageModelConfig } from '../../../shared/types';
 import type { SettingsPageState } from '../types';
 import {
@@ -128,7 +127,6 @@ export function useModelCatalog({
         },
       }));
       setSavedConfig(testedConfig);
-      trackConfigUsage({}, testedConfig);
       const previewSrc = result?.image_url || (result?.image_data ? `data:${result.mime_type || 'image/png'};base64,${result.image_data}` : '');
 
       if (previewSrc) {
@@ -163,7 +161,6 @@ export function useModelCatalog({
         },
       }));
       setSavedConfig(failedConfig);
-      trackConfigUsage({}, failedConfig);
       showToast(message, 'error');
     } finally {
       setTestingImageModel(false);

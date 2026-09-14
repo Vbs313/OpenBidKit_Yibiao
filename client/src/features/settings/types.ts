@@ -1,4 +1,4 @@
-import type { AgentModeScenariosConfig, ComponentsConfig, ImageModelConfig, ImageModelProfiles, TextModelConfig, TextModelProfiles, TextModelProvider, UpdateChannel } from '../../shared/types';
+import type { AgentModeScenariosConfig, ComponentsConfig, ImageModelConfig, ImageModelProfiles, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../shared/types';
 
 export interface SettingsPageState {
   textModel: Omit<TextModelConfig, 'context_length_limit' | 'concurrency_limit'> & {
@@ -20,12 +20,9 @@ export interface SettingsPageState {
     developer_mode: boolean;
     developer_token_stats_auto_open: boolean;
     developer_agent_monitor_auto_open: boolean;
-    update_channel: UpdateChannel;
     gpu_hardware_acceleration_enabled: boolean;
     gpu_hardware_acceleration_configured: boolean;
   };
 }
 
 export type AgentSelfCheckUiStatus = 'untested' | 'checking' | 'normal' | 'busy' | 'error';
-
-export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error' | 'disabled';
