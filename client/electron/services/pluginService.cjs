@@ -30,7 +30,6 @@ class PluginService {
     this.updatingPlugins = new Set();
     this.failedUpdates = new Map();
     this.pluginOperations = new Map();
-    this.activeBulkUpdatePromise = null;
   }
 
   /** 获取单个插件的独占操作权，内部子步骤可复用所有者令牌。 */
@@ -249,61 +248,6 @@ class PluginService {
     }
     
     return installed;
-  }
-
-  /** 检查所有已安装插件是否存在更高的市场版本。 */
-  async checkAvailableUpdates() {
-    const marketPlugins = await this.fetchAvailablePlugins();
-    const installedMap = new Map(this.getInstalledPlugins().map((plugin) => [plugin.id, plugin]));
-
-    return marketPlugins.flatMap((plugin) => {
-      const installed = installedMap.get(plugin.id);
-      if (!installed || comparePluginVersions(plugin.version, installed.version) <= 0) {
-        return [];
-      }
-      return [{
-        id: plugin.id,
-        name: plugin.name,
-        installedVersion: installed.version,
-        version: plugin.version,
-      }];
-    });
-  }
-
-  /** 依次升级当前所有可升级插件，并汇总每个插件的执行结果。 */
-  async updateAllAvailablePlugins() {
-    if (this.activeBulkUpdatePromise) {
-      throw new Error('插件批量升级正在进行，请勿重复执行');
-    }
-
-    const bulkUpdatePromise = (async () => {
-      const updates = await this.checkAvailableUpdates();
-      const results = [];
-
-      for (const plugin of updates) {
-        try {
-          await this.updatePlugin(plugin.id);
-          results.push({ ...plugin, success: true });
-        } catch (error) {
-          results.push({
-            ...plugin,
-            success: false,
-            message: error?.message || String(error),
-          });
-        }
-      }
-
-      return { updates, results };
-    })();
-
-    this.activeBulkUpdatePromise = bulkUpdatePromise;
-    try {
-      return await bulkUpdatePromise;
-    } finally {
-      if (this.activeBulkUpdatePromise === bulkUpdatePromise) {
-        this.activeBulkUpdatePromise = null;
-      }
-    }
   }
 
   /**
