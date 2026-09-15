@@ -11,10 +11,16 @@ const PREAMBLE_CHARS = 1800;
 const BODY_KEYWORD_SAMPLE_CHARS = 4000;
 
 const ATX_HEADING = /^(#{1,6})\s+(.+)$/;
-const NUMBERED_HEADING = /^(?:第[一二三四五六七八九十百千\d]+[章节篇部分](?:[、.．:\s]|$)|[一二三四五六七八九十]+[、.．]\s*\S|\d+(?:\.\d+){0,2}[.、．]\s+\S)/;
+// 真实招标常见：**第一章** **招标公告** / **第六章** **技术要求**
+const BOLD_CHAPTER = /^\*{1,2}第[一二三四五六七八九十百千\d]+[章节篇]\*{0,2}\s*(?:\*{1,2})?(.+?)(?:\*{1,2})?\s*$/;
+// 纯文本章节：第一章 招标公告（目录页常带「；」或页码，后面过滤）
+const PLAIN_CHAPTER = /^第[一二三四五六七八九十百千\d]+[章节篇]\s*[：:、.]?\s*(\S.*)?$/;
+// 中文序号小节：一、xxx（仅在后续有实质正文时才算章节）
+const CN_SECTION = /^[一二三四五六七八九十]+[、.．]\s*(\S{2,40})$/;
+const TOC_LINE_TAIL = /[；;。．]|\d{1,3}\s*$/;
 
 const TASK_TOC_KEYWORDS = {
-  projectOverview: ['项目概述', '项目简介', '项目背景', '工程概况', '采购项目', '项目名称', '总则', '概述', '项目概况'],
+  projectOverview: ['项目概述', '项目简介', '项目背景', '工程概况', '采购项目', '项目名称', '总则', '概述', '项目概况', '招标公告'],
   techRequirements: ['技术评分', '评标办法', '评分标准', '技术要求', '技术规格', '技术参数', '评审因素', '评审内容', '技术部分', '技术方案评分', '详细评审'],
   projectInfo: ['项目概况', '招标公告', '项目名称', '项目编号', '招标编号', '采购项目'],
   partAInfo: ['招标人', '采购人', '联系方式', '联系方式及'],
@@ -35,46 +41,90 @@ const TASK_TOC_KEYWORDS = {
 };
 
 const BROAD_TASK_IDS = new Set(['projectOverview', 'techRequirements']);
+const MIN_STRONG_BODY_CHARS = 120;
+const MIN_CN_SECTION_BODY_CHARS = 400;
 
-function isHeadingLine(line) {
-  const text = String(line || '');
-  if (ATX_HEADING.test(text)) return true;
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.length > 90) return false;
-  return NUMBERED_HEADING.test(trimmed);
+function stripMarkdownInline(text) {
+  return String(text || '')
+    .replace(/\*{1,3}/g, '')
+    .replace(/`/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function headingTitle(line) {
-  const atx = String(line || '').match(ATX_HEADING);
-  if (atx) return { title: atx[2].trim(), level: atx[1].length };
-  return { title: String(line || '').trim(), level: 2 };
+function classifyHeadingLine(line) {
+  const raw = String(line || '');
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 90) return null;
+
+  const atx = trimmed.match(ATX_HEADING);
+  if (atx) {
+    return { kind: 'strong', title: stripMarkdownInline(atx[2]), level: atx[1].length };
+  }
+
+  const bold = trimmed.match(BOLD_CHAPTER);
+  if (bold) {
+    const title = stripMarkdownInline(`第${trimmed.match(/第([一二三四五六七八九十百千\d]+)[章节篇]/)?.[1] || ''}章 ${bold[1] || ''}`);
+    return { kind: 'strong', title: title || stripMarkdownInline(trimmed), level: 1 };
+  }
+
+  // 目录页：「第一章 招标公告；」或带页码，不当正文章节
+  if (TOC_LINE_TAIL.test(trimmed) && /^第[一二三四五六七八九十百千\d]+[章节篇]/.test(trimmed)) {
+    return null;
+  }
+
+  const plain = trimmed.match(PLAIN_CHAPTER);
+  if (plain) {
+    const title = stripMarkdownInline(trimmed);
+    // 「第一章」单独成行且极短，多半是目录/页眉
+    if (title.length <= 6) return null;
+    return { kind: 'strong', title, level: 1 };
+  }
+
+  const cn = trimmed.match(CN_SECTION);
+  if (cn) {
+    return { kind: 'weak', title: stripMarkdownInline(trimmed), level: 3 };
+  }
+
+  return null;
 }
 
 function parseTenderToc(markdown) {
   const text = String(markdown || '');
   if (!text.trim()) return [];
   const lines = text.split('\n');
-  const chapters = [];
-  let current = null;
+  const candidates = [];
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (!isHeadingLine(line)) continue;
-    const { title, level } = headingTitle(line);
-    if (!title) continue;
-    if (current) {
-      current.endLine = index - 1;
-      chapters.push(current);
-    }
-    current = { title, level, startLine: index, endLine: lines.length - 1 };
+    const heading = classifyHeadingLine(lines[index]);
+    if (!heading) continue;
+    candidates.push({ ...heading, startLine: index });
   }
-  if (current) chapters.push(current);
-  return chapters.map((chapter) => ({
-    ...chapter,
-    bodyChars: Math.max(0, chapter.endLine - chapter.startLine)
-      ? lines.slice(chapter.startLine + 1, chapter.endLine + 1).join('\n').length
-      : 0,
-  }));
+
+  const chapters = [];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    const nextStart = i + 1 < candidates.length ? candidates[i + 1].startLine : lines.length;
+    const bodyChars = lines.slice(candidate.startLine + 1, nextStart).join('\n').length;
+    // 强标题：后面有实质正文才算章节；弱标题（一、二、）要求更多正文，避免把列表项当章
+    if (candidate.kind === 'strong' && bodyChars < MIN_STRONG_BODY_CHARS) continue;
+    if (candidate.kind === 'weak' && bodyChars < MIN_CN_SECTION_BODY_CHARS) continue;
+    chapters.push({
+      title: candidate.title,
+      level: candidate.level,
+      startLine: candidate.startLine,
+      endLine: nextStart - 1,
+      bodyChars,
+      kind: candidate.kind,
+    });
+  }
+
+  // 若已有多枚「第X章」强标题，丢掉夹在其中的弱列表标题，避免碎片化
+  const strongCount = chapters.filter((c) => c.kind === 'strong' && /^第.+章/.test(c.title)).length;
+  if (strongCount >= 5) {
+    return chapters.filter((c) => c.kind === 'strong');
+  }
+  return chapters;
 }
 
 function chapterText(lines, chapter) {
