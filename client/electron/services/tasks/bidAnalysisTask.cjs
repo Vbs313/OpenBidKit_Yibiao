@@ -2,6 +2,7 @@ const { buildBidSectionContextHint } = require('./../../utils/bidSectionContext.
 const { mergeSegmentedAiResults } = require('./../../utils/segmentedAiResultMerger.cjs');
 const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
 const { buildTaskExcerpt } = require('./bidAnalysisToc.cjs');
+const { detectProcurementMethod, buildProcurementContextMessage } = require('./procurementMethod.cjs');
 
 const PROMPT_CACHE_WARMUP_DELAY_MS = 5000;
 const MARKDOWN_MISSING_RESULT = '未提取到';
@@ -16,7 +17,8 @@ const stableSystemPrompt = `你是专业的投标资料分析助手。请严格�
 1. 保持信息全面、准确，优先使用用户提供上下文中的内容；除非具体任务明确要求或允许根据经验补充，否则不要自行编造
 2. 已提取到相关内容但局部信息没有提及时，明确写“没有提及”
 3. 只输出最终结果，不输出过程、提示语或客套话
-4. 始终使用简体中文`;
+4. 始终使用简体中文
+5. 本助手兼容公开招标、竞争性谈判、竞争性磋商、询价等采购文件；“投标文件/响应文件”“招标人/采购人”“开标/递交”等同义表述按同一概念理解`;
 
 function jsonTask(title, goals, outputJson) {
   return `任务：${title}
@@ -35,24 +37,24 @@ ${outputJson}
 }
 
 function buildInvalidBidAndRejectionItemsPrompt() {
-  return `任务：提取并分析招标文件中的“无效投标”和“废标项”。
+  return `任务：提取并分析采购/招标文件中的“无效投标”和“废标项”（竞争性谈判、磋商文件中对应“无效响应”“否决响应”等表述）。
 
 概念边界：
-1. “无效投标”指投标人、投标文件、签章密封、递交时间、报价、保证金、资格条件、实质性响应等原因导致投标被认定为无效、否决、不予受理或按无效响应处理的情形。
-2. “废标项”指可能导致项目废标、采购失败、重新招标、终止评审、有效投标人不足或实质性响应不足的条款或风险项。
-3. 招标文件使用“否决投标”“投标无效”“不予受理”“无效响应”“重大偏差”“实质性偏离”“废标情形”等同义表达时，也要按上述边界归类。
+1. “无效投标”指投标人/供应商、投标/响应文件、签章密封、递交时间、报价、保证金、资格条件、实质性响应等原因导致投标/响应被认定为无效、否决、不予受理或按无效响应处理的情形。
+2. “废标项”指可能导致项目废标/采购失败、重新采购、终止评审、有效供应商不足或实质性响应不足的条款或风险项。
+3. 采购文件使用“否决投标”“投标无效”“无效响应”“否决响应”“重大偏差”“实质性偏离”“废标情形”等同义表达时，也要按上述边界归类。
 
 输出要求：
 1. 必须明确区分“无效投标”和“废标项”。
-2. “招标文件中明确提到的”只能提取招标文件中明确出现或同义表达的内容，尽量保留招标文件中的关键句；如果没有提及，写“招标文件未提及”。
-3. “此类标书还可能涉及的”需要根据你的经验，补充招标文件中未明确提及、但结合本招标文件类型和招投标经验判断非常重要的高风险遗漏项。
+2. “采购文件中明确提到的”只能提取文件中明确出现或同义表达的内容，尽量保留文件中的关键句；如果没有提及，写“采购文件未提及”。
+3. “此类标书还可能涉及的”需要根据你的经验，补充采购文件中未明确提及、但结合本采购类型和招投标经验判断非常重要的高风险遗漏项。
 4. 不要罗列所有常见可能项，不要输出泛泛的通用清单；每个小节最多输出 3-5 条。
 5. 不要使用表格，使用 Markdown 列表。
 6. 仅输出下方格式，不要输出解释、过程或额外段落。
 7. 不要输出三重引号、代码块标记或其他格式包裹符。
 
 输出格式：
-# 招标文件中明确提到的
+# 采购文件中明确提到的
 
 ## 无效投标
 - ...
@@ -200,39 +202,42 @@ function isMissingMarkdownResult(task, content) {
   return task.output === 'markdown' && String(content || '').trim() === MARKDOWN_MISSING_RESULT;
 }
 
-function buildTenderContextMessages(fileContent, sectionHint) {
+function buildTenderContextMessages(fileContent, sectionHint, procurementMessage) {
   const messages = [
     { role: 'system', content: stableSystemPrompt },
   ];
+  if (procurementMessage) {
+    messages.push({ role: 'system', content: procurementMessage });
+  }
   if (sectionHint) {
     messages.push({ role: 'system', content: sectionHint });
   }
-  messages.push({ role: 'user', content: `以下是完整招标文件。后续任务需要基于这份招标文件完成；如后续消息提供补充上下文，请按具体任务要求综合使用：\n\n${fileContent}` });
+  messages.push({ role: 'user', content: `以下是完整采购/招标文件。后续任务需要基于这份文件完成；如后续消息提供补充上下文，请按具体任务要求综合使用：\n\n${fileContent}` });
   return messages;
 }
 
-function buildMessages(fileContent, task, sectionHint) {
-  const messages = buildTenderContextMessages(fileContent, sectionHint);
+function buildMessages(fileContent, task, sectionHint, procurementMessage) {
+  const messages = buildTenderContextMessages(fileContent, sectionHint, procurementMessage);
   messages.push(
     { role: 'user', content: buildTaskPrompt(task) },
   );
   return messages;
 }
 
-async function runSingleBidAnalysisPromptTask({ aiService, fileContent, task, sectionHint, logTitle }) {
+async function runSingleBidAnalysisPromptTask({ aiService, fileContent, task, sectionHint, procurementMessage, logTitle }) {
   return aiService.chat({
-    messages: buildMessages(fileContent, task, sectionHint),
+    messages: buildMessages(fileContent, task, sectionHint, procurementMessage),
     response_format: task.output === 'json' ? { type: 'json_object' } : undefined,
     logTitle: logTitle || `招标解析-${task.label}`,
   });
 }
 
-async function runBidAnalysisPromptTaskOnce({ aiService, fileContent, fileSegments, task, sectionHint }) {
+async function runBidAnalysisPromptTaskOnce({ aiService, fileContent, fileSegments, task, sectionHint, procurementMessage }) {
   const segments = Array.isArray(fileSegments) && fileSegments.length
     ? fileSegments
     : splitUserTextByContextLimit(fileContent, typeof aiService.getConfig === 'function' ? aiService.getConfig() : {});
   if (segments.length <= 1) {
-    return runSingleBidAnalysisPromptTask({ aiService, fileContent: segments[0] || fileContent, task, sectionHint });
+    return runSingleBidAnalysisPromptTask({ aiService, fileContent: segments[0] || fileContent, task, sectionHint, procurementMessage });
   }
 
   const segmentResults = await Promise.all(segments.map(async (segmentContent, index) => ({
@@ -243,6 +248,7 @@ async function runBidAnalysisPromptTaskOnce({ aiService, fileContent, fileSegmen
       fileContent: segmentContent,
       task,
       sectionHint,
+      procurementMessage,
       logTitle: `招标解析-${task.label}-第${index + 1}段`,
     }),
   })));
@@ -266,13 +272,13 @@ async function runBidAnalysisPromptTask(options) {
   return runBidAnalysisPromptTaskOnce(options);
 }
 
-function runInvalidBidAndRejectionItemsExtraction({ aiService, fileContent, sectionHint }) {
+function runInvalidBidAndRejectionItemsExtraction({ aiService, fileContent, sectionHint, procurementMessage }) {
   const task = getBidAnalysisTaskById('discardedBids');
   if (!task) {
     throw new Error('未找到无效投标与废标项解析任务');
   }
 
-  return runBidAnalysisPromptTask({ aiService, fileContent, task, sectionHint });
+  return runBidAnalysisPromptTask({ aiService, fileContent, task, sectionHint, procurementMessage });
 }
 
 async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, checkpointTask, payload }) {
@@ -304,6 +310,8 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, check
   const sectionHint = buildBidSectionContextHint(selectedSection, {
     hasSelectedSection: storedPlanForHint.bidSectionMode === 'multiple' && Boolean(selectedSectionId),
   });
+  const procurementMethod = detectProcurementMethod(fileContent);
+  const procurementMessage = buildProcurementContextMessage(procurementMethod);
   const currentConfig = typeof aiService.getConfig === 'function' ? aiService.getConfig() : {};
   const fileSegments = splitUserTextByContextLimit(fileContent, currentConfig);
   const forceRerun = payload.force_rerun === true || payload.forceRerun === true;
@@ -330,7 +338,8 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, check
     : forceRerun
       ? '开始重新解析全部招标文件解析项。'
       : '开始解析招标文件。';
-  const initialLogs = [initialMessage];
+  const methodLog = `采购方式识别：${procurementMethod.label}（置信度 ${procurementMethod.confidence}）。`;
+  const initialLogs = [methodLog, initialMessage];
   let initialPartial = { bidAnalysisMode: mode, bidAnalysisSelectedTaskIds: config.taskIds };
   let initialEventPatch;
   let currentTasks = { ...(storedPlanForHint.bidAnalysisTasks || {}) };
@@ -407,6 +416,7 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, check
       fileSegments: taskFileSegments,
       task,
       sectionHint,
+      procurementMessage,
     });
     const trimmedContent = String(content || '').trim();
     if (!trimmedContent) {
@@ -480,4 +490,6 @@ module.exports = {
   getBidAnalysisTasks,
   runInvalidBidAndRejectionItemsExtraction,
   runBidAnalysisTask,
+  detectProcurementMethod,
+  buildProcurementContextMessage,
 };
