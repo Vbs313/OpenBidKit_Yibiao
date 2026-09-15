@@ -111,11 +111,23 @@ function htmlTableToGfm(tableHtml) {
   return renderGfmTable(rows);
 }
 
+// 有 </table> 但开标签丢失的残片（DOC/转换截断常见）
+const ORPHAN_TABLE_FRAGMENT = /(?:<t(?:body|head|r|d|h)\b[\s\S]*?)<\/table>/gi;
+
 function convertHtmlTablesToGfm(text) {
-  return String(text || '').replace(HTML_TABLE, (match) => {
+  let next = String(text || '').replace(HTML_TABLE, (match) => {
     const table = htmlTableToGfm(match);
     return table ? `\n\n${table}\n\n` : '';
   });
+  // 再清孤立表格残片：补全 <table> 包裹后再转 GFM
+  next = next.replace(ORPHAN_TABLE_FRAGMENT, (match) => {
+    if (/<table\b/i.test(match)) return match;
+    const table = htmlTableToGfm(`<table>${match}</table>`);
+    return table ? `\n\n${table}\n\n` : '';
+  });
+  // 清掉转换后残留的孤立闭合标签
+  next = next.replace(/<\/(?:td|tr|tbody|thead|table)>\s*/gi, '');
+  return next;
 }
 
 function countGfmTableRows(text) {

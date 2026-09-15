@@ -42,7 +42,7 @@ test('strip control chars and page markers keep tab newline', () => {
   ].join('\n');
   const { markdown, metrics } = normalizeWorkspaceMarkdown(withCnMarkers);
   assert.ok(!markdown.includes(String.fromCharCode(1)));
-  assert.ok(!markdown.includes('page 12'.replace('page', '第 ').replace(' 12', ' 12 页').slice(0, 0) + '第 12 页'));
+  assert.ok(!markdown.includes('第 12 页'));
   assert.ok(!markdown.includes('第 3 页'));
   assert.ok(markdown.includes('title left'));
   assert.ok(markdown.includes('body\tcol'));
@@ -78,4 +78,18 @@ test('collapse extra blank lines', () => {
 test('dropPageMarkerLines only removes matching lines', () => {
   const text = dropPageMarkerLines('page1\nkeep\n### 第 2 页/共 9 页\nend');
   assert.equal(text, 'page1\nkeep\nend');
+});
+
+test('orphan table fragment without opening table tag converts to GFM', () => {
+  const input = [
+    '正文开始',
+    '<tr><td><p>11</p></td><td><p>解释权</p></td></tr>',
+    '<tr><td colspan="2"><p>本采购文件由采购人解释。</p></td></tr></tbody></table>',
+    '正文结束',
+  ].join('\n');
+  const { markdown, metrics } = normalizeWorkspaceMarkdown(input);
+  assert.equal(metrics.htmlTableMarkers, 0);
+  assert.match(markdown, /\|11\|解释权\|/);
+  assert.ok(markdown.includes('正文开始'));
+  assert.ok(markdown.includes('正文结束'));
 });
