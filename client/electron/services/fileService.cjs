@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { dialog } = require('electron');
 const AdmZip = require('adm-zip');
 const { formatDocumentParseError, isLibreOfficeMissingError, normalizeDocumentParseError } = require('./documentParseErrors.cjs');
+const { normalizeWorkspaceMarkdown } = require('./markdown/normalizeWorkspaceMarkdown.cjs');
 const { compactLogError, createDeveloperLogger, textMetrics } = require('../utils/developerLog.cjs');
 const { createDocumentImport } = require('./documentImport.cjs');
 const { getImportedImagesDir } = require('../utils/paths.cjs');
@@ -566,14 +567,17 @@ async function parseDocumentWithConfig(app, filePath, config, options = {}) {
     });
     throw normalizeDocumentParseError(error, filePath);
   }
-  const result = preserveImages ? markdown : stripMarkdownImages(markdown);
+  const parsed = preserveImages ? markdown : stripMarkdownImages(markdown);
+  // 三种解析出口统一收敛到工作区 Markdown 方言（GFM 表、无控制字符/页码行）。
+  const normalized = normalizeWorkspaceMarkdown(parsed);
   developerLogger.write('file.parse.completed', {
     duration_ms: Date.now() - startedAt,
     parser: summarizeParserForLog(parser, options),
     asset_count: assets?.index || 0,
-    markdown_metrics: textMetrics(result),
+    markdown_metrics: textMetrics(normalized.markdown),
+    normalize_metrics: normalized.metrics,
   });
-  return result;
+  return normalized.markdown;
 }
 
 function createFileService({ app, configStore } = {}) {
