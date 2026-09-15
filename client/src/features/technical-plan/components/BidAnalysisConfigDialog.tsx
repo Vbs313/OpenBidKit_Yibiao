@@ -58,8 +58,9 @@ export function BidAnalysisConfigDialog({
           disabled={required || taskRunning}
           onChange={() => onToggleDraftTask(definition.id)}
         />
-        <span>
+        <span className="bid-analysis-config-item-text">
           <strong>{definition.label}</strong>
+          {definition.description ? <small>{definition.description}</small> : null}
         </span>
         {required && <em>必选</em>}
       </label>

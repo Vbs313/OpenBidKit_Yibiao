@@ -58,8 +58,8 @@ export const bidAnalysisTasks: BidAnalysisTaskDefinition[] = [
   },
   {
     id: 'techRequirements',
-    label: '技术评分要求',
-    description: '提取技术评分项、权重分值、评分标准和原文位置。',
+    label: '技术评分项',
+    description: '提取技术评分项、权重分值、评分标准；供后续目录生成映射评分大项。',
     required: true,
     output: 'markdown',
     buildTaskPrompt: () => `任务：提取技术评分要求。

@@ -763,11 +763,27 @@
   min-width: 0;
 }
 
+.bid-analysis-config-item-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
 .bid-analysis-config-item strong {
   display: block;
   overflow: hidden;
   color: var(--yb-text);
   font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bid-analysis-config-item-text small {
+  display: block;
+  overflow: hidden;
+  color: var(--yb-text-soft);
+  font-size: 12px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

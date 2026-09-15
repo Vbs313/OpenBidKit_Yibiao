@@ -81,7 +81,7 @@ const tasks = [
 工作要求：保持信息全面准确，尽量使用招标文件中的内容；只关注与项目实施有关的内容，不提取商务信息；直接返回整理好的项目概述。`,
   },
   {
-    id: 'techRequirements', label: '技术评分要求', required: true, output: 'markdown', description: '提取技术评分项、权重分值、评分标准和采购文件中的位置。',
+    id: 'techRequirements', label: '技术评分项', required: true, output: 'markdown', description: '提取技术评分项、权重分值、评分标准和采购文件中的位置。',
     prompt: () => `任务：提取技术评分信息，并按语义区分“技术评分项”和“技术评分要求”。
 
 本助手兼容公开招标、竞争性谈判、竞争性磋商等采购文件。评分信息可能出现在：
