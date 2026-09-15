@@ -1615,6 +1615,8 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     removeWorkspacePathSync,
     getManagedTenderOriginalRelativePath,
     clearBidTemplate,
+    readMetaRow,
+    resolveMarkdownPath,
   });
 
 
