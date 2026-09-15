@@ -168,6 +168,72 @@ function normalizeWorkspaceMarkdown(input) {
   };
 }
 
+const STRUCTURED_SOURCE_EXTS = new Set(['.docx', '.doc', '.wps', '.pdf', '.ppt', '.pptx']);
+const TABLE_HINT_PATTERN = /评分|评审因素|评审内容|分值|采购清单|技术参数|规格要求|报价清单|分项报价|废标|无效投标|符合性/;
+const MIN_SUSPECT_CHARS = 4000;
+const MIN_DENSE_TAB_LINES = 3;
+
+/**
+ * 导入后质量探测：判断是否建议升级到 MinerU 精准解析。
+ * 不改动正文，只产出 level/reason/文案，供导入消息与 UI 提示使用。
+ */
+function assessParseQuality(markdown, { provider, sourcePath } = {}) {
+  const text = String(markdown || '');
+  const gfmTableRows = countGfmTableRows(text);
+  const htmlTableMarkers = countHtmlTableMarkers(text);
+  const chars = text.length;
+  const ext = String(sourcePath || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || '';
+  const isLocal = !provider || provider === 'local';
+  const isStructuredSource = STRUCTURED_SOURCE_EXTS.has(ext);
+  const hasTableHint = TABLE_HINT_PATTERN.test(text);
+  const denseTabLines = text
+    .split('\n')
+    .filter((line) => (line.match(/\t/g) || []).length >= 3).length;
+
+  if (htmlTableMarkers > 0) {
+    return {
+      level: 'poor',
+      reason: 'html_table_residual',
+      suggestMinerU: true,
+      gfmTableRows,
+      htmlTableMarkers,
+      chars,
+      message: '解析结果仍残留 HTML 表格标记，表格结构可能不完整，建议改用 MinerU 精准解析',
+    };
+  }
+
+  if (isLocal && isStructuredSource && gfmTableRows === 0 && chars >= MIN_SUSPECT_CHARS && (hasTableHint || denseTabLines >= MIN_DENSE_TAB_LINES)) {
+    return {
+      level: 'warn',
+      reason: 'no_gfm_tables',
+      suggestMinerU: true,
+      gfmTableRows,
+      htmlTableMarkers,
+      chars,
+      message: '本地解析未识别到表格，但正文含评分/清单类结构，建议改用 MinerU 精准解析',
+    };
+  }
+
+  return {
+    level: 'ok',
+    reason: 'ok',
+    suggestMinerU: false,
+    gfmTableRows,
+    htmlTableMarkers,
+    chars,
+    message: '',
+  };
+}
+
+function pickWorstParseQuality(items) {
+  const list = (Array.isArray(items) ? items : []).filter(Boolean);
+  if (!list.length) {
+    return assessParseQuality('');
+  }
+  const rank = { ok: 0, warn: 1, poor: 2 };
+  return list.reduce((worst, current) => (rank[current.level] > rank[worst.level] ? current : worst), list[0]);
+}
+
 module.exports = {
   normalizeWorkspaceMarkdown,
   convertHtmlTablesToGfm,
@@ -175,4 +241,6 @@ module.exports = {
   dropPageMarkerLines,
   countGfmTableRows,
   countHtmlTableMarkers,
+  assessParseQuality,
+  pickWorstParseQuality,
 };

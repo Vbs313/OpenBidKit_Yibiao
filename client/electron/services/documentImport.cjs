@@ -3,6 +3,7 @@
 // 合并成一个入口后 fileService 只留薄封装。
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { assessParseQuality, pickWorstParseQuality } = require('./markdown/normalizeWorkspaceMarkdown.cjs');
 
 function createDocumentImport({
   app,
@@ -79,6 +80,7 @@ const config = configStore ? configStore.load() : { components: { file_parser: {
           parser_provider: parser.provider,
         parser_label: parserLabels[parser.provider] || '本地解析',
         fallback_to_local: Boolean(parser.fallbackToLocal),
+        quality: assessParseQuality(fileContent, { provider: parser.provider, sourcePath: filePath }),
       });
     }
 
@@ -87,8 +89,10 @@ const config = configStore ? configStore.load() : { components: { file_parser: {
     }
 
     const fallbackToLocal = parsedDocuments.some((item) => item.fallback_to_local);
+    const quality = pickWorstParseQuality(parsedDocuments.map((item) => item.quality));
     const messageParts = [multiple ? `文件解析完成，共 ${parsedDocuments.length} 份` : '文件解析完成'];
     if (fallbackToLocal) messageParts.push('当前格式已自动使用本地解析');
+    if (quality.suggestMinerU && quality.message) messageParts.push(quality.message);
     if (errors.length) messageParts.push(`失败 ${errors.length} 份`);
     const first = parsedDocuments[0];
 
@@ -99,6 +103,7 @@ const config = configStore ? configStore.load() : { components: { file_parser: {
       file_name: first.file_name,
       parser_provider: first.parser_provider,
       parser_label: first.parser_label,
+      quality,
       documents: parsedDocuments,
       errors,
     };

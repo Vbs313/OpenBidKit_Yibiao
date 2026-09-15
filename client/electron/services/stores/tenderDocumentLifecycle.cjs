@@ -12,6 +12,7 @@ const {
   now,
   safeJsonParse,
 } = require('./storeUtils.cjs');
+const { pickWorstParseQuality } = require('../markdown/normalizeWorkspaceMarkdown.cjs');
 
 function createTenderDocumentLifecycle(deps) {
   const {
@@ -166,6 +167,11 @@ function createTenderDocumentLifecycle(deps) {
     if (result.fallbackToLocal === true || mergedDocuments.some((item) => item.fallback_to_local)) {
       messageParts.push('当前格式已自动使用本地解析');
     }
+    const importQuality = result.quality
+      || pickWorstParseQuality(addedDocuments.map((item) => item.quality));
+    if (importQuality?.suggestMinerU && importQuality.message) {
+      messageParts.push(importQuality.message);
+    }
     if (skippedCount > 0) messageParts.push(`跳过 ${skippedCount} 份重复文件`);
     appendImportFailureParts(messageParts, result.errors);
 
@@ -278,6 +284,7 @@ function createTenderDocumentLifecycle(deps) {
         success: true,
         message: result.message || '原方案已导入',
         markdown,
+        quality: result.quality,
       };
     } catch (error) {
       if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true });
