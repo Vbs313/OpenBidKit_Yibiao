@@ -11,33 +11,34 @@ const PREAMBLE_CHARS = 1800;
 const BODY_KEYWORD_SAMPLE_CHARS = 4000;
 
 const ATX_HEADING = /^(#{1,6})\s+(.+)$/;
-// 真实招标常见：**第一章** **招标公告** / **第六章** **技术要求**
-const BOLD_CHAPTER = /^\*{1,2}第[一二三四五六七八九十百千\d]+[章节篇]\*{0,2}\s*(?:\*{1,2})?(.+?)(?:\*{1,2})?\s*$/;
-// 纯文本章节：第一章 招标公告（目录页常带「；」或页码，后面过滤）
-const PLAIN_CHAPTER = /^第[一二三四五六七八九十百千\d]+[章节篇]\s*[：:、.]?\s*(\S.*)?$/;
+// 真实招标常见：**第一章** **招标公告** / **第六章** **技术要求** / 第一部分竞争性谈判公告
+const BOLD_CHAPTER = /^\*{1,2}第[一二三四五六七八九十百千\d]+[章节篇部分]\*{0,2}\s*(?:\*{1,2})?(.+?)(?:\*{1,2})?\s*$/;
+// 纯文本章节：第一章 招标公告 / 第一部分竞争性谈判公告（目录页常带「；」或页码，后面过滤）
+const PLAIN_CHAPTER = /^第[一二三四五六七八九十百千\d]+[章节篇部分]\s*[：:、.]?\s*(\S.*)?$/;
 // 中文序号小节：一、xxx（仅在后续有实质正文时才算章节）
 const CN_SECTION = /^[一二三四五六七八九十]+[、.．]\s*(\S{2,40})$/;
 const TOC_LINE_TAIL = /[；;。．]|\d{1,3}\s*$/;
+const TOC_LEADER_DOTS = /\.{5,}/;
 
 const TASK_TOC_KEYWORDS = {
   projectOverview: ['项目概述', '项目简介', '项目背景', '工程概况', '采购项目', '项目名称', '总则', '概述', '项目概况', '招标公告'],
-  techRequirements: ['技术评分', '评标办法', '评分标准', '技术要求', '技术规格', '技术参数', '评审因素', '评审内容', '技术部分', '技术方案评分', '详细评审'],
-  projectInfo: ['项目概况', '招标公告', '项目名称', '项目编号', '招标编号', '采购项目'],
+  techRequirements: ['技术评分', '评标办法', '评分标准', '技术要求', '技术规格', '技术参数', '评审因素', '评审内容', '技术部分', '技术方案评分', '详细评审', '采购内容', '总体要求', '实施集成', '技术规格、参'],
+  projectInfo: ['项目概况', '招标公告', '项目名称', '项目编号', '招标编号', '采购项目', '项目基本情况', '竞争性谈判公告'],
   partAInfo: ['招标人', '采购人', '联系方式', '联系方式及'],
-  deliveryAndServiceRequirements: ['交货', '工期', '实施周期', '服务要求', '验收', '质保', '售后', '培训', '交付', '服务期限', '实施要求'],
-  procurementList: ['采购清单', '采购需求', '技术参数', '规格', '货物需求', '服务内容', '工程量', '采购内容', '需求一览'],
-  responseFileRequirements: ['投标文件', '响应文件', '文件编制', '投标文件编制', '格式', '签章', '密封', '递交', '响应文件格式'],
+  deliveryAndServiceRequirements: ['交货', '工期', '实施周期', '服务要求', '验收', '质保', '售后', '培训', '交付', '服务期限', '实施要求', '实施集成', '项目实施'],
+  procurementList: ['采购清单', '采购需求', '技术参数', '规格', '货物需求', '服务内容', '工程量', '采购内容', '需求一览', '采购标的'],
+  responseFileRequirements: ['投标文件', '响应文件', '文件编制', '投标文件编制', '格式', '签章', '密封', '递交', '响应文件格式', '谈判响应文件'],
   agentInfo: ['代理机构', '采购代理', '招标代理'],
-  keyInfo: ['招标公告', '投标截止', '开标时间', '获取招标文件', '投标须知前附表'],
+  keyInfo: ['招标公告', '投标截止', '开标时间', '获取招标文件', '投标须知前附表', '谈判须知', '提交响应文件', '竞争性谈判公告'],
   marginInfo: ['保证金', '投标保证金', '履约保证金'],
-  qualificationReview: ['资格性审查', '投标人资格', '资格条件', '资格审查', '资格要求'],
-  complianceCheck: ['符合性', '响应性审查', '无效投标', '废标', '否决投标'],
-  openBid: ['开标', '开标仪式', '开标地点', '开标程序'],
-  evaluationBid: ['评标', '评标办法', '评标委员会', '评标程序'],
-  businessScoring: ['商务评分', '商务部分', '价格分', '报价评分', '商务评审'],
-  discardedBids: ['无效投标', '废标', '否决投标', '废标条款', '否决', '无效标'],
-  signingProcess: ['合同授予', '中标', '合同签订', '履约', '合同主要条款'],
-  terminationCondition: ['合同解除', '违约', '不可抗力', '争议解决', '合同终止'],
+  qualificationReview: ['资格性审查', '投标人资格', '资格条件', '资格审查', '资格要求', '申请人的资格'],
+  complianceCheck: ['符合性', '响应性审查', '无效投标', '废标', '否决投标', '无效响应'],
+  openBid: ['开标', '开标仪式', '开标地点', '开标程序', '谈判', '响应文件递交'],
+  evaluationBid: ['评标', '评标办法', '评标委员会', '评标程序', '谈判小组', '谈判办法', '评审', '谈判须知'],
+  businessScoring: ['商务评分', '商务部分', '价格分', '报价评分', '商务评审', '最后报价', '谈判报价'],
+  discardedBids: ['无效投标', '废标', '否决投标', '废标条款', '否决', '无效标', '无效响应'],
+  signingProcess: ['合同授予', '中标', '合同签订', '履约', '合同主要条款', '成交通知', '采购合同'],
+  terminationCondition: ['合同解除', '违约', '不可抗力', '争议解决', '合同终止', '违约责任'],
 };
 
 const BROAD_TASK_IDS = new Set(['projectOverview', 'techRequirements']);
@@ -64,12 +65,14 @@ function classifyHeadingLine(line) {
 
   const bold = trimmed.match(BOLD_CHAPTER);
   if (bold) {
-    const title = stripMarkdownInline(`第${trimmed.match(/第([一二三四五六七八九十百千\d]+)[章节篇]/)?.[1] || ''}章 ${bold[1] || ''}`);
+    const unit = trimmed.match(/第([一二三四五六七八九十百千\d]+)[章节篇部分]/);
+    const title = stripMarkdownInline(`第${unit?.[1] || ''}${unit?.[0]?.slice(-1) || '章'} ${bold[1] || ''}`);
     return { kind: 'strong', title: title || stripMarkdownInline(trimmed), level: 1 };
   }
 
-  // 目录页：「第一章 招标公告；」或带页码，不当正文章节
-  if (TOC_LINE_TAIL.test(trimmed) && /^第[一二三四五六七八九十百千\d]+[章节篇]/.test(trimmed)) {
+  // 目录页：「第一章 招标公告；」「第一部分… 1」或带引导点，不当正文章节
+  if ((TOC_LINE_TAIL.test(trimmed) || TOC_LEADER_DOTS.test(trimmed))
+    && /^第[一二三四五六七八九十百千\d]+[章节篇部分]/.test(trimmed)) {
     return null;
   }
 
@@ -104,9 +107,21 @@ function parseTenderToc(markdown) {
   const chapters = [];
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
-    const nextStart = i + 1 < candidates.length ? candidates[i + 1].startLine : lines.length;
+    // 强章节正文算到下一个强标题：弱标题（一、二、）是小节，不能把「第一部分」切碎
+    let nextStart = lines.length;
+    for (let j = i + 1; j < candidates.length; j += 1) {
+      const next = candidates[j];
+      if (candidate.kind === 'strong') {
+        if (next.kind === 'strong') {
+          nextStart = next.startLine;
+          break;
+        }
+        continue;
+      }
+      nextStart = next.startLine;
+      break;
+    }
     const bodyChars = lines.slice(candidate.startLine + 1, nextStart).join('\n').length;
-    // 强标题：后面有实质正文才算章节；弱标题（一、二、）要求更多正文，避免把列表项当章
     if (candidate.kind === 'strong' && bodyChars < MIN_STRONG_BODY_CHARS) continue;
     if (candidate.kind === 'weak' && bodyChars < MIN_CN_SECTION_BODY_CHARS) continue;
     chapters.push({
@@ -119,9 +134,9 @@ function parseTenderToc(markdown) {
     });
   }
 
-  // 若已有多枚「第X章」强标题，丢掉夹在其中的弱列表标题，避免碎片化
-  const strongCount = chapters.filter((c) => c.kind === 'strong' && /^第.+章/.test(c.title)).length;
-  if (strongCount >= 5) {
+  // 若已有多枚「第X章/部分」强标题，丢掉夹在其中的弱列表标题，避免碎片化
+  const strongCount = chapters.filter((c) => c.kind === 'strong' && /^第.+[章部分]/.test(c.title)).length;
+  if (strongCount >= 4) {
     return chapters.filter((c) => c.kind === 'strong');
   }
   return chapters;
