@@ -524,22 +524,24 @@ export interface YibiaoBridge {
   };
   technicalPlan: {
     loadState: () => Promise<TechnicalPlanState>;
-    importTenderDocument: (filePaths?: string[]) => Promise<{
+    importTenderDocument: (filePaths?: string[], options?: { forceProvider?: 'local' | 'mineru-accurate-api' | 'mineru-agent-api' }) => Promise<{
       success: boolean;
       message?: string;
       markdown?: string;
       fileName?: string;
       parserLabel?: string | null;
+      quality?: import('./domains/technical-plan').DocumentParseQuality;
     }>;
     removeTenderDocument: (sourceId: string) => Promise<{
       success: boolean;
       message?: string;
       markdown?: string;
     }>;
-    importOriginalPlanDocument: (filePaths?: string[]) => Promise<{
+    importOriginalPlanDocument: (filePaths?: string[], options?: { forceProvider?: 'local' | 'mineru-accurate-api' | 'mineru-agent-api' }) => Promise<{
       success: boolean;
       message?: string;
       markdown?: string;
+      quality?: import('./domains/technical-plan').DocumentParseQuality;
     }>;
     checkBidSections: () => Promise<{ hasMultiple: boolean; totalDeclared?: number | null }>;
     selectBidSection: (selectedSection: DetectedBidSection) => Promise<{ success: boolean; message?: string; markdown: string }>;

@@ -107,6 +107,10 @@ export interface UploadFilePillProps {
   name: string;
   /** 名称下方的元信息，例如大小、解析方式、字数 */
   meta?: string;
+  /** 质量/升级提示，显示在元信息下方 */
+  warning?: string;
+  /** 右侧额外操作，例如「用 MinerU 重解析」 */
+  extraAction?: ReactNode;
   onRemove?: () => void;
   removeLabel?: string;
   removeAriaLabel?: string;
@@ -114,14 +118,16 @@ export interface UploadFilePillProps {
 }
 
 /** 已上传文件胶囊：徽标 + 文件名/元信息 + 可选移除按钮 */
-export function UploadFilePill({ badge, name, meta, onRemove, removeLabel = '删除', removeAriaLabel, removeDisabled = false }: UploadFilePillProps) {
+export function UploadFilePill({ badge, name, meta, warning, extraAction, onRemove, removeLabel = '删除', removeAriaLabel, removeDisabled = false }: UploadFilePillProps) {
   return (
-    <article className="upload-file-pill">
+    <article className={`upload-file-pill${warning ? ' has-warning' : ''}`}>
       <div className="upload-file-icon">{badge}</div>
       <div className="upload-file-info">
         <strong title={name}>{name}</strong>
         {meta ? <span>{meta}</span> : null}
+        {warning ? <span className="upload-file-warning">{warning}</span> : null}
       </div>
+      {extraAction ? <div className="upload-file-extra">{extraAction}</div> : null}
       {onRemove ? (
         <button type="button" onClick={onRemove} aria-label={removeAriaLabel || `${removeLabel} ${name}`} disabled={removeDisabled}>
           {removeLabel}

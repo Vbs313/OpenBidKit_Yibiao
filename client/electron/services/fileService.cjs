@@ -69,8 +69,8 @@ function getSelectableExtensions(provider) {
   return new Set([...getSupportedExtensions(provider), ...localSupportedExtensions]);
 }
 
-function resolveFileParser(config, filePath) {
-  const requestedProvider = config.components?.file_parser?.provider || 'local';
+function resolveFileParser(config, filePath, forceProvider) {
+  const requestedProvider = forceProvider || config.components?.file_parser?.provider || 'local';
   const ext = path.extname(filePath).toLowerCase();
   const requestedSupported = getSupportedExtensions(requestedProvider).has(ext);
   if (requestedSupported) {
@@ -522,7 +522,7 @@ async function replaceMatchesAsync(text, pattern, createReplacement) {
 
 async function parseDocumentWithConfig(app, filePath, config, options = {}) {
   const startedAt = Date.now();
-  const parser = resolveFileParser(config, filePath);
+  const parser = resolveFileParser(config, filePath, options.forceProvider);
   const developerLogger = createDeveloperLogger({
     app,
     config,
@@ -605,6 +605,7 @@ function createFileService({ app, configStore } = {}) {
       multiple: options?.multiple === true,
       assetScopePrefix: options?.assetScopePrefix || 'technical-plan',
       filePaths: options?.filePaths,
+      forceProvider: options?.forceProvider,
     });
   }
 

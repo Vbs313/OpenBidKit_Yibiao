@@ -124,9 +124,9 @@ const bridge = {
   },
   technicalPlan: {
     loadState: () => ipcRenderer.invoke('technical-plan:load-state'),
-    importTenderDocument: (filePaths) => ipcRenderer.invoke('technical-plan:import-tender-document', filePaths),
+    importTenderDocument: (filePaths, options) => ipcRenderer.invoke('technical-plan:import-tender-document', filePaths, options),
     removeTenderDocument: (sourceId) => ipcRenderer.invoke('technical-plan:remove-tender-document', sourceId),
-    importOriginalPlanDocument: (filePaths) => ipcRenderer.invoke('technical-plan:import-original-plan-document', filePaths),
+    importOriginalPlanDocument: (filePaths, options) => ipcRenderer.invoke('technical-plan:import-original-plan-document', filePaths, options),
     checkBidSections: () => ipcRenderer.invoke('technical-plan:check-bid-sections'),
     selectBidSection: (selectedSection) => ipcRenderer.invoke('technical-plan:select-bid-section', selectedSection),
     readTenderMarkdown: () => ipcRenderer.invoke('technical-plan:read-tender-markdown'),

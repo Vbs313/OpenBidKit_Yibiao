@@ -23,12 +23,37 @@ const documentLabels = {
   originalPlan: '原方案',
 };
 
-function DocumentFilePill({ file, onRemove, removeDisabled = false }: { file: TechnicalPlanTenderFile | TechnicalPlanTenderSourceFile | TechnicalPlanOriginalPlanFile; onRemove?: () => void; removeDisabled?: boolean }) {
+function DocumentFilePill({
+  file,
+  onRemove,
+  removeDisabled = false,
+  onReparsedWithMinerU,
+  reparseDisabled = false,
+}: {
+  file: TechnicalPlanTenderFile | TechnicalPlanTenderSourceFile | TechnicalPlanOriginalPlanFile;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
+  onReparsedWithMinerU?: (sourcePath: string) => void;
+  reparseDisabled?: boolean;
+}) {
+  const quality = 'quality' in file ? file.quality : undefined;
+  const sourcePath = 'sourcePath' in file ? file.sourcePath : undefined;
+  const showMinerUAction = Boolean(quality?.suggestMinerU && sourcePath && onReparsedWithMinerU);
   return (
     <UploadFilePill
       badge="MD"
       name={file.fileName}
       meta={[file.parserLabel, `${file.markdownChars} 字`].filter(Boolean).join(' · ')}
+      warning={quality?.suggestMinerU ? quality.message || '建议改用 MinerU 精准解析' : undefined}
+      extraAction={showMinerUAction ? (
+        <button
+          type="button"
+          onClick={() => onReparsedWithMinerU?.(String(sourcePath || ''))}
+          disabled={reparseDisabled}
+        >
+          {reparseDisabled ? '重解析中...' : 'MinerU 重解析'}
+        </button>
+      ) : null}
       onRemove={onRemove}
       removeDisabled={removeDisabled}
     />
@@ -135,10 +160,18 @@ function DocumentAnalysisPage({
   const resolveDroppedFilePaths = (files: FileList) =>
     Array.from(files).map((file) => window.yibiao?.file.getPathForFile(file) || '').filter(Boolean);
 
-  const importTenderDocument = async (filePaths?: string[]) => {
+  const importTenderDocument = async (filePaths?: string[], options?: { forceProvider?: 'local' | 'mineru-accurate-api' | 'mineru-agent-api' }) => {
     try {
       setBusy('tender');
-      const result = await window.yibiao?.technicalPlan.importTenderDocument(filePaths);
+      if (options?.forceProvider === 'mineru-accurate-api') {
+        const config = await window.yibiao?.config.load();
+        const token = config?.components?.file_parser?.mineru_token || '';
+        if (!token) {
+          showToast('请先在设置 → 组件中填写 MinerU Token', 'error');
+          return;
+        }
+      }
+      const result = await window.yibiao?.technicalPlan.importTenderDocument(filePaths, options);
 
       if (!result?.success) {
         const message = result?.message || '未导入文件';
@@ -285,6 +318,10 @@ function DocumentAnalysisPage({
                   file={file}
                   onRemove={() => void removeTenderDocument(file.id)}
                   removeDisabled={isBusy}
+                  reparseDisabled={isBusy}
+                  onReparsedWithMinerU={(sourcePath) => {
+                    if (sourcePath) void importTenderDocument([sourcePath], { forceProvider: 'mineru-accurate-api' });
+                  }}
                 />
               ))}
             </div>

@@ -67,7 +67,11 @@ function createTenderDocumentLifecycle(deps) {
       throw new Error('文件导入服务尚未初始化');
     }
 
-    const result = await fileService.importDocument({ multiple: true, filePaths });
+    const result = await fileService.importDocument({
+      multiple: true,
+      filePaths,
+      forceProvider: options.forceProvider,
+    });
     if (!result?.success || !result.file_content) {
       return {
         success: false,
@@ -83,6 +87,8 @@ function createTenderDocumentLifecycle(deps) {
         file_content: markdown,
         file_name: file.fileName,
         parser_label: file.parserLabel,
+        quality: file.quality,
+        source_path: file.sourcePath,
         content_hash: file.contentHash || stableHash(markdown),
         source_docx_path: file.sourceDocxPath,
       } : null;
@@ -182,6 +188,7 @@ function createTenderDocumentLifecycle(deps) {
       fallbackToLocal: result.fallbackToLocal === true,
       resetOriginal: true,
       sourceFiles: mergedDocuments,
+      quality: importQuality,
     });
   }
 
@@ -245,8 +252,8 @@ function createTenderDocumentLifecycle(deps) {
     }
 
     const result = fileService.importTechnicalPlanDocument
-      ? await fileService.importTechnicalPlanDocument('原方案', { filePaths })
-      : await importer({ filePaths });
+      ? await fileService.importTechnicalPlanDocument('原方案', { filePaths, forceProvider: options.forceProvider })
+      : await importer({ filePaths, forceProvider: options.forceProvider });
     if (!result?.success || !result.file_content) {
       return {
         success: false,
@@ -292,7 +299,7 @@ function createTenderDocumentLifecycle(deps) {
     }
   }
 
-  function saveTenderMarkdownAndState(markdown, { fileName, parserLabel, message, selectedSection, fallbackToLocal, resetOriginal, sourceFiles }) {
+  function saveTenderMarkdownAndState(markdown, { fileName, parserLabel, message, selectedSection, fallbackToLocal, resetOriginal, sourceFiles, quality }) {
     const nextMarkdown = String(markdown || '').trim();
     if (Array.isArray(sourceFiles)) {
       clearBidTemplate();
@@ -334,6 +341,7 @@ function createTenderDocumentLifecycle(deps) {
       success: true,
       message: message || (fallbackToLocal ? '文件解析完成，当前格式已自动使用本地解析' : '招标文件已导入'),
       markdown: nextMarkdown,
+      quality,
     };
   }
 

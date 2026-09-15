@@ -1058,12 +1058,13 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
       await openXmlHelperService.close?.();
       return technicalPlanStore.clearTechnicalPlan();
     },
-    importTenderDocument(filePaths) {
+    importTenderDocument(filePaths, options = {}) {
       return technicalPlanStore.importTenderDocument(filePaths, {
         beforeCommit: async () => {
           await cancelTechnicalPlanTasks('招标文件已更新，后台任务已取消');
           await openXmlHelperService.close?.();
         },
+        forceProvider: options?.forceProvider,
       });
     },
     removeTenderDocument(sourceId) {
@@ -1074,9 +1075,10 @@ function createTaskService({ aiService, agentService, autoConfirmationService, t
         },
       });
     },
-    importOriginalPlanDocument(filePaths) {
+    importOriginalPlanDocument(filePaths, options = {}) {
       return technicalPlanStore.importOriginalPlanDocument(filePaths, {
         beforeCommit: () => cancelTechnicalPlanTasks('原方案已更新，后台任务已取消', originalPlanDownstreamTaskTypes),
+        forceProvider: options?.forceProvider,
       });
     },
     async resetRejectionCheck() {

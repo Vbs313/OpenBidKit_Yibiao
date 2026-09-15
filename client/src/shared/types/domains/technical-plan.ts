@@ -288,6 +288,16 @@ export interface ContentGenerationRuntimeState {
   updated_at?: string;
 }
 
+export interface DocumentParseQuality {
+  level: 'ok' | 'warn' | 'poor';
+  reason: string;
+  suggestMinerU: boolean;
+  gfmTableRows: number;
+  htmlTableMarkers: number;
+  chars: number;
+  message: string;
+}
+
 export interface TechnicalPlanTenderFile {
   fileName: string;
   markdownPath: string;
@@ -297,6 +307,7 @@ export interface TechnicalPlanTenderFile {
   originalMarkdownChars?: number;
   originalContentHash?: string;
   parserLabel?: string;
+  quality?: DocumentParseQuality;
   importedAt?: string;
   selectedSectionId?: string;
   selectedSectionTitle?: string;
@@ -310,6 +321,8 @@ export interface TechnicalPlanTenderSourceFile {
   markdownChars: number;
   contentHash: string;
   parserLabel?: string;
+  quality?: DocumentParseQuality;
+  sourcePath?: string;
   sourceDocxPath?: string;
   importedAt?: string;
   updatedAt: string;
@@ -321,6 +334,7 @@ export interface TechnicalPlanOriginalPlanFile {
   markdownChars: number;
   contentHash: string;
   parserLabel?: string;
+  quality?: DocumentParseQuality;
   importedAt?: string;
   updatedAt: string;
 }

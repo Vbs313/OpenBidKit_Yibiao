@@ -209,6 +209,27 @@
   font-size: 13px;
 }
 
+.upload-file-pill.has-warning {
+  border-color: rgba(196, 120, 18, 0.35);
+  background: #fffaf2;
+}
+
+.upload-file-warning {
+  color: #b45309 !important;
+  font-weight: 600;
+}
+
+.upload-file-extra {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.upload-file-extra button {
+  color: #92400e;
+  background: rgba(196, 120, 18, 0.12);
+}
+
 .upload-file-pill button {
   padding: 7px 10px;
   color: var(--yb-danger);

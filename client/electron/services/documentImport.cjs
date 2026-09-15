@@ -22,9 +22,10 @@ function createDocumentImport({
     assetScopePrefix = 'technical-plan',
     includeSourcePath = true,
     filePaths,
+    forceProvider,
   } = {}) {
 const config = configStore ? configStore.load() : { components: { file_parser: { provider: 'local' } } };
-    const provider = config.components?.file_parser?.provider || 'local';
+    const provider = forceProvider || config.components?.file_parser?.provider || 'local';
     const supportedExtensions = getSelectableExtensions(provider);
     let selectedPaths = normalizeProvidedFilePaths(filePaths);
     if (!multiple && selectedPaths.length > 1) {
@@ -50,7 +51,7 @@ const config = configStore ? configStore.load() : { components: { file_parser: {
     const errors = [];
     for (const filePath of selectedPaths) {
       const ext = path.extname(filePath).toLowerCase();
-      const parser = resolveFileParser(config, filePath);
+      const parser = resolveFileParser(config, filePath, forceProvider);
       if (!supportedExtensions.has(ext)) {
         errors.push(`${path.basename(filePath)}：当前${parserLabels[provider] || '解析方式'}不支持该文件格式`);
         continue;
@@ -62,6 +63,7 @@ const config = configStore ? configStore.load() : { components: { file_parser: {
         fileContent = (await parseDocumentWithConfig(app, filePath, config, {
           assetScope: `${assetScopePrefix}-${assetHash}`,
           preserveImages: false,
+          forceProvider,
         })).trim();
       } catch (error) {
         errors.push(`${path.basename(filePath)}：${formatImportError(error, filePath)}`);
