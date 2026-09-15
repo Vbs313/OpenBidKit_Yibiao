@@ -1,6 +1,7 @@
 const { buildBidSectionContextHint } = require('./../../utils/bidSectionContext.cjs');
 const { mergeSegmentedAiResults } = require('./../../utils/segmentedAiResultMerger.cjs');
 const { splitUserTextByContextLimit } = require('./../../utils/userTextSplitter.cjs');
+const { buildTaskExcerpt } = require('./bidAnalysisToc.cjs');
 
 const PROMPT_CACHE_WARMUP_DELAY_MS = 5000;
 const MARKDOWN_MISSING_RESULT = '未提取到';
@@ -387,10 +388,23 @@ async function runBidAnalysisTask({ aiService, workspaceStore, updateTask, check
       runningProgress,
     );
 
+    const excerpt = buildTaskExcerpt(fileContent, task.id);
+    const taskFileContent = excerpt.directed ? excerpt.content : fileContent;
+    const taskFileSegments = excerpt.directed
+      ? splitUserTextByContextLimit(taskFileContent, currentConfig)
+      : fileSegments;
+    if (excerpt.directed) {
+      updateTask({
+        status: 'running',
+        progress: doneProgress(currentTasks),
+        logs: [`${task.label}：TOC 定向 ${excerpt.selectedTitles.length}/${excerpt.chapterCount} 章，约 ${excerpt.selectedChars} 字（全文 ${excerpt.fullChars} 字）。`],
+      });
+    }
+
     const content = await runBidAnalysisPromptTask({
       aiService,
-      fileContent,
-      fileSegments,
+      fileContent: taskFileContent,
+      fileSegments: taskFileSegments,
       task,
       sectionHint,
     });
