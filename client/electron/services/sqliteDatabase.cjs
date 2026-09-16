@@ -11,7 +11,7 @@ const { createTaskLogsAndIllustrationItemsSchema } = require('./db/schema/taskLo
 const { createFeasibilityReportSchema } = require('./db/schema/feasibilityReport.cjs');
 const { createComplianceCheckSchema } = require('./db/schema/complianceCheck.cjs');
 
-const schemaVersion = 24;
+const schemaVersion = 25;
 
 function createTechnicalPlanGlobalFactsSchema(db) {
   db.exec(`
@@ -426,6 +426,13 @@ const schemaHealthColumnGroups = [
       content_mode_note: 'TEXT',
     },
   },
+  {
+    version: 25,
+    table: 'technical_plan_meta',
+    columns: {
+      original_plan_quality_json: 'TEXT',
+    },
+  },
 ];
 
 function emitDatabaseStatus(onStatus, status) {
@@ -597,6 +604,16 @@ const migrations = [
     version: 24,
     description: '新增合规检查任务与结果表结构',
     up: createComplianceCheckSchema,
+  },
+  {
+    version: 25,
+    description: '原方案解析质量结果落库',
+    up(db) {
+      const columns = getExistingColumns(db, 'technical_plan_meta');
+      if (!columns.has('original_plan_quality_json')) {
+        db.exec('ALTER TABLE technical_plan_meta ADD COLUMN original_plan_quality_json TEXT');
+      }
+    },
   },
 ];
 

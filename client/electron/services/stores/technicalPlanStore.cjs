@@ -1282,6 +1282,7 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
       markdownChars: Number(meta.original_plan_markdown_chars || 0),
       contentHash: meta.original_plan_markdown_hash || '',
       parserLabel: meta.original_plan_parser_label || undefined,
+      quality: safeJsonParse(meta.original_plan_quality_json, undefined) || undefined,
       importedAt: meta.original_plan_imported_at || undefined,
       updatedAt: meta.updated_at,
     } : null;

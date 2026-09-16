@@ -14,7 +14,7 @@ PRAGMA busy_timeout = 5000;
 
 -- 目标完整结构版本。
 -- 运行时代码应通过 PRAGMA user_version 判断是否需要自动升级。
-PRAGMA user_version = 23;
+PRAGMA user_version = 25;
 
 -- ============================================================================
 -- 技术方案 technical_plan_*（v1 已落地）
@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS technical_plan_meta (
   original_plan_markdown_hash TEXT,
   original_plan_markdown_chars INTEGER NOT NULL DEFAULT 0,
   original_plan_parser_label TEXT,
+  original_plan_quality_json TEXT,
   original_plan_imported_at TEXT,
   -- v8 旧版 Step01 多标段待选择恢复状态（新流程仅用于兼容清理）
   pending_tender_markdown_path TEXT,

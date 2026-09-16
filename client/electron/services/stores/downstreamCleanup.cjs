@@ -128,6 +128,7 @@ function createDownstreamCleanup(deps) {
       original_plan_markdown_hash: null,
       original_plan_markdown_chars: 0,
       original_plan_parser_label: null,
+      original_plan_quality_json: null,
       original_plan_imported_at: null,
       outline_project_name: null,
       outline_project_overview: null,

@@ -26,6 +26,12 @@ function createDocumentImport({
   } = {}) {
 const config = configStore ? configStore.load() : { components: { file_parser: { provider: 'local' } } };
     const provider = forceProvider || config.components?.file_parser?.provider || 'local';
+    if (provider === 'mineru-accurate-api') {
+      const token = String(config.components?.file_parser?.mineru_token || '').trim();
+      if (!token) {
+        return { success: false, message: '请先在设置中填写 MinerU Token，再使用精准解析', documents: [] };
+      }
+    }
     const supportedExtensions = getSelectableExtensions(provider);
     let selectedPaths = normalizeProvidedFilePaths(filePaths);
     if (!multiple && selectedPaths.length > 1) {

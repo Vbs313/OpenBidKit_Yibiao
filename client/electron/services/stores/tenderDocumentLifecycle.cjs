@@ -282,6 +282,7 @@ function createTenderDocumentLifecycle(deps) {
           original_plan_markdown_hash: stableHash(markdown),
           original_plan_markdown_chars: markdown.length,
           original_plan_parser_label: parserLabel || null,
+          original_plan_quality_json: result.quality ? JSON.stringify(result.quality) : null,
           original_plan_imported_at: timestamp,
         });
         clearDownstreamFromOriginalPlan();
