@@ -271,6 +271,33 @@ async function run() {
     await openTechnicalPlan();
     await waitFor('标书生成页挂载', async () => (await pageText()).includes('STEP'), { timeoutMs: 20000 });
 
+    // 真实导入招标文件：必须走完整 importDocument → loadTenderSourceFiles → saveTenderMarkdownAndState。
+    // 这条路径曾漏注入 readMetaRow 而整包不可用（b95feb0），此前冒烟只 saveOutline 不 import，拦不住。
+    const smokeTenderPath = path.join(os.tmpdir(), `yibiao-smoke-tender-${Date.now()}.md`);
+    fs.writeFileSync(
+      smokeTenderPath,
+      [
+        '# 冒烟招标文件',
+        '',
+        '## 项目概况',
+        '项目名称：冒烟项目；采购方式：公开招标。',
+        '',
+        '| 评审因素 | 分值 |',
+        '| --- | --- |',
+        '| 技术方案 | 55 |',
+      ].join('\n'),
+      'utf8'
+    );
+    const importResult = await window.webContents.executeJavaScript(
+      `window.yibiao.technicalPlan.importTenderDocument(${JSON.stringify([smokeTenderPath])})`
+    );
+    assert(importResult && importResult.success, `导入招标文件失败：${importResult?.message || '无结果'}`);
+    const importedState = await window.webContents.executeJavaScript('window.yibiao.technicalPlan.loadState()');
+    assert(Array.isArray(importedState?.tenderFiles) && importedState.tenderFiles.length >= 1, '导入后 tenderFiles 为空');
+    assert(String(importedState.tenderFiles[0]?.markdownChars || 0) > 0, '导入后 markdownChars 为 0');
+    try { fs.unlinkSync(smokeTenderPath); } catch { /* ignore */ }
+    console.log('[technical-plan-ui] 真实导入招标文件成功（tenderFiles=' + importedState.tenderFiles.length + '）');
+
     // 错误捕获自检：先制造一条 error，确认监听器真能收到，再清掉——否则「0 个错误」不能算绿。
     await window.webContents.executeJavaScript(RENDERER_ERROR_PROBE);
     await waitFor('渲染器错误捕获自检', async () => rendererErrors.some((line) => line.includes('__technical-plan-ui-probe__')));

@@ -1658,6 +1658,12 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     assertNoTechnicalPlanTaskRunning,
     originalPlanDownstreamTaskTypes,
     normalizeWorkflowKind,
+    db,
+    clearContentIllustrationPlan,
+    clearOriginalOutlineRuntime,
+    updateMeta,
+    ensureMetaRow,
+    resolveMarkdownPath,
   });
 
   // 招标文件与原方案文档生命周期：实现见 stores/tenderDocumentLifecycle.cjs。
