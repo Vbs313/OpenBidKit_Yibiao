@@ -9,6 +9,27 @@
     <RootNamespace>Yibiao.OpenXmlHelper</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    <!-- 本机 NuGet restore 不可用时走本地 lib 引用；包版本与 OpenBidKit_Yibiao 对齐。 -->
+    <Reference Include="DocumentFormat.OpenXml">
+      <HintPath>..\..\lib\DocumentFormat.OpenXml.dll</HintPath>
+    </Reference>
+    <Reference Include="DocumentFormat.OpenXml.Framework">
+      <HintPath>..\..\lib\DocumentFormat.OpenXml.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="HtmlToOpenXml">
+      <HintPath>..\..\lib\HtmlToOpenXml.dll</HintPath>
+    </Reference>
+    <Reference Include="AngleSharp">
+      <HintPath>..\..\lib\AngleSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="AngleSharp.Css">
+      <HintPath>..\..\lib\AngleSharp.Css.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>..\..\lib\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="System.IO.Packaging">
+      <HintPath>..\..\lib\System.IO.Packaging.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

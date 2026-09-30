@@ -362,15 +362,38 @@ function createOpenXmlHelperService({ app, configStore } = {}) {
   }
 
   /** 开发态异步编译助手，避免首次预览同步阻塞 Main 进程。 */
+  function isDebugHelperFresh() {
+    const exePath = getOpenXmlHelperDebugExecutablePath();
+    if (!fs.existsSync(exePath)) return false;
+    const exeTime = fs.statSync(exePath).mtimeMs;
+    const projectDir = path.dirname(getOpenXmlHelperProjectPath());
+    const stack = [projectDir];
+    while (stack.length) {
+      const dir = stack.pop();
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'bin' || entry.name === 'obj' || entry.name === 'lib') continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) stack.push(full);
+        else if (entry.name.endsWith('.cs') || entry.name.endsWith('.csproj')) {
+          if (fs.statSync(full).mtimeMs > exeTime) return false;
+        }
+      }
+    }
+    return true;
+  }
+
   function buildDebugHelper() {
     if (debugBuildPromise) return debugBuildPromise;
     const projectPath = getOpenXmlHelperProjectPath();
     if (!fs.existsSync(projectPath)) {
       return Promise.reject(new Error(`找不到 Open XML 助手工程：${projectPath}`));
     }
+    if (isDebugHelperFresh()) {
+      return Promise.resolve();
+    }
 
     debugBuildPromise = new Promise((resolve, reject) => {
-      execFile('dotnet', ['build', projectPath, '-nologo', '-v', 'q'], {
+      execFile('dotnet', ['build', projectPath, '-c', 'Release', '--no-restore', '-nologo', '-v', 'q'], {
         encoding: 'utf8',
         windowsHide: true,
         shell: false,
@@ -381,9 +404,28 @@ function createOpenXmlHelperService({ app, configStore } = {}) {
         },
       }, (error) => {
         if (error) {
+          // 本机 NuGet restore 不可用时，若已有可用 exe 则放行，避免开发态整段不可用。
+          if (isDebugHelperFresh()) {
+            resolve();
+            return;
+          }
           debugBuildPromise = null;
           reject(error);
           return;
+        }
+        // Release 输出对齐到 Debug 路径（运行时只认 Debug）。
+        try {
+          const debugDir = path.dirname(getOpenXmlHelperDebugExecutablePath());
+          const releaseDir = path.join(path.dirname(projectPath), 'bin', 'Release', 'net10.0');
+          if (fs.existsSync(releaseDir)) {
+            fs.mkdirSync(debugDir, { recursive: true });
+            for (const name of fs.readdirSync(releaseDir)) {
+              const src = path.join(releaseDir, name);
+              if (fs.statSync(src).isFile()) fs.copyFileSync(src, path.join(debugDir, name));
+            }
+          }
+        } catch {
+          // 复制失败不阻断；后续 spawn 会报找不到可执行文件。
         }
         resolve();
       });
