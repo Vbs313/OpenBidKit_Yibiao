@@ -126,6 +126,7 @@ const workspaceDatabaseChannels = [
   'technical-plan:check-bid-sections',
   'technical-plan:select-bid-section',
   'technical-plan:read-tender-markdown',
+  'technical-plan:preview-content-word',
   'technical-plan:read-original-plan-markdown',
   'technical-plan:update-step',
   'technical-plan:set-workflow-kind',
@@ -307,7 +308,7 @@ function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentS
   clearWorkspaceDatabaseIpc();
   registerKnowledgeBaseIpc({ knowledgeBaseService });
   registerCredentialLibraryIpc({ credentialLibraryService, configStore });
-  registerTechnicalPlanIpc({ technicalPlanStore, taskService });
+  registerTechnicalPlanIpc({ technicalPlanStore, taskService, openXmlHelperService });
   registerFeasibilityReportIpc({ feasibilityReportStore, taskService });
   registerDuplicateCheckIpc({ duplicateCheckStore, checkResultExportService });
   registerRejectionCheckIpc({ rejectionCheckStore, taskService, checkResultExportService });

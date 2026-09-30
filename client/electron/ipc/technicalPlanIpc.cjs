@@ -1,7 +1,14 @@
 const { ipcMain, shell } = require('electron');
+const { previewContentSection } = require('../services/contentGenerationOutput.cjs');
 
-function registerTechnicalPlanIpc({ technicalPlanStore, taskService }) {
+function registerTechnicalPlanIpc({ technicalPlanStore, taskService, openXmlHelperService }) {
   ipcMain.handle('technical-plan:load-state', () => technicalPlanStore.loadTechnicalPlan());
+  ipcMain.handle('technical-plan:preview-content-word', (_event, sectionId) => previewContentSection({
+    sectionId,
+    technicalPlanStore,
+    openXmlHelperService,
+    exportFormat: technicalPlanStore.loadExportFormat?.() || technicalPlanStore.getActiveExportFormat?.() || undefined,
+  }));
   ipcMain.handle('technical-plan:import-tender-document', (_event, filePaths, options) => taskService.importTenderDocument(filePaths, options));
   ipcMain.handle('technical-plan:remove-tender-document', (_event, sourceId) => taskService.removeTenderDocument(sourceId));
   ipcMain.handle('technical-plan:import-original-plan-document', (_event, filePaths, options) => taskService.importOriginalPlanDocument(filePaths, options));
