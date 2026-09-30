@@ -16,6 +16,7 @@ import { buildContentProgressViewModel } from '../contentProgressModel';
 import { collectLeafItems } from '../../../shared/utils/outlineMetrics';
 import { ContinuePostProcessingDialog, GenerationDialog, HtmlImageTypesDialog, RequirementItemDialog, PreviewImageDialog } from '../components/contentEditDialogs';
 import { ContentOutlineTree } from '../components/ContentOutlineTree';
+import ContentWordPreview from '../components/ContentWordPreview';
 import { useContentGeneration } from '../hooks/useContentGeneration';
 
 
@@ -120,6 +121,8 @@ function ContentEditPage({
   const selectedItem = outlineData?.outline && selectedItemId ? findOutlineItem(outlineData.outline, selectedItemId) : null;
   const selectedIsLeaf = Boolean(selectedItem && !selectedItem.children?.length);
   const selectedContent = selectedItem && selectedIsLeaf ? getLeafContent(selectedItem, sections) : '';
+  const [wordPreview, setWordPreview] = useState<{ sectionId: string; version: number } | null>(null);
+  const wordPreviewActive = Boolean(wordPreview && wordPreview.sectionId === selectedItemId && selectedContent.trim());
   const exportFormatPreviewStyle = useMemo<CSSProperties>(() => buildExportFormatCssVars(exportFormat), [exportFormat]);
   const running = task?.status === 'running';
   const pausing = task?.status === 'pausing' || pausePending;
@@ -482,12 +485,31 @@ function ContentEditPage({
                   <button type="button" className="secondary-action" onClick={cancelEditingContent}>取消</button>
                 </>
               ) : (
-                <button type="button" className="secondary-action" onClick={startEditingContent} disabled={!selectedItem || !selectedIsLeaf || taskBlocksGeneration}>编辑</button>
+                <>
+                  <button
+                    type="button"
+                    className={wordPreviewActive ? 'primary-action' : 'secondary-action'}
+                    disabled={!selectedItem || !selectedIsLeaf || !selectedContent.trim()}
+                    onClick={() => setWordPreview((prev) => (prev?.sectionId === selectedItemId
+                      ? { sectionId: selectedItemId, version: prev.version + 1 }
+                      : { sectionId: selectedItemId, version: 1 }))}
+                  >
+                    {wordPreviewActive ? '刷新 Word' : 'Word 预览'}
+                  </button>
+                  <button type="button" className="secondary-action" onClick={startEditingContent} disabled={!selectedItem || !selectedIsLeaf || taskBlocksGeneration}>编辑</button>
+                </>
               )}
             </div>
           </div>
 
-          {selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
+          {selectedItem && selectedIsLeaf && wordPreviewActive ? (
+            <ContentWordPreview
+              key={`${selectedItem.id}:${wordPreview?.version || 0}`}
+              sectionId={selectedItem.id}
+              requestVersion={wordPreview?.version || 0}
+              contentContext={{}}
+            />
+          ) : selectedItem && selectedIsLeaf && editing && !isPreviewing ? (
             <MarkdownEditor
               value={draftContent}
               onChange={setDraftContent}
