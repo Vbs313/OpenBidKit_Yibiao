@@ -20,6 +20,7 @@ const navigationIcons: Record<SectionId, ComponentType<SVGProps<SVGSVGElement>>>
   'business-bid': BriefcaseIcon,
   'knowledge-base': ArchiveIcon,
   'document-knowledge-base': ArchiveIcon,
+  'credential-library': ShieldIcon,
   'image-knowledge-base': ArchiveIcon,
   resources: ResourcesIcon,
   'bid-check': BidCheckIcon,

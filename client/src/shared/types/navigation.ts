@@ -6,6 +6,7 @@ export type SectionId =
   | 'business-bid'
   | 'knowledge-base'
   | 'document-knowledge-base'
+  | 'credential-library'
   | 'image-knowledge-base'
   | 'resources'
   | 'bid-check'

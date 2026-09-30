@@ -110,6 +110,10 @@ function getKnowledgeBaseDir(app) {
   return path.join(getWorkspaceDir(app), 'knowledge-base');
 }
 
+function getCredentialLibraryDir(app) {
+  return path.join(getWorkspaceDir(app), 'credential-library');
+}
+
 function getAiLogsDir(app) {
   return path.join(getUserDataPath(app), 'logs', 'ai');
 }
@@ -246,6 +250,7 @@ module.exports = {
   getGeneratedImagesDir,
   getImportedImagesDir,
   getKnowledgeBaseDir,
+  getCredentialLibraryDir,
   getOpenXmlHelperDebugExecutablePath,
   getOpenXmlHelperProjectPath,
   getOpenXmlJobDir,

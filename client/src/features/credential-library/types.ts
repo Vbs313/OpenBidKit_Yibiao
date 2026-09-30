@@ -1,0 +1,33 @@
+export * from '../../shared/types/domains/credential-library';
+import type { CredentialLibraryProfile } from '../../shared/types/domains/credential-library';
+
+export const emptyCredentialProfile: CredentialLibraryProfile = {
+  companyName: '',
+  unifiedSocialCreditCode: '',
+  phone: '',
+  email: '',
+  legalRepresentative: '',
+  registeredCapital: '',
+  operatingPeriodStart: '',
+  operatingPeriodEnd: '',
+  address: '',
+  businessScope: '',
+  industry: '',
+  companyType: '',
+  insuredEmployeeCount: '',
+  companyIntro: '',
+  taxCertificateDate: '',
+  taxCertificateNote: '',
+  auditReportDate: '',
+  auditReportNote: '',
+  socialSecurityCertificateDate: '',
+  socialSecurityCertificateNote: '',
+  bankAccountName: '',
+  bankAccountNumber: '',
+  bankName: '',
+  bankRoutingNumber: '',
+  watermarkEnabled: false,
+  watermarkContent: '',
+  createdAt: '',
+  updatedAt: '',
+};

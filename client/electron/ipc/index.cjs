@@ -8,6 +8,7 @@ const { registerDuplicateCheckIpc } = require('./duplicateCheckIpc.cjs');
 const { registerExportIpc } = require('./exportIpc.cjs');
 const { registerFileIpc } = require('./fileIpc.cjs');
 const { registerKnowledgeBaseIpc } = require('./knowledgeBaseIpc.cjs');
+const { registerCredentialLibraryIpc } = require('./credentialLibraryIpc.cjs');
 const { registerRejectionCheckIpc } = require('./rejectionCheckIpc.cjs');
 const { registerTaskIpc } = require('./taskIpc.cjs');
 const { registerComplianceCheckIpc } = require('./complianceCheckIpc.cjs');
@@ -30,6 +31,7 @@ const { createExportService } = require('../services/exportService.cjs');
 const { createFileService } = require('../services/fileService.cjs');
 const { createKnowledgeBaseService } = require('../services/knowledgeBaseService.cjs');
 const { createKnowledgeBaseStore } = require('./../services/stores/knowledgeBaseStore.cjs');
+const { createCredentialLibraryService } = require('../services/credentialLibraryService.cjs');
 const { createRejectionCheckStore } = require('./../services/stores/rejectionCheckStore.cjs');
 const { createSqliteDatabase } = require('../services/sqliteDatabase.cjs');
 const { createSystemFontService } = require('../services/systemFontService.cjs');
@@ -198,6 +200,19 @@ const workspaceDatabaseChannels = [
   'templates:delete',
   'templates:duplicate',
   'templates:render-preview',
+  'credential-library:load',
+  'credential-library:import-test-data',
+  'credential-library:save-profile',
+  'credential-library:add-profile-images',
+  'credential-library:delete-image',
+  'credential-library:save-certificate',
+  'credential-library:delete-certificate',
+  'credential-library:save-employee',
+  'credential-library:delete-employee',
+  'credential-library:save-project',
+  'credential-library:delete-project',
+  'credential-library:save-other-material',
+  'credential-library:delete-other-material',
 ];
 
 function clearWorkspaceDatabaseIpc() {
@@ -267,6 +282,7 @@ function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentS
   const complianceCheckStore = createComplianceCheckStore({ db: sqliteDatabase.db });
   const knowledgeBaseStore = createKnowledgeBaseStore({ app, db: sqliteDatabase.db });
   const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
+  const credentialLibraryService = createCredentialLibraryService({ app, db: sqliteDatabase.db });
   const technicalPlanStore = createTechnicalPlanStore({ app, db: sqliteDatabase.db, fileService, agentService, taskLogStore, configStore });
   const feasibilityReportStore = createFeasibilityReportStore({ app, db: sqliteDatabase.db, fileService, taskLogStore, agentService });
   const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db, taskLogStore });
@@ -290,6 +306,7 @@ function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentS
 
   clearWorkspaceDatabaseIpc();
   registerKnowledgeBaseIpc({ knowledgeBaseService });
+  registerCredentialLibraryIpc({ credentialLibraryService, configStore });
   registerTechnicalPlanIpc({ technicalPlanStore, taskService });
   registerFeasibilityReportIpc({ feasibilityReportStore, taskService });
   registerDuplicateCheckIpc({ duplicateCheckStore, checkResultExportService });

@@ -4,6 +4,7 @@ import type { ClientConfig, ConfigSaveResult, ImageModelTestResult, ModelInfoRes
 import type { KnowledgeAnalysisSnapshot, KnowledgeBaseEvent, KnowledgeBaseIndex, KnowledgeBaseIndexMutationResult, KnowledgeBaseMutationResult, KnowledgeBaseSearchRequest, KnowledgeBaseSearchPage, KnowledgeBaseRetryDocumentResult, KnowledgeBaseStartMatchingResult, KnowledgeBaseUploadResult, KnowledgeDocument, KnowledgeFolder, KnowledgeItem } from './domains/knowledge-base';
 import type { RejectionCheckWorkspacePatch, RejectionCheckWorkspaceState, RejectionDocumentRole } from './domains/rejection-check';
 import type { ComplianceCheckDefinition, ComplianceCheckFileSelectionResult, ComplianceCheckInput, ComplianceCheckModelConfig, ComplianceCheckPingResult, ComplianceCheckResponse, ComplianceCheckState, ComplianceCheckTaskState, ComplianceCheckWorkspacePatch } from './domains/compliance-check';
+import type { CredentialCertificate, CredentialEmployee, CredentialImageFieldKey, CredentialLibraryImportResult, CredentialLibraryMutationResult, CredentialLibraryProfile, CredentialLibrarySnapshot, CredentialOtherMaterial, CredentialProject, CredentialRecordSavePayload } from './domains/credential-library';
 import type { PerfSnapshot } from './perf';
 import type { BidAnalysisMode, BidAnalysisTaskState, BidSectionMode, ContentGenerationOptions, ContentGenerationPlanState, ContentGenerationProgressDetail, ContentGenerationRuntimeState, ContentGenerationSectionState, DetectedBidSection, GlobalFactGroupState, GlobalFactsMode, SaveOutlineRequest, SaveOutlineSelectionRequest, TechnicalPlanState, TechnicalPlanStep, TechnicalPlanWorkflowKind } from './domains/technical-plan';
 import type { FeasibilityProjectInfo, FeasibilityReportState, FeasibilityReportStep, FeasibilitySaveOutlineRequest, FeasibilitySourceFile } from './domains/feasibility-report';
@@ -603,6 +604,21 @@ export interface YibiaoBridge {
     delete: (templateId: string) => Promise<{ success: boolean; message: string }>;
     duplicate: (templateId: string) => Promise<ExportTemplateRecord>;
     renderPreview: (html: string, config: ExportFormatConfig) => Promise<{ key: string; bytes: Uint8Array; roles: string[] }>;
+  };
+  credentialLibrary: {
+    load: () => Promise<CredentialLibrarySnapshot>;
+    importTestData: () => Promise<CredentialLibraryImportResult | null>;
+    saveProfile: (partial: Partial<CredentialLibraryProfile>) => Promise<CredentialLibrarySnapshot>;
+    addProfileImages: (fieldKey: CredentialImageFieldKey, filePaths: string[]) => Promise<CredentialLibrarySnapshot>;
+    deleteImage: (imageId: string) => Promise<CredentialLibraryMutationResult>;
+    saveCertificate: (payload: CredentialRecordSavePayload<CredentialCertificate>) => Promise<CredentialLibraryMutationResult>;
+    deleteCertificate: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveEmployee: (payload: CredentialRecordSavePayload<CredentialEmployee>) => Promise<CredentialLibraryMutationResult>;
+    deleteEmployee: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveProject: (payload: CredentialRecordSavePayload<CredentialProject>) => Promise<CredentialLibraryMutationResult>;
+    deleteProject: (recordId: string) => Promise<CredentialLibraryMutationResult>;
+    saveOtherMaterial: (payload: CredentialRecordSavePayload<CredentialOtherMaterial>) => Promise<CredentialLibraryMutationResult>;
+    deleteOtherMaterial: (recordId: string) => Promise<CredentialLibraryMutationResult>;
   };
   complianceCheck: {
     loadState: () => Promise<ComplianceCheckState>;

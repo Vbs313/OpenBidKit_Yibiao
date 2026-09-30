@@ -10,8 +10,9 @@ const { createRejectionCheckSchema, migrateRejectionCheckMultiBidDocuments } = r
 const { createTaskLogsAndIllustrationItemsSchema } = require('./db/schema/taskLogs.cjs');
 const { createFeasibilityReportSchema } = require('./db/schema/feasibilityReport.cjs');
 const { createComplianceCheckSchema } = require('./db/schema/complianceCheck.cjs');
+const { createCredentialLibrarySchema } = require('./db/schema/credentialLibrary.cjs');
 
-const schemaVersion = 25;
+const schemaVersion = 26;
 
 function createTechnicalPlanGlobalFactsSchema(db) {
   db.exec(`
@@ -263,6 +264,18 @@ const schemaHealthTableGroups = [
     version: 24,
     tables: ['compliance_check_jobs', 'compliance_check_results', 'compliance_check_findings'],
     repair: createComplianceCheckSchema,
+  },
+  {
+    version: 26,
+    tables: [
+      'credential_library_profile',
+      'credential_library_certificates',
+      'credential_library_employees',
+      'credential_library_projects',
+      'credential_library_other_materials',
+      'credential_library_images',
+    ],
+    repair: createCredentialLibrarySchema,
   },
 ];
 
@@ -614,6 +627,11 @@ const migrations = [
         db.exec('ALTER TABLE technical_plan_meta ADD COLUMN original_plan_quality_json TEXT');
       }
     },
+  },
+  {
+    version: 26,
+    description: '新增资信库表结构',
+    up: createCredentialLibrarySchema,
   },
 ];
 
