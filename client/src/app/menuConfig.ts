@@ -1,9 +1,7 @@
 import type { AppMenuItem, SectionId } from '../shared/types/navigation';
 
-const githubStarNotice = {
-  message: '正在开发中，在github给作者点个star，可以加速开发。',
-  actionLabel: '点此直达',
-  externalUrl: 'https://github.com/FB208/OpenBidKit_Yibiao',
+const developmentNotice = {
+  message: '功能规划中，欢迎在内网需求池提出场景与优先级。',
 };
 
 export const appMenuItems: AppMenuItem[] = [
@@ -36,7 +34,7 @@ export const appMenuItems: AppMenuItem[] = [
         label: '商务标',
         description: '整理商务响应、报价口径和合同偏离材料。',
         icon: 'briefcase',
-        notice: githubStarNotice,
+        notice: developmentNotice,
       },
     ],
   },
@@ -67,7 +65,7 @@ export const appMenuItems: AppMenuItem[] = [
       {
         id: 'document-knowledge-base',
         label: '文档知识库',
-        description: '管理文档资料、案例素材和可复用知识条目',
+        description: '本地文档资料、案例素材和可复用知识条目',
         icon: 'document',
       },
       {
@@ -75,7 +73,7 @@ export const appMenuItems: AppMenuItem[] = [
         label: '图片知识库',
         description: '管理图片素材、图示和视觉参考资料',
         icon: 'file',
-        notice: githubStarNotice,
+        notice: developmentNotice,
       },
     ],
   },
@@ -108,7 +106,7 @@ export const appMenuItems: AppMenuItem[] = [
         label: 'AI评标',
         description: '模拟AI评标，对标书进行打分，出具评标报告',
         icon: 'tool',
-        notice: githubStarNotice,
+        notice: developmentNotice,
       },
     ],
   },
@@ -116,7 +114,7 @@ export const appMenuItems: AppMenuItem[] = [
     id: 'bid-opportunity',
     label: '投标机会',
     description: '机会发现与线索跟踪',
-    notice: githubStarNotice,
+    notice: developmentNotice,
   },
   {
     id: 'plugin-manager',
@@ -126,7 +124,7 @@ export const appMenuItems: AppMenuItem[] = [
   {
     id: 'resources',
     label: '资源下载',
-    description: '投标相关资料、工具下载',
+    description: '内部投标资料与工具（需配置资源接口）',
   },
 ];
 

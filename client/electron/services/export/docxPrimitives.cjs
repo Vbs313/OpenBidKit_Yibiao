@@ -704,6 +704,27 @@ function getCaptionParagraphOptions(context) {
   };
 }
 
+function tableCaptionRunMarks(context) {
+  const table = getTableStyle(context);
+  return {
+    font: table.caption_font || DEFAULT_TABLE_STYLE.caption_font,
+    size: chineseSizeToHalfPt(table.caption_size || DEFAULT_TABLE_STYLE.caption_size),
+    bold: table.caption_bold === true,
+    italics: table.caption_italic === true,
+  };
+}
+
+function tableCaptionParagraphOptions(context) {
+  const table = getTableStyle(context);
+  return {
+    alignment: alignmentToWordType(table.caption_alignment || DEFAULT_TABLE_STYLE.caption_alignment),
+    after: 80,
+    line: 240,
+    indent: { left: 0, right: 0, firstLine: 0, hanging: 0 },
+    keepNext: true,
+  };
+}
+
 function expandInlineMarkdownTableRows(line) {
   const source = String(line || '');
   if (!/\|\s*:?-{3,}:?\s*\|/.test(source)) {
@@ -1202,6 +1223,8 @@ module.exports = {
   getImageParagraphOptions,
   getCaptionRunMarks,
   getCaptionParagraphOptions,
+  tableCaptionRunMarks,
+  tableCaptionParagraphOptions,
   expandInlineMarkdownTableRows,
   normalizeMarkdownTablesForDocx,
   createListReference,

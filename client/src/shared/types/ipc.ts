@@ -601,6 +601,8 @@ export interface YibiaoBridge {
     create: (config: ExportFormatConfig) => Promise<ExportTemplateRecord>;
     update: (templateId: string, config: ExportFormatConfig) => Promise<ExportTemplateRecord>;
     delete: (templateId: string) => Promise<{ success: boolean; message: string }>;
+    duplicate: (templateId: string) => Promise<ExportTemplateRecord>;
+    renderPreview: (html: string, config: ExportFormatConfig) => Promise<{ key: string; bytes: Uint8Array; roles: string[] }>;
   };
   complianceCheck: {
     loadState: () => Promise<ComplianceCheckState>;

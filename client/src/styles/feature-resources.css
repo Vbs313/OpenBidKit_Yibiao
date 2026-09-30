@@ -31,11 +31,19 @@
 }
 
 .resources-shelf-head h3 {
-  margin: 7px 0 0;
+  margin: 4px 0 0;
   color: var(--yb-text);
   font-size: 22px;
   line-height: 1.2;
   letter-spacing: -0.03em;
+}
+
+.resources-endpoint-hint {
+  margin: 6px 0 0;
+  max-width: 42rem;
+  color: var(--yb-text-secondary, #6b7280);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .resources-search-form {

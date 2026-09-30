@@ -15,7 +15,11 @@ interface ResourceItem {
 
 type ResourceTone = 'blue' | 'violet' | 'cyan' | 'slate';
 
-const RESOURCES_ENDPOINT = 'https://analytics.agnet.top/resources';
+/**
+ * 数据集团定制版：默认不访问开源社区 analytics 服务。
+ * 仅当显式配置内网/自有资源接口后才拉取列表。
+ */
+const RESOURCES_ENDPOINT_STORAGE_KEY = 'yb_resources_endpoint';
 const resourceTones: ResourceTone[] = ['blue', 'violet', 'cyan', 'slate'];
 const clickCountFormatter = new Intl.NumberFormat('zh-CN');
 
@@ -25,18 +29,50 @@ interface ResourcesResponse {
   message?: string;
 }
 
+function readResourcesEndpoint(): string {
+  try {
+    return String(localStorage.getItem(RESOURCES_ENDPOINT_STORAGE_KEY) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
 function ResourcesPage() {
   const [selectedResource, setSelectedResource] = useState<ResourceItem | null>(null);
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [searchText, setSearchText] = useState('');
+  const [endpoint, setEndpoint] = useState(() => readResourcesEndpoint());
+  const [endpointDraft, setEndpointDraft] = useState(() => readResourcesEndpoint());
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
-    void loadResources('');
-  }, []);
+    if (!endpoint) {
+      setResources([]);
+      return;
+    }
+    void loadResources('', endpoint);
+  }, [endpoint]);
 
-  const loadResources = async (query: string) => {
+  const persistEndpoint = (value: string) => {
+    const next = value.trim();
+    try {
+      if (next) {
+        localStorage.setItem(RESOURCES_ENDPOINT_STORAGE_KEY, next);
+      } else {
+        localStorage.removeItem(RESOURCES_ENDPOINT_STORAGE_KEY);
+      }
+    } catch {
+      // localStorage 不可用时仅在内存生效
+    }
+    setEndpoint(next);
+  };
+
+  const loadResources = async (query: string, activeEndpoint: string) => {
+    if (!activeEndpoint) {
+      setResources([]);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -45,7 +81,7 @@ function ResourcesPage() {
       }
 
       const queryString = params.toString();
-      const url = queryString ? `${RESOURCES_ENDPOINT}?${queryString}` : RESOURCES_ENDPOINT;
+      const url = queryString ? `${activeEndpoint}?${queryString}` : activeEndpoint;
       const response = await fetch(url);
       const data = await response.json().catch(() => null) as ResourcesResponse | null;
       if (!response.ok || !data || data.code !== 0) {
@@ -63,7 +99,12 @@ function ResourcesPage() {
 
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void loadResources(searchText);
+    void loadResources(searchText, endpoint);
+  };
+
+  const handleEndpointSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    persistEndpoint(endpointDraft);
   };
 
   return (
@@ -73,8 +114,23 @@ function ResourcesPage() {
           <div className="resources-shelf-head">
             <div>
               <span className="section-kicker">资源下载</span>
-              <h3>精选资源</h3>
+              <h3>本地化资源</h3>
+              <p className="resources-endpoint-hint">
+                数据集团定制版默认不访问外部资源站。配置内网资源接口后才会加载列表。
+              </p>
             </div>
+            <form className="resources-search-form" onSubmit={handleEndpointSubmit}>
+              <input
+                value={endpointDraft}
+                onChange={(event) => setEndpointDraft(event.target.value)}
+                placeholder="资源接口 URL（留空则停用）"
+                aria-label="资源配置接口"
+              />
+              <button type="submit" className="secondary-action" disabled={loading}>应用配置</button>
+            </form>
+          </div>
+
+          {endpoint ? (
             <form className="resources-search-form" onSubmit={handleSearchSubmit}>
               <input
                 value={searchText}
@@ -84,9 +140,21 @@ function ResourcesPage() {
               />
               <button type="submit" className="primary-action" disabled={loading}>{loading ? '搜索中' : '搜索'}</button>
             </form>
-          </div>
+          ) : null}
 
           <div className="resources-shelf-list">
+            {!endpoint ? (
+              <EmptyState
+                title="资源服务未配置"
+                hint="当前为离线定制版。请在上方填写内网资源接口并点击「应用配置」；不需要时保持留空即可。"
+              />
+            ) : null}
+            {endpoint && !loading && resources.length === 0 ? (
+              <EmptyState
+                title="暂无资源"
+                hint={searchText.trim() ? '没有匹配当前关键词的资源。' : '资源服务暂无数据，请检查接口地址或后台配置。'}
+              />
+            ) : null}
             {resources.map((item) => (
               <button
                 type="button"
@@ -109,9 +177,6 @@ function ResourcesPage() {
                 </span>
               </button>
             ))}
-            {!loading && resources.length === 0 ? (
-              <EmptyState title="暂无资源" hint={searchText.trim() ? '没有匹配当前关键词的资源。' : '资源管理后台还没有上架资源。'} />
-            ) : null}
           </div>
         </section>
       </div>

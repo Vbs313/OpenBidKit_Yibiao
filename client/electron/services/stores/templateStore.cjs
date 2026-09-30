@@ -97,12 +97,21 @@ function createTemplateStore({ db }) {
     };
   }
 
+  function duplicateTemplate(templateId) {
+    const source = getTemplate(templateId);
+    if (!source) {
+      throw new Error('模板不存在或已被删除');
+    }
+    return createTemplate({ ...source.config, template_name: `${source.template_name} 副本` });
+  }
+
   return {
     listTemplates,
     getTemplate,
     createTemplate,
     updateTemplate,
     deleteTemplate,
+    duplicateTemplate,
   };
 }
 

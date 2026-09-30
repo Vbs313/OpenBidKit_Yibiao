@@ -36,6 +36,8 @@ const {
   chineseSizeToHalfPt,
   getCaptionRunMarks,
   getCaptionParagraphOptions,
+  tableCaptionRunMarks,
+  tableCaptionParagraphOptions,
   normalizeMarkdownTablesForDocx,
   getManualUnorderedListLevelIndent,
   getTaskListLevelIndent,
@@ -364,6 +366,7 @@ async function htmlInlineRuns($, nodes = [], context = {}, marks = {}) {
 
 async function htmlTableToDocx($, tableNode, context) {
   const rows = [];
+  const captionNode = $(tableNode).children('caption').first();
   const rowDescriptors = $(tableNode).find('tr').toArray().map((rowNode) => {
     const cells = $(rowNode).children('th,td').toArray().map((cellNode) => ({
       node: cellNode,
@@ -403,7 +406,16 @@ async function htmlTableToDocx($, tableNode, context) {
     return [];
   }
 
-  return [createDocxTable(rows, maxColumns, context)];
+  const blocks = [];
+  const captioned = Boolean(captionNode.length && cleanText(captionNode.text()));
+  if (captioned) {
+    blocks.push(paragraph(
+      await htmlInlineRuns($, captionNode.contents().toArray(), context, tableCaptionRunMarks(context)),
+      tableCaptionParagraphOptions(context),
+    ));
+  }
+  blocks.push(createDocxTable(rows, maxColumns, context));
+  return blocks;
 }
 
 function buildListParagraphOptions(context, reference, level, itemIndex, totalItems, options = {}) {

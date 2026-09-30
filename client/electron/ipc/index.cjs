@@ -196,6 +196,8 @@ const workspaceDatabaseChannels = [
   'templates:create',
   'templates:update',
   'templates:delete',
+  'templates:duplicate',
+  'templates:render-preview',
 ];
 
 function clearWorkspaceDatabaseIpc() {
@@ -292,7 +294,7 @@ function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentS
   registerFeasibilityReportIpc({ feasibilityReportStore, taskService });
   registerDuplicateCheckIpc({ duplicateCheckStore, checkResultExportService });
   registerRejectionCheckIpc({ rejectionCheckStore, taskService, checkResultExportService });
-  registerTemplateIpc({ templateStore });
+  registerTemplateIpc({ templateStore, openXmlHelperService });
   registerTaskIpc({ taskService });
   registerComplianceCheckIpc({ complianceCheckStore, complianceCheckerService, taskService });
   updateStatus({ phase: 'ready', ready: true, message: '本地数据库已就绪' });

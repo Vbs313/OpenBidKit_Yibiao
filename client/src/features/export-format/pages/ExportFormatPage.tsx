@@ -1,5 +1,5 @@
-﻿import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FloatingToolbar, ProgressBar, useToast } from '../../../shared/ui';
 import type { FloatingToolbarGroup } from '../../../shared/ui';
 import type {
@@ -16,7 +16,6 @@ import {
   DEFAULT_EXPORT_FORMAT,
   FONT_OPTIONS,
 } from '../../../shared/types/exportFormat';
-import { buildExportFormatCssVars } from '../../../shared/utils/exportFormatCss';
 import { BodySettings } from '../components/settings/BodySettings';
 import { CoverSettings } from '../components/settings/CoverSettings';
 import { HeadingSettings } from '../components/settings/HeadingSettings';
@@ -26,7 +25,7 @@ import { QuickSettings } from '../components/settings/QuickSettings';
 import { TableSettings } from '../components/settings/TableSettings';
 import { collectConfigFonts, createDefaultExportFormat, createNewTemplateExportFormat, hasGeneratedContent, mergeFontOptions, withExportFormatDefaults } from '../exportFormatModel';
 import { countOutlineMermaidDiagrams } from '../../../shared/utils/outlineMetrics';
-import { TemplatePreview } from '../components/TemplatePreview';
+import { WordTemplatePreview } from '../components/WordTemplatePreview';
 import type { WordExportProgressEvent } from '../../../shared/types';
 import {
   EXPORT_LAYOUT_PRESETS,
@@ -163,7 +162,6 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
   }, [mode, showToast, templateId]);
 
   const isDirty = useMemo(() => !savedConfig || JSON.stringify(config) !== JSON.stringify(savedConfig), [config, savedConfig]);
-  const previewStyle = useMemo<CSSProperties>(() => buildExportFormatCssVars(config), [config]);
   const fontOptions = useMemo(() => mergeFontOptions(FONT_OPTIONS, collectConfigFonts(config), systemFonts), [config, systemFonts]);
 
   const updateTemplate = useCallback((updates: Partial<ExportFormatConfig>) => {
@@ -515,7 +513,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
             {activeTab === 'image' && <ImageSettings config={config} fontOptions={fontOptions} updateImage={updateImage} />}
             {activeTab === 'cover' && <CoverSettings config={config} updatePage={updatePage} />}
           </section>
-          <TemplatePreview config={config} previewStyle={previewStyle} />
+          <WordTemplatePreview config={config} />
         </div>
       </div>
       <Dialog.Root
@@ -565,7 +563,7 @@ function ExportFormatPage({ mode = 'create', templateId = null, onBack }: Export
             <Dialog.Title className="export-template-fullscreen-title">全屏预览</Dialog.Title>
             <Dialog.Description className="export-template-fullscreen-description">当前模板的全屏排版预览。</Dialog.Description>
             <Dialog.Close className="export-template-fullscreen-close" type="button">退出全屏</Dialog.Close>
-            <TemplatePreview config={config} previewStyle={previewStyle} />
+            <WordTemplatePreview config={config} />
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
