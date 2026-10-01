@@ -22,6 +22,7 @@ import TechnicalPlanHome from '../features/technical-plan/pages/TechnicalPlanHom
 import FeasibilityReportHome from '../features/feasibility-report/pages/FeasibilityReportHome';
 import SecondaryMenuPage from '../shared/ui/SecondaryMenuPage';
 import { RouteNotFound, UnderDevelopmentPage } from '../shared/ui';
+import type { SettingsPageRequest } from '../features/settings/types';
 
 interface AppRouterProps {
   activeSection: SectionId;
@@ -29,9 +30,12 @@ interface AppRouterProps {
   onDeveloperModeChange: (developerMode: boolean) => void;
   onSectionChange: (section: SectionId) => void;
   registerLeaveGuard?: (guard: ((nextSection?: string) => Promise<boolean>) | null) => void;
+  /** 应用级一次性设置页跳转请求（打开指定分类）。 */
+  settingsRequest?: SettingsPageRequest | null;
+  onSettingsRequestHandled?: () => void;
 }
 
-function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSectionChange, registerLeaveGuard }: AppRouterProps) {
+function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSectionChange, registerLeaveGuard, settingsRequest, onSettingsRequestHandled }: AppRouterProps) {
   const activeMenuItem = getAppMenuItemById(activeSection, developerMode);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
@@ -97,7 +101,7 @@ function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSect
     case 'developer-agent-test':
       return <AgentTestPage />;
     case 'settings':
-      return <SettingsPage onDeveloperModeChange={onDeveloperModeChange} />;
+      return <SettingsPage onDeveloperModeChange={onDeveloperModeChange} request={settingsRequest} onRequestHandled={onSettingsRequestHandled} />;
     default:
       // 兜底：未在 switch 中登记的 SectionId 不再返回空白页，给出明确反馈。
       return <RouteNotFound section={activeSection} />;

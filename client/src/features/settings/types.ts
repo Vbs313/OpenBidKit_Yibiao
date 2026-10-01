@@ -1,5 +1,13 @@
 import type { AgentModeScenariosConfig, ComponentsConfig, ImageModelConfig, ImageModelProfiles, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../shared/types';
 
+export type SettingsTab = 'general' | 'text-model' | 'image-model' | 'components' | 'agent' | 'about';
+
+/** 应用级跳转传给设置页的一次性请求，设置页消费后由应用清除。
+ *  用于「请先在设置中填写 X」类提示直达对应分类，而不是让用户自己找。 */
+export interface SettingsPageRequest {
+  tab: SettingsTab;
+}
+
 export interface SettingsPageState {
   textModel: Omit<TextModelConfig, 'context_length_limit' | 'concurrency_limit'> & {
     context_length_limit: number | '';

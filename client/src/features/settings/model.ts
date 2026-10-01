@@ -2,10 +2,8 @@
 //
 // 原本全部堆在 SettingsPage.tsx 的模块顶层（约 600 行）。它们不依赖 React、不读组件状态，
 // 因此下沉为独立模块；页面与后续的自定义 hook 都从这里 import。
-import { AgentSelfCheckUiStatus, SettingsPageState } from './types';
+import { AgentSelfCheckUiStatus, SettingsPageState, type SettingsPageRequest, type SettingsTab } from './types';
 import { AgentModeScenariosConfig, AgentSelfCheckStepStatus, AiRequestMode, ComponentsConfig, FileParserProvider, ImageModelConfig, ImageModelProfiles, ImageModelProvider, ImageModelRatio, ImageModelSize, ImageModelStatus, TextModelConfig, TextModelProfiles, TextModelProvider } from '../../shared/types';
-
-type SettingsTab = 'general' | 'text-model' | 'image-model' | 'components' | 'agent' | 'about';
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'general', label: '通用' },
@@ -587,6 +585,9 @@ const initialState: SettingsPageState = {
 
 interface SettingsPageProps {
   onDeveloperModeChange?: (developerMode: boolean) => void;
+  /** 应用级一次性跳转请求：挂载时打开目标分类，消费后回调 onRequestHandled 清除。 */
+  request?: SettingsPageRequest | null;
+  onRequestHandled?: () => void;
 }
 
 export type {

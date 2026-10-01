@@ -528,6 +528,7 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
             setState((prev) => ({ ...prev, ...nextState }));
             setOriginalPlanMarkdown(markdown);
           }}
+          onSectionChange={onSectionChange}
         />
       )}
 

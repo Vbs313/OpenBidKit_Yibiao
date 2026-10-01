@@ -49,8 +49,15 @@ import {
   parserOptions,
 } from '../model';
 
-function SettingsPage({ onDeveloperModeChange }: SettingsPageProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+function SettingsPage({ onDeveloperModeChange, request, onRequestHandled }: SettingsPageProps) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => request?.tab ?? 'general');
+
+  // 应用级一次性跳转：请求到达时切换到目标分类，消费后清除。
+  useEffect(() => {
+    if (!request) return;
+    setActiveTab(request.tab);
+    onRequestHandled?.();
+  }, [request, onRequestHandled]);
   const [appVersion, setAppVersion] = useState('');
   const [agentSelfCheckStatus, setAgentSelfCheckStatus] = useState<AgentSelfCheckUiStatus>('untested');
   const [agentSelfCheckResult, setAgentSelfCheckResult] = useState<AgentSelfCheckResult | null>(null);
