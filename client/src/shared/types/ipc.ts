@@ -440,6 +440,8 @@ export interface YibiaoBridge {
   appName: string;
   platform: string;
   getVersion: () => Promise<string>;
+  /** 一键重置工作区：清空业务数据（SQLite + workspace 文件），保留用户配置。 */
+  resetWorkspace: () => Promise<{ success: boolean; message: string; backed_up: boolean }>;
   getGpuHardwareAccelerationStatus: () => Promise<GpuHardwareAccelerationStatus>;
   saveGpuHardwareAccelerationPreference: (enabled: boolean) => Promise<ConfigSaveResult & { enabled: boolean; configured: boolean; restartRequired: boolean }>;
   startGpuHardwareAccelerationTrial: () => Promise<{ success: boolean }>;

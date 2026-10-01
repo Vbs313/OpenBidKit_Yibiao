@@ -426,6 +426,12 @@ function registerIpcHandlers({ app, mainWindow, gpuStartupState = {}, gpuTrialAr
     }
   };
 
+  // 一键重置工作区：清空业务数据，保留用户配置。
+  ipcMain.handle('workspace:reset', () => {
+    const { resetWorkspace } = require('./../services/workspaceResetService.cjs');
+    return resetWorkspace({ app, db: sqliteDatabase?.db });
+  });
+
   registerConfigIpc({
     configStore,
     aiService,

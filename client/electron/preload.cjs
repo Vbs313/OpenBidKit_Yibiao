@@ -4,6 +4,7 @@ const bridge = {
   appName: '数据集团工具箱',
   platform: process.platform,
   getVersion: () => ipcRenderer.invoke('app:get-version'),
+  resetWorkspace: () => ipcRenderer.invoke('workspace:reset'),
   getGpuHardwareAccelerationStatus: () => ipcRenderer.invoke('app:get-gpu-hardware-acceleration-status'),
   saveGpuHardwareAccelerationPreference: (enabled) => ipcRenderer.invoke('app:save-gpu-hardware-acceleration-preference', enabled),
   startGpuHardwareAccelerationTrial: () => ipcRenderer.invoke('app:start-gpu-hardware-acceleration-trial'),
