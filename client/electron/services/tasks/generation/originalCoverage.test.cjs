@@ -127,3 +127,53 @@ test('buildOriginalCoverageRepairMessages 无失败记录时不追加失败块',
   assert.ok(messages[2].content.startsWith('需要补回的原方案来源段：'));
   assert.ok(!messages[2].content.includes('<source'));
 });
+
+test('scoreExpansionQuality 全覆盖+保真度高时评分高', () => {
+  const result = C.scoreExpansionQuality(
+    [{ status: 'covered' }, { status: 'covered' }, { status: 'covered' }],
+    { originalChars: 1000, expandedChars: 1200 },
+  );
+  assert.equal(result.score, 100);
+  assert.equal(result.level, 'ok');
+  assert.equal(result.coverageRate, 1);
+});
+
+test('scoreExpansionQuality 缺失项拉低覆盖率', () => {
+  const result = C.scoreExpansionQuality(
+    [{ status: 'covered' }, { status: 'missing' }, { status: 'missing' }],
+    { originalChars: 1000, expandedChars: 1000 },
+  );
+  assert.ok(result.score < 80);
+  assert.ok(result.level !== 'ok');
+});
+
+test('scoreExpansionQuality 冲突项重扣分', () => {
+  const withConflict = C.scoreExpansionQuality(
+    [{ status: 'covered' }, { status: 'conflict' }],
+    { originalChars: 1000, expandedChars: 1000 },
+  );
+  const withoutConflict = C.scoreExpansionQuality(
+    [{ status: 'covered' }, { status: 'covered' }],
+    { originalChars: 1000, expandedChars: 1000 },
+  );
+  assert.ok(withConflict.score < withoutConflict.score);
+});
+
+test('scoreExpansionQuality 字数缩水拉低保真率', () => {
+  const shrunk = C.scoreExpansionQuality(
+    [{ status: 'covered' }],
+    { originalChars: 1000, expandedChars: 400 },
+  );
+  const full = C.scoreExpansionQuality(
+    [{ status: 'covered' }],
+    { originalChars: 1000, expandedChars: 1000 },
+  );
+  assert.ok(shrunk.score < full.score);
+  assert.ok(shrunk.preservationRate < 0.5);
+});
+
+test('scoreExpansionQuality 空审计结果返回 100 分', () => {
+  const result = C.scoreExpansionQuality([], {});
+  assert.equal(result.score, 100);
+  assert.equal(result.level, 'ok');
+});

@@ -135,9 +135,37 @@ function buildOriginalCoverageRepairMessages({ target, coverageItems, currentCon
   ];
 }
 
+/**
+ * 扩写质量评分（0-100）：基于覆盖审计结果与原文保真度的确定性指标。
+ *
+ * @param {Array<{status: string}>} auditItems 覆盖审计条目（covered/partial/missing/conflict）
+ * @param {{originalChars?: number, expandedChars?: number}} metrics 原文字数与扩写后字数
+ */
+function scoreExpansionQuality(auditItems, metrics = {}) {
+  const items = Array.isArray(auditItems) ? auditItems : [];
+  const total = items.length;
+  const covered = items.filter((item) => item.status === 'covered').length;
+  const partial = items.filter((item) => item.status === 'partial').length;
+  const missing = items.filter((item) => item.status === 'missing').length;
+  const conflict = items.filter((item) => item.status === 'conflict').length;
+
+  const coverageRate = total === 0 ? 1 : (covered + partial * 0.5) / total;
+  const originalChars = Math.max(0, Number(metrics.originalChars) || 0);
+  const expandedChars = Math.max(0, Number(metrics.expandedChars) || 0);
+  const preservationRate = originalChars > 0 ? Math.min(1, expandedChars / originalChars) : 1;
+
+  let score = Math.round(coverageRate * 60 + preservationRate * 40);
+  score -= Math.min(20, conflict * 5);
+  score = Math.max(0, Math.min(100, score));
+
+  const level = score >= 80 ? 'ok' : score >= 55 ? 'warn' : 'poor';
+  return { score, coverageRate, preservationRate, level, total, covered, partial, missing, conflict };
+}
+
 module.exports = {
   ORIGINAL_COVERAGE_REPAIR_MAX_ATTEMPTS,
   normalizeOriginalCoverageAuditResponse,
   validateOriginalCoverageAuditResponse,
   buildOriginalCoverageRepairMessages,
+  scoreExpansionQuality,
 };
