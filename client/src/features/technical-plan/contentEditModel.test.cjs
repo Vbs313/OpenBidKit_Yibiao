@@ -69,9 +69,10 @@ test('normalizeGenerationOptions 扩写工作流才允许原方案覆盖审计',
   assert.equal(normalized.originalPlanCoverageRepairMode, 'normal');
 });
 
-test('normalizeGenerationOptions 没有生图模型时强制关闭 AI 配图', () => {
+test('normalizeGenerationOptions 保留已保存的 AI 开关，不随模型可用性变化', () => {
+  // 模型暂时不可用时保留用户选择，恢复后自动生效（上游 f881daa 修复“未开启 AI 生图不能生成正文”）。
   const normalized = normalizeGenerationOptions({ useAiImages: true }, false, 5);
-  assert.equal(normalized.useAiImages, false);
+  assert.equal(normalized.useAiImages, true);
 });
 
 test('getLeafContent 优先取 sections 里已有 content 字段的值', () => {

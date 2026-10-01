@@ -254,7 +254,8 @@ export function useContentGeneration({
       regenerate,
       simulatePartialFailures,
       generationOptions: {
-        useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
+        // 已保存的 AI 开关不随模型可用性变化：模型暂时不可用时保留用户选择，恢复后自动生效。
+        useAiImages: savedGenerationOptions.useAiImages,
         maxAiImages: savedGenerationOptions.maxAiImages,
         useMermaidImages: savedGenerationOptions.useMermaidImages,
         maxMermaidImages: savedGenerationOptions.maxMermaidImages,
@@ -314,7 +315,8 @@ export function useContentGeneration({
         targetItemId: requirementItem.id,
         requirement: regenerateRequirement,
         generationOptions: {
-          useAiImages: nextImageModelAvailable && savedGenerationOptions.useAiImages,
+          // 已保存的 AI 开关不随模型可用性变化。
+          useAiImages: savedGenerationOptions.useAiImages,
           maxAiImages: savedGenerationOptions.maxAiImages,
           useMermaidImages: savedGenerationOptions.useMermaidImages,
           maxMermaidImages: savedGenerationOptions.maxMermaidImages,

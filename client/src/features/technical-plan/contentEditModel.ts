@@ -87,7 +87,8 @@ export function normalizeGenerationOptions(options: ContentGenerationOptions | u
   const tableRequirement = options?.tableRequirement;
 
   return {
-    useAiImages: Boolean(options?.useAiImages ?? fallback.useAiImages) && imageModelAvailable,
+    // 已保存的 AI 开关不随模型可用性变化：模型暂时不可用时保留用户选择，恢复后自动生效。
+    useAiImages: Boolean(options?.useAiImages ?? fallback.useAiImages),
     maxAiImages: Math.max(0, Math.min(Number.isFinite(requestedMaxAiImages) ? Math.round(requestedMaxAiImages) : fallback.maxAiImages, maxAiImagesLimit)),
     useMermaidImages: Boolean(options?.useMermaidImages ?? fallback.useMermaidImages),
     maxMermaidImages: Math.max(0, Math.min(Number.isFinite(requestedMaxMermaidImages) ? Math.round(requestedMaxMermaidImages) : fallback.maxMermaidImages, maxAiImagesLimit)),

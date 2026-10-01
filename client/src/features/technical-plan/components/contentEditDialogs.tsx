@@ -190,8 +190,8 @@ export function GenerationDialog(props: GenerationDialogProps) {
                   <div className="content-generation-config-control">
                     <em className={`content-image-status is-${props.imageModelStatus}`}>{props.imageModelStatusLabels[props.imageModelStatus]}</em>
                     <AppSwitch
-                      checked={props.draftGenerationOptions.useAiImages && props.imageModelAvailable}
-                      disabled={props.generationStrategyLocked || !props.imageModelAvailable}
+                      checked={props.draftGenerationOptions.useAiImages}
+                      disabled={props.generationStrategyLocked || (!props.imageModelAvailable && !props.draftGenerationOptions.useAiImages)}
                       onCheckedChange={(checked) => props.setDraftGenerationOptions((prev) => ({ ...prev, useAiImages: checked }))}
                       aria-label="是否使用 AI 生图" />
                   </div>
