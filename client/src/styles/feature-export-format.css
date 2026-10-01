@@ -1460,3 +1460,82 @@
 .export-template-preview-error {
   color: var(--yb-danger);
 }
+
+/* ── 页眉页脚样式选择器（HeaderFooterChrome） ────────────── */
+.header-footer-style-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
+.header-footer-style-card {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  cursor: pointer;
+  background: var(--yb-bg-elevated, #fff);
+  border: 1px solid var(--yb-border-soft, #dcdff6);
+  border-radius: var(--yb-radius-md, 8px);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.header-footer-style-card:hover {
+  border-color: var(--yb-accent, #536176);
+}
+
+.header-footer-style-card.is-selected {
+  border-color: var(--yb-accent, #536176);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--yb-accent, #536176) 25%, transparent);
+}
+
+.header-footer-style-thumb {
+  display: grid;
+  grid-template-rows: 8px 1fr 8px;
+  gap: 2px;
+  aspect-ratio: 210 / 297;
+  padding: 3px;
+  background: var(--yb-bg, #fafbfc);
+  border: 1px solid var(--yb-border-soft, #dcdff6);
+  border-radius: 4px;
+}
+
+.header-footer-style-thumb-chrome {
+  display: block;
+  border-radius: 1px;
+}
+
+.header-footer-style-thumb-chrome.is-footer.has-badge {
+  position: relative;
+}
+
+.header-footer-style-thumb-chrome.is-footer.has-badge::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translateY(-50%);
+  background: #fff;
+  border-radius: 1px;
+}
+
+.header-footer-style-thumb-body {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  padding: 2px;
+}
+
+.header-footer-style-thumb-body i {
+  display: block;
+  height: 2px;
+  background: var(--yb-border-soft, #dcdff6);
+  border-radius: 1px;
+}
+
+.header-footer-style-label {
+  font-size: 12px;
+  color: var(--yb-text, #243048);
+  text-align: center;
+}

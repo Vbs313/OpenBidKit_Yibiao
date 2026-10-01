@@ -6,6 +6,7 @@ export { default as EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 export { default as UnderDevelopmentPage, RouteNotFound } from './UnderDevelopmentPage';
 export type { UnderDevelopmentPageProps } from './UnderDevelopmentPage';
+export { HeaderFooterStylePicker, resolveChromeColors } from './HeaderFooterChrome';
 export { default as InlineSpinner } from './InlineSpinner';
 export { default as ProgressBar } from './ProgressBar';
 export type { ProgressBarProps, ProgressBarTone } from './ProgressBar';

@@ -108,6 +108,28 @@ export const PAPER_DIMENSIONS: Record<PaperSize, { width: number; height: number
   '16k': { width: 184, height: 260 },
 };
 
+// ── 页眉页脚装饰样式 ──────────────────────────────
+// 与 electron/shared/chrome/ 支持的样式对齐；plain 无装饰，其余为装饰样式。
+export const HEADER_FOOTER_STYLE_OPTIONS = [
+  { value: 'plain', label: '简约', description: '无装饰，仅文字与页码。' },
+  { value: 'band', label: '色带', description: '通栏色带页眉页脚。' },
+  { value: 'frame', label: '边框', description: '白底加强调色边框。' },
+  { value: 'footer-badge', label: '页脚徽章', description: '页脚色带加徽章块。' },
+] as const;
+
+export type HeaderFooterStyle = (typeof HEADER_FOOTER_STYLE_OPTIONS)[number]['value'];
+
+export function resolveHeaderFooterStyle(style: string | undefined): HeaderFooterStyle {
+  if ((HEADER_FOOTER_STYLE_OPTIONS as readonly { value: string }[]).some((item) => item.value === style)) {
+    return style as HeaderFooterStyle;
+  }
+  return 'plain';
+}
+
+export function isDecorativeHeaderFooterStyle(style: string | undefined): boolean {
+  return resolveHeaderFooterStyle(style) !== 'plain';
+}
+
 // ── 页面设置 ──────────────────────────────────────
 export interface PageSetupConfig {
   paper_size: PaperSize;
@@ -133,6 +155,10 @@ export interface PageSetupConfig {
   page_number_enabled: boolean;
   page_number_format: string;   // '第{page}页'
   page_number_start: number;
+  // 页眉页脚装饰样式与配色（chrome 渲染用；electron/shared/chrome/ 已支持）。
+  header_footer_style: HeaderFooterStyle;
+  chrome_bar_color: string;
+  chrome_accent_color: string;
 }
 
 // ── 完整导出格式配置 ──────────────────────────────
@@ -330,6 +356,9 @@ const DEFAULT_PAGE_SETUP: PageSetupConfig = {
   page_number_enabled: false,
   page_number_format: '第{page}页',
   page_number_start: 1,
+  header_footer_style: 'plain',
+  chrome_bar_color: '#e8eef5',
+  chrome_accent_color: '#536176',
 };
 
 const DEFAULT_BODY_TEXT: BodyTextStyleConfig = {
