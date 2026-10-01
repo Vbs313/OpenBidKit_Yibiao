@@ -21,6 +21,7 @@ import SettingsPage from '../features/settings/pages/SettingsPage';
 import TechnicalPlanHome from '../features/technical-plan/pages/TechnicalPlanHome';
 import FeasibilityReportHome from '../features/feasibility-report/pages/FeasibilityReportHome';
 import SecondaryMenuPage from '../shared/ui/SecondaryMenuPage';
+import { RouteNotFound, UnderDevelopmentPage } from '../shared/ui';
 
 interface AppRouterProps {
   activeSection: SectionId;
@@ -81,6 +82,10 @@ function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSect
       return <ExportFormatPage mode="create" />;
     case 'bid-opportunity':
       return <BidOpportunityPage />;
+    case 'ai-evaluation':
+      return <UnderDevelopmentPage title="AI 评标" description="模拟 AI 评标，对投标文件进行打分并出具评标报告。" />;
+    case 'image-knowledge-base':
+      return <UnderDevelopmentPage title="图片知识库" description="管理图片素材、图示和视觉参考资料。" />;
     case 'developer-test':
       return null;
     case 'developer-json-test':
@@ -94,7 +99,8 @@ function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSect
     case 'settings':
       return <SettingsPage onDeveloperModeChange={onDeveloperModeChange} />;
     default:
-      return null;
+      // 兜底：未在 switch 中登记的 SectionId 不再返回空白页，给出明确反馈。
+      return <RouteNotFound section={activeSection} />;
   }
 }
 
