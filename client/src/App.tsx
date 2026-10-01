@@ -3,6 +3,7 @@ import AppRouter from './app/AppRouter';
 import GpuHardwareAccelerationPrompt from './app/GpuHardwareAccelerationPrompt';
 import RequiredOnlineServicesPrompt from './app/RequiredOnlineServicesPrompt';
 import AppShell from './components/AppShell';
+import { useSettingsRedirect } from './app/useSettingsRedirect';
 import type { SectionId } from './shared/types/navigation';
 
 function isDeveloperSection(section: SectionId) {
@@ -37,15 +38,18 @@ function App() {
     }
   }, [activeSection, developerMode]);
 
-  const requestSectionChange = async (section: SectionId) => {
+  const requestSectionChange = async (section: SectionId): Promise<boolean> => {
     if (section === activeSection) {
-      return;
+      return true;
     }
     const allowed = await (leaveGuardRef.current?.(section) ?? Promise.resolve(true));
     if (allowed) {
       setActiveSection(section);
     }
+    return allowed;
   };
+
+  const { settingsRequest, clearSettingsRequest } = useSettingsRedirect(requestSectionChange);
 
   return (
     <>
@@ -64,6 +68,8 @@ function App() {
           registerLeaveGuard={(guard) => {
             leaveGuardRef.current = guard;
           }}
+          settingsRequest={settingsRequest}
+          onSettingsRequestHandled={clearSettingsRequest}
         />
       </AppShell>
     </>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isLibreOfficeRequiredMessage, MarkdownFullscreenViewer, MarkdownRenderer, UploadBoard, UploadEmpty, UploadFilePill, UploadRow, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FileParserProvider } from '../../../shared/types';
+import type { SectionId } from '../../../shared/types/navigation';
 import type { TechnicalPlanOriginalPlanFile, TechnicalPlanState, TechnicalPlanTenderFile, TechnicalPlanTenderSourceFile, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
 
 type TechnicalPlanUploadBusy = 'tender' | 'originalPlan' | null;
@@ -69,6 +70,8 @@ interface DocumentAnalysisPageProps {
   originalPlanMarkdown: string;
   onFileImported: (state: TechnicalPlanState, markdown: string) => void;
   onOriginalPlanImported: (state: TechnicalPlanState, markdown: string) => void;
+  /** 用于「请先在设置中填写 X」类提示直达设置页。 */
+  onSectionChange?: (section: SectionId) => void;
 }
 
 function DocumentAnalysisPage({
@@ -80,6 +83,7 @@ function DocumentAnalysisPage({
   originalPlanMarkdown,
   onFileImported,
   onOriginalPlanImported,
+  onSectionChange,
 }: DocumentAnalysisPageProps) {
   const [configuredParserLabel, setConfiguredParserLabel] = useState(parserLabels.local);
   const [busy, setBusy] = useState<TechnicalPlanUploadBusy>(null);
@@ -167,7 +171,9 @@ function DocumentAnalysisPage({
         const config = await window.yibiao?.config.load();
         const token = config?.components?.file_parser?.mineru_token || '';
         if (!token) {
-          showToast('请先在设置 → 组件中填写 MinerU Token', 'error');
+          showToast('请先在设置 → 组件中填写 MinerU Token', 'error', {
+            actions: onSectionChange ? [{ label: '前往设置', variant: 'primary', onClick: () => onSectionChange('settings') }] : undefined,
+          });
           return;
         }
       }

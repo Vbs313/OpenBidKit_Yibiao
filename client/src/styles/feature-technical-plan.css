@@ -3898,10 +3898,3 @@
   inset: 0 0 auto;
   padding: 12px;
 }
-
-.content-reader-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 20px 24px;
