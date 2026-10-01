@@ -208,33 +208,31 @@
 .nav-item:hover,
 .settings-trigger:hover {
   color: var(--yb-primary);
-  background: rgba(33, 116, 253, 0.06);
-  border-color: rgba(33, 116, 253, 0.12);
-  transform: translateX(2px);
+  background: var(--yb-primary-soft);
 }
 
 .nav-item.is-active,
 .settings-trigger.is-active {
-  color: #ffffff;
-  background: linear-gradient(135deg, var(--yb-primary) 0%, var(--yb-violet) 100%);
-  border-color: rgba(33, 116, 253, 0.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 14px 30px rgba(33, 116, 253, 0.22);
+  /* 企业级激活态：纯色 + 左侧指示条，Fluent 风格 */
+  color: var(--yb-primary);
+  background: var(--yb-primary-soft);
+  box-shadow: inset 3px 0 0 var(--yb-primary);
 }
 
 .nav-item.is-active:hover,
 .settings-trigger.is-active:hover {
-  transform: none;
+  background: var(--yb-primary-soft);
 }
 
 .nav-item.is-active .nav-icon,
 .settings-trigger.is-active .nav-icon {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.24);
+  background: var(--yb-surface);
+  border-color: var(--yb-primary);
 }
 
 .nav-item.is-active .nav-copy small,
 .settings-trigger.is-active .settings-copy small {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--yb-primary-deep);
 }
 
 .nav-icon {
