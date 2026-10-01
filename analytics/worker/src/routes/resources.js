@@ -113,7 +113,7 @@ async function queryTodayResourceClickCounts(env, resources, url) {
     return new Map();
   }
 
-  const projectName = normalizeText(url.searchParams.get('projectName') || 'yibiao-client', 80);
+  const projectName = normalizeText(url.searchParams.get('projectName') || 'sjjt-bid-toolkit', 80);
   if (!isValidProjectName(projectName)) {
     return new Map();
   }

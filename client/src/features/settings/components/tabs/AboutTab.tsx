@@ -23,11 +23,11 @@ export function AboutTab(props: AboutTabProps) {
                   <span className="about-links-label">GitHub 仓库</span>
                   <a
                     className="about-links-value is-link"
-                    href="https://github.com/FB208/OpenBidKit_Yibiao"
+                    href="https://github.com/数据集团/数据集团工具箱"
                     target="_blank"
                     rel="noreferrer"
                   >
-                    FB208/OpenBidKit_Yibiao
+                    数据集团/数据集团工具箱
                   </a>
                 </li>
                 <li className="about-links-item">

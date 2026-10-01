@@ -10,7 +10,7 @@ const { generateGoogleImage } = require('./googleImages.cjs');
 async function testComfyUIImageModel(app, config) {
   const testRequest = {
     title: '测试',
-    prompt: '大字报，内容是"易标AI老好了"',
+    prompt: '大字报，内容是"数据集团工具箱AI老好了"',
   };
   const { image, workflow_source: workflowSource } = await runComfyUIImageGeneration(app, config, testRequest, {
     returnRawImage: true,

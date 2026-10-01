@@ -9,7 +9,7 @@
     <RootNamespace>Yibiao.OpenXmlHelper</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <!-- 本机 NuGet restore 不可用时走本地 lib 引用；包版本与 OpenBidKit_Yibiao 对齐。 -->
+    <!-- 本机 NuGet restore 不可用时走本地 lib 引用；包版本与 数据集团工具箱 对齐。 -->
     <Reference Include="DocumentFormat.OpenXml">
       <HintPath>..\..\lib\DocumentFormat.OpenXml.dll</HintPath>
     </Reference>

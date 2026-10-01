@@ -304,7 +304,7 @@ function createAgentService({ app, configStore, aiService, autoConfirmationServi
       question_id: questionId,
       task_id: safeText(request.task_id),
       session_id: safeText(request.session_id),
-      task_title: safeText(request.task_title) || '易标智能体任务',
+      task_title: safeText(request.task_title) || '数据集团工具箱智能体任务',
       question: safeText(request.question),
       options,
       asked_at: nowIso(),
@@ -513,7 +513,7 @@ function createAgentService({ app, configStore, aiService, autoConfirmationServi
     if (closing) return Promise.reject(new Error('Agent 服务正在关闭'));
     if (payload.signal?.aborted) return Promise.reject(createAbortError(payload.signal));
     const taskId = payload.task_id || crypto.randomUUID();
-    const title = payload.title || '易标智能体任务';
+    const title = payload.title || '数据集团工具箱智能体任务';
     const taskKey = safeText(payload.persistent_task?.task_key);
     const entry = {
       taskId,
