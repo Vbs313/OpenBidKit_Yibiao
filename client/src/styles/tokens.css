@@ -1,16 +1,20 @@
 /* [1-25] root vars + universal box-sizing reset */
 :root {
-  --yb-primary: #2174fd;
-  --yb-primary-hover: #4098fc;
-  --yb-primary-deep: #155bd7;
+  /* 企业级配色：Fluent UI 风格，中性蓝灰基调，克制而专业 */
+  --yb-primary: #0f6cbd;
+  --yb-primary-hover: #115ea3;
+  --yb-primary-deep: #0c4a8a;
+  --yb-primary-soft: #ebf3fc;
   --yb-violet: #5b54d3;
-  --yb-bg: #fafcff;
+  --yb-bg: #f5f7fa;
   --yb-surface: #ffffff;
-  --yb-border: #e6e9f0;
-  --yb-border-soft: #eef2f9;
-  --yb-text: #1c2536;
-  --yb-text-soft: #66707f;
-  --yb-text-muted: #98a2b3;
+  --yb-border: #e1e5eb;
+  --yb-border-soft: #eef1f5;
+  --yb-text: #24272c;
+  --yb-text-soft: #5c6370;
+  --yb-text-muted: #8a919e;
+  --yb-accent: #0f6cbd;
+  --yb-accent-soft: #ebf3fc;
 
   /* 语义色：成功 / 警告 / 危险，各含主色、深文字、浅背景、边框四档 */
   --yb-success: #168a4a;
@@ -33,13 +37,13 @@
   --yb-radius-xl: 24px;
   --yb-radius-pill: 999px;
 
-  /* 分层阴影体系：由弱到强，元素层级越高、越需要强调，阴影越重 */
-  --yb-shadow-xs: 0 2px 8px rgba(23, 32, 51, 0.04);
-  --yb-shadow-sm: 0 8px 20px rgba(33, 116, 253, 0.05);
-  --yb-shadow: 0 18px 40px rgba(33, 116, 253, 0.07);
-  --yb-shadow-lg: 0 30px 64px rgba(33, 116, 253, 0.11), 0 10px 26px rgba(23, 32, 51, 0.06);
-  --yb-shadow-hover: 0 22px 46px rgba(33, 116, 253, 0.16), 0 8px 18px rgba(23, 32, 51, 0.08);
-  --yb-shadow-modal: 0 28px 72px rgba(23, 32, 51, 0.16);
+  /* 分层阴影体系：企业级克制，中性灰调，避免彩色阴影的消费级感 */
+  --yb-shadow-xs: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --yb-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --yb-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+  --yb-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --yb-shadow-hover: 0 8px 24px rgba(15, 23, 42, 0.14);
+  --yb-shadow-modal: 0 16px 48px rgba(15, 23, 42, 0.18);
 
   /* 统一键盘焦点环 */
   --yb-focus-ring: 0 0 0 3px rgba(33, 116, 253, 0.22);

@@ -14,7 +14,7 @@ const path = require('node:path');
 const { app, BrowserWindow, dialog } = require('electron');
 const { registerIpcHandlers } = require('../electron/ipc/index.cjs');
 
-const DEV_URL = process.env.YIBIAO_DEV_URL || 'http://127.0.0.1:5173/';
+const DEV_URL = process.env.SJJT_DEV_URL || 'http://127.0.0.1:5173/';
 const CHECK_COUNT = 4;
 const DETERMINISTIC_COUNT = 3;
 
