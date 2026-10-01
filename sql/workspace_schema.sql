@@ -839,10 +839,13 @@ ON knowledge_match_batches(document_id, status, batch_index);
 
 -- 标书导出模板库。
 -- config_json 保存完整 ExportFormatConfig；当前仅用于模板保存、查看和编辑，尚未接入 Word 导出选择。
+-- is_system = 1 是系统预设模板：真源在 electron/services/systemExportTemplates.cjs，
+-- 每次启动幂等同步进来，用户不可编辑不可删除，只能复制成自己的模板。
 CREATE TABLE IF NOT EXISTS export_templates (
   template_id TEXT PRIMARY KEY,
   template_name TEXT NOT NULL,
   config_json TEXT NOT NULL,
+  is_system INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

@@ -22,6 +22,8 @@ const REQUIRED_TABLES = {
   taskLogs: 'task_logs',
   feasibilityReport: 'feasibility_report_meta',
   complianceCheck: 'compliance_check_jobs',
+  credentialLibrary: 'credential_library_items',
+  exportTemplates: 'export_templates',
 };
 
 function exitWithCode(code) {

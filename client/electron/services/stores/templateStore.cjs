@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { now } = require('./storeUtils.cjs');
+const { SYSTEM_EXPORT_TEMPLATES } = require('../systemExportTemplates.cjs');
 
 function createTemplateId() {
   return `tpl-${crypto.randomUUID()}`;
@@ -15,6 +16,7 @@ function templateFromRow(row) {
     template_id: row.template_id,
     template_name: row.template_name,
     config: JSON.parse(row.config_json),
+    is_system: row.is_system === 1,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -65,6 +67,10 @@ function createTemplateStore({ db }) {
   }
 
   function updateTemplate(templateId, config) {
+    const existing = getTemplate(templateId);
+    if (existing?.is_system) {
+      throw new Error('系统预设模板不可编辑，请复制后再修改');
+    }
     const templateName = resolveTemplateName(config);
     const nextConfig = { ...config, template_name: templateName };
     const updatedAt = now();
@@ -90,6 +96,10 @@ function createTemplateStore({ db }) {
   }
 
   function deleteTemplate(templateId) {
+    const existing = getTemplate(templateId);
+    if (existing?.is_system) {
+      return { success: false, message: '系统预设模板不可删除' };
+    }
     const result = db.prepare('DELETE FROM export_templates WHERE template_id = ?').run(templateId);
     return {
       success: result.changes > 0,
@@ -105,6 +115,38 @@ function createTemplateStore({ db }) {
     return createTemplate({ ...source.config, template_name: `${source.template_name} 副本` });
   }
 
+  /** 系统预设模板真源幂等同步：每次启动调用，改预设只需改 systemExportTemplates.cjs。 */
+  function syncSystemTemplates() {
+    const timestamp = now();
+    const upsert = db.prepare(`
+      INSERT INTO export_templates (template_id, template_name, config_json, is_system, created_at, updated_at)
+      VALUES (@template_id, @template_name, @config_json, 1, @timestamp, @timestamp)
+      ON CONFLICT(template_id) DO UPDATE SET
+        template_name = excluded.template_name,
+        config_json = excluded.config_json,
+        is_system = 1,
+        updated_at = excluded.updated_at
+    `);
+    const keptIds = SYSTEM_EXPORT_TEMPLATES.map((template) => template.template_id);
+    const placeholders = keptIds.map(() => '?').join(', ');
+    const removeStale = db.prepare(
+      `DELETE FROM export_templates WHERE is_system = 1 AND template_id NOT IN (${placeholders})`,
+    );
+
+    db.transaction(() => {
+      for (const template of SYSTEM_EXPORT_TEMPLATES) {
+        const templateName = resolveTemplateName(template.config);
+        upsert.run({
+          template_id: template.template_id,
+          template_name: templateName,
+          config_json: JSON.stringify({ ...template.config, template_name: templateName }),
+          timestamp,
+        });
+      }
+      removeStale.run(...keptIds);
+    })();
+  }
+
   return {
     listTemplates,
     getTemplate,
@@ -112,6 +154,7 @@ function createTemplateStore({ db }) {
     updateTemplate,
     deleteTemplate,
     duplicateTemplate,
+    syncSystemTemplates,
   };
 }
 

@@ -12,7 +12,7 @@ const { createFeasibilityReportSchema } = require('./db/schema/feasibilityReport
 const { createComplianceCheckSchema } = require('./db/schema/complianceCheck.cjs');
 const { createCredentialLibrarySchema } = require('./db/schema/credentialLibrary.cjs');
 
-const schemaVersion = 26;
+const schemaVersion = 27;
 
 function createTechnicalPlanGlobalFactsSchema(db) {
   db.exec(`
@@ -632,6 +632,16 @@ const migrations = [
     version: 26,
     description: '新增资信库表结构',
     up: createCredentialLibrarySchema,
+  },
+  {
+    version: 27,
+    description: '导出模板新增系统预设标记',
+    up(db) {
+      const columns = getExistingColumns(db, 'export_templates');
+      if (!columns.has('is_system')) {
+        db.exec('ALTER TABLE export_templates ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0');
+      }
+    },
   },
 ];
 
