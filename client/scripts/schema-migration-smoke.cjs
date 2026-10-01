@@ -1,3 +1,7 @@
+// EPIPE 保护：并行运行多个 Electron 冒烟时父进程可能提前关闭 stdout 管道，
+// 避免 console.log 触发 Uncaught Exception 弹窗。
+process.stdout.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
+process.stderr.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
 /*
  * 全新数据库迁移冒烟：在临时 userData 目录里从 0 跑完全部迁移。
  *

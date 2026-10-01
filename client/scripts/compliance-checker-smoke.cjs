@@ -1,3 +1,7 @@
+// EPIPE 保护：并行运行多个 Electron 冒烟时父进程可能提前关闭 stdout 管道，
+// 避免 console.log 触发 Uncaught Exception 弹窗。
+process.stdout.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
+process.stderr.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
 /*
  * 合规检查模块的 Electron 侧集成冒烟：真实 SQLite migration、真实 Sidecar 子进程、真实 Store 读写。
  * 需要 Electron ABI 运行（better-sqlite3 按 Electron 重建），因此不能用普通 node 执行。

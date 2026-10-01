@@ -1,3 +1,7 @@
+// EPIPE 保护：并行运行多个 Electron 冒烟时父进程可能提前关闭 stdout 管道，
+// 避免 console.log 触发 Uncaught Exception 弹窗。
+process.stdout.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
+process.stderr.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
 /*
  * 全页面挂载冒烟：把侧边栏每个入口点一遍，断言「页面能挂载」且「渲染器不报错」。
  *

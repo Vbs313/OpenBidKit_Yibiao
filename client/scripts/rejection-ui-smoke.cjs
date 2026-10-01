@@ -1,3 +1,7 @@
+// EPIPE 保护：并行运行多个 Electron 冒烟时父进程可能提前关闭 stdout 管道，
+// 避免 console.log 触发 Uncaught Exception 弹窗。
+process.stdout.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
+process.stderr.on('error', (error) => { if (error?.code === 'EPIPE') process.exit(0); });
 /*
  * 废标项检查页无头 UI 冒烟：真实 preload + 真实 IPC + 真实 SQLite + 已构建的 dist。
  *
