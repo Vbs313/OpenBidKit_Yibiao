@@ -1,10 +1,7 @@
+const { now } = require('../stores/storeUtils.cjs');
 const crypto = require('node:crypto');
 const { normalizeCheckIds } = require('./complianceCheckRegistry.cjs');
 const { stripCredentialFields } = require('./protocol.cjs');
-
-function now() {
-  return new Date().toISOString();
-}
 
 function safeJsonParse(value, fallback = null) {
   if (!value) return fallback;

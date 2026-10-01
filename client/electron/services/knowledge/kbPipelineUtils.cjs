@@ -1,3 +1,4 @@
+const { now, createId, safeName } = require('../stores/storeUtils.cjs');
 const DEFAULT_CONTEXT_LENGTH_LIMIT = 400000;
 const KNOWLEDGE_CONTEXT_LIMIT_RATIO = 0.62;
 const TASK_AND_ITEMS_RESERVE_RATIO = 0.34;
@@ -18,10 +19,6 @@ const {
   expandRanges,
 } = require('./blockPipeline.cjs');
 
-function now() {
-  return new Date().toISOString();
-}
-
 /** 等待服务商写入提示词前缀缓存后再 fan-out */
 function waitForPromptCacheWarmup() {
   return new Promise((resolve) => setTimeout(resolve, PROMPT_CACHE_WARMUP_DELAY_MS));
@@ -35,14 +32,6 @@ async function runParallelAndThrowAfterSettled(taskFns) {
     throw rejected.reason instanceof Error ? rejected.reason : new Error(String(rejected.reason || '并发分段失败'));
   }
   return results.map((item) => item.value);
-}
-
-function createId(prefix) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
-
-function safeName(name) {
-  return String(name || '未命名').replace(/[<>:"/\\|?*\x00-\x1F]+/g, '_').trim() || '未命名';
 }
 
 function ensureDir(dir) {

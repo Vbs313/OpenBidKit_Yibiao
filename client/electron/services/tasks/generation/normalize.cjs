@@ -1,3 +1,4 @@
+const { now } = require('../../stores/storeUtils.cjs');
 // 模型/任务载荷的规整：把各种上游写法归一成一种规范形状，纯函数，可单独测试。
 
 const { singleLine } = require('./agentResponse.cjs');
@@ -322,10 +323,6 @@ function normalizeContentGenerationRuntime(value) {
     awaiting_content_decision: Boolean(source.awaiting_content_decision),
     updated_at: source.updated_at || now(),
   };
-}
-
-function now() {
-  return new Date().toISOString();
 }
 
 module.exports = {

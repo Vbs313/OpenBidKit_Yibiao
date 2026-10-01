@@ -2,19 +2,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { getKnowledgeBaseDir } = require('./../../utils/paths.cjs');
-const { now, hasOwn, safeJsonParse, jsonOrNull } = require('./storeUtils.cjs');
+const { now, hasOwn, safeJsonParse, jsonOrNull, createId, safeName } = require('./storeUtils.cjs');
 
 const documentStatuses = ['pending', 'copying', 'converting', 'extracting', 'ready_for_matching', 'matching', 'recovering', 'analyzing', 'saving', 'success', 'error'];
 const documentStepKeys = ['copy_source', 'convert_markdown', 'build_blocks', 'extract_first_items', 'extract_supplement_items', 'merge_candidates', 'match_batches', 'recover_missing', 'save_result'];
 const stepStatuses = ['idle', 'running', 'success', 'error'];
-
-function createId(prefix) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
-
-function safeName(name) {
-  return String(name || '未命名').replace(/[<>:"/\\|?*\x00-\x1F]+/g, '_').trim() || '未命名';
-}
 
 function normalizeStatus(value) {
   return documentStatuses.includes(value) ? value : 'pending';

@@ -1,3 +1,4 @@
+const { now } = require('./stores/storeUtils.cjs');
 const crypto = require('node:crypto');
 const { runBidSectionExtractionTask } = require('./tasks/bidSectionExtractionTask.cjs');
 const { runBidAnalysisTask } = require('./tasks/bidAnalysisTask.cjs');
@@ -181,10 +182,6 @@ const taskDefinitions = {
     field: 'checkTask',
   },
 };
-
-function now() {
-  return new Date().toISOString();
-}
 
 function getTaskDefinition(type) {
   return taskDefinitions[type] || { label: type, stateKey: 'technicalPlan', field: undefined, lockPolicy: 'none' };

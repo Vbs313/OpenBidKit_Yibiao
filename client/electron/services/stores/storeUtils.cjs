@@ -41,4 +41,13 @@ function createTenderSourceId(fileName, markdown, index) {
   return `tender-${String(index + 1).padStart(2, '0')}-${hash}`;
 }
 
-module.exports = { now, hasOwn, safeJsonParse, jsonOrNull, stableHash, safeFileNamePart, filePathKey, createTenderSourceId };
+// 通用 ID / 文件名助手：与原各模块内联实现逐字等价，集中到此避免重复。
+function createId(prefix) {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function safeName(name) {
+  return String(name || '未命名').replace(/[<>:"/\\|?*\x00-\x1F]+/g, '_').trim() || '未命名';
+}
+
+module.exports = { now, hasOwn, safeJsonParse, jsonOrNull, stableHash, safeFileNamePart, filePathKey, createTenderSourceId, createId, safeName };

@@ -1,9 +1,6 @@
+const { now } = require('./stores/storeUtils.cjs');
 const crypto = require('node:crypto');
 const { OUTLINE_AGENT_TASK_KEY, GLOBAL_FACTS_AGENT_TASK_KEY, FEASIBILITY_OUTLINE_AGENT_TASK_KEY } = require('./agentTaskKeys.cjs');
-
-function now() {
-  return new Date().toISOString();
-}
 
 function isActiveTaskStatus(status) {
   return status === 'running' || status === 'pausing';
