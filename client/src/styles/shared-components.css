@@ -194,10 +194,11 @@
 /* [741-750] (rewritten) panel/empty-panel base card (trimmed from hero-panel/stage-card/category-card dead code) */
 .panel,
 .empty-panel {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(228, 233, 240, 0.88);
-  border-radius: var(--yb-radius-xl);
-  box-shadow: var(--yb-shadow);
+  /* 企业级卡片：纯白 + 细边框 + 极淡阴影，Fluent 风格 */
+  background: var(--yb-surface);
+  border: 1px solid var(--yb-border);
+  border-radius: var(--yb-radius-md);
+  box-shadow: var(--yb-shadow-xs);
 }
 
 /* [804-853] primary-action/secondary-action/danger-action/text-button */
