@@ -4,6 +4,7 @@ const { batchExportBidSections } = require('./../services/batchExportService.cjs
 function registerExportIpc({ exportService, technicalPlanStore, app }) {
   // 批量导出：一次性导出全部标段 Word。
   ipcMain.handle('export:batch-word', async (event) => {
+    if (!technicalPlanStore) return { success: false, message: '数据库尚未就绪' };
     // 让用户选输出目录。
     const outputDir = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
     if (outputDir.canceled || !outputDir.filePaths[0]) return { success: false, message: '已取消' };
