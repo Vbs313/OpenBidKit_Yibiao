@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
 import DocumentAnalysisPage from './DocumentAnalysisPage';
+import ApprovalStatusBadge from '../components/ApprovalStatusBadge';
 import BidAnalysisPage from './BidAnalysisPage';
 import OutlineEditPage from './OutlineEditPage';
 import GlobalFactsPage from './GlobalFactsPage';
@@ -517,6 +518,23 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange, 
 
   return (
     <div className="page-stack technical-workbench">
+      {/* v29 审批流：状态徽章 + 审批操作入口 */}
+      <div className="approval-bar">
+        <ApprovalStatusBadge
+          status={state.approvalStatus}
+          comment={state.approvalComment}
+          updatedAt={state.approvalUpdatedAt}
+          onSave={async (payload) => {
+            const result = await window.yibiao?.technicalPlan.saveApproval(payload);
+            setState((prev) => ({
+              ...prev,
+              approvalStatus: payload.status,
+              approvalComment: payload.comment || '',
+              approvalUpdatedAt: result?.approval_updated_at,
+            }));
+          }}
+        />
+      </div>
       {state.step === 'document-analysis' && (
         <DocumentAnalysisPage
           workflowKind={workflowKind}

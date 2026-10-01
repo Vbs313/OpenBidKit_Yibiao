@@ -3898,3 +3898,87 @@
   inset: 0 0 auto;
   padding: 12px;
 }
+
+/* ── 审批流状态徽章与对话框 (v29) ────────────── */
+.approval-bar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.approval-status-badge {
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--yb-border-soft, #dcdff6);
+  border-radius: 12px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.approval-status-badge.is-pending {
+  color: #b8860b;
+  background: #fff8e1;
+  border-color: #ffe082;
+}
+
+.approval-status-badge.is-approved {
+  color: #2e7d32;
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+}
+
+.approval-status-badge.is-rejected {
+  color: #c62828;
+  background: #ffebee;
+  border-color: #ef9a9a;
+}
+
+.approval-dialog {
+  display: grid;
+  gap: 14px;
+}
+
+.approval-status-options {
+  display: flex;
+  gap: 8px;
+}
+
+.approval-status-option {
+  flex: 1;
+  padding: 8px;
+  cursor: pointer;
+  background: var(--yb-bg-elevated, #fff);
+  border: 1px solid var(--yb-border-soft, #dcdff6);
+  border-radius: 6px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.approval-status-option:hover {
+  border-color: var(--yb-accent, #536176);
+}
+
+.approval-status-option.is-selected {
+  color: var(--yb-accent, #536176);
+  border-color: var(--yb-accent, #536176);
+  background: color-mix(in srgb, var(--yb-accent, #536176) 10%, transparent);
+}
+
+.approval-comment-label {
+  display: grid;
+  gap: 6px;
+}
+
+.approval-comment-label span {
+  font-size: 13px;
+  color: var(--yb-text-muted, #5a6472);
+}
+
+.approval-comment-label textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  border: 1px solid var(--yb-border-soft, #dcdff6);
+  border-radius: 6px;
+  resize: vertical;
+}
