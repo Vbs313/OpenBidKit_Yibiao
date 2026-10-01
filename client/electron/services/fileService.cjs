@@ -677,4 +677,7 @@ module.exports = {
   createFileService,
   parseDocumentWithConfig,
   resolveFileParser,
+  // 仅供测试：导入图片扩展名推断（P0-0.7 修复的 EMF/WMF + mime 推断）。
+  imageExtensionFromMime,
+  imageExtensionFromPath,
 };
