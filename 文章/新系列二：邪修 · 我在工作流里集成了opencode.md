@@ -20,7 +20,7 @@
 
 于是我又突发奇想了，opencode写这种json代码正确率很高，而是有错了会自己修，那我何不~
 
-opencode支持http服务端点，我直接在项目里内嵌了一个opencode runtime，通过api和opencode通讯，然后重写了opencode的AI服务商配置，直接代理到易标投标工具箱的AI服务商，和项目共用一套AI配置。
+opencode支持http服务端点，我直接在项目里内嵌了一个opencode runtime，通过api和opencode通讯，然后重写了opencode的AI服务商配置，直接代理到数据集团工具箱投标工具箱的AI服务商，和项目共用一套AI配置。
 
 然后把如json格式校验/修复、全文一致性审计、原文覆盖率审计等需要理解性决策的内容，都交给opencode去处理。
 

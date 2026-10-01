@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-CHANGELOG_TITLE = "# 易标投标工具箱版本更新日志"
+CHANGELOG_TITLE = "# 数据集团工具箱投标工具箱版本更新日志"
 VERSION_RE = re.compile(r"^v2\.(\d+)\.(\d+)$")
 CATEGORY_OPTIONS = (
     ("added", "新增"),
@@ -382,7 +382,7 @@ def plan_payload(plan: InsertPlan, applied: bool) -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse deterministic inspect and insert commands."""
-    parser = argparse.ArgumentParser(description="检查正式版本证据并安全更新易标 v2 版本日志")
+    parser = argparse.ArgumentParser(description="检查正式版本证据并安全更新数据集团工具箱 v2 版本日志")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     inspect_parser = subparsers.add_parser("inspect", help="只读收集待写版本和 Git 证据")

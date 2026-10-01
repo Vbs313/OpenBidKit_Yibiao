@@ -150,7 +150,7 @@ main() {
     exit 1
   fi
 
-  local out_dir="$(pwd)/数据集团投标工具箱-${tag}"
+  local out_dir="$(pwd)/数据集团工具箱-${tag}"
   mkdir -p "${out_dir}"
   echo "最新版本: ${tag}"
 

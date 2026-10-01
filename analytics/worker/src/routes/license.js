@@ -6,7 +6,7 @@ import { isValidProjectName, normalizeText } from '../utils.js';
 const LICENSE_PLANS = new Set(['free', 'personal_premium', 'enterprise_premium']);
 const FINGERPRINT_VERSION = '2026-01';
 const OFFLINE_LICENSE_CODE_PREFIX = 'YB-LICENSE-';
-const DEFAULT_APP_ID = 'com.yibiao.openbidkit';
+const DEFAULT_APP_ID = 'com.sjjt.openbidkit';
 const DEFAULT_PRODUCT_NAME = '数据集团工具箱投标工具箱';
 
 function addDaysIso(days) {

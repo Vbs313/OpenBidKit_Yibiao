@@ -49,7 +49,7 @@ python .agents/skills/yibiao-user-manual/scripts/changelog_tool.py insert --appl
 ## 固定格式
 
 ```markdown
-# 易标投标工具箱版本更新日志
+# 数据集团工具箱投标工具箱版本更新日志
 
 ## v2.19.1
 
@@ -70,7 +70,7 @@ python .agents/skills/yibiao-user-manual/scripts/changelog_tool.py insert --appl
 - 调整已有能力或服务范围，并说明用户需要注意的变化。
 ```
 
-- 一级标题必须固定为“易标投标工具箱版本更新日志”。
+- 一级标题必须固定为“数据集团工具箱投标工具箱版本更新日志”。
 - 版本标题必须使用 `## v2.x.x`，所有版本按语义版本严格倒序排列。
 - 栏目只允许“新增”“优化”“修复”“调整”；新插入版本严格按此顺序排列，没有内容的栏目直接省略。
 - 每个栏目至少包含一条 `- ` 列表，每条只写一个主题并以中文句号结尾。

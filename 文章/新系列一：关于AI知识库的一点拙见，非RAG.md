@@ -10,7 +10,7 @@
 
 也接受批评和指正，欢迎讨论。
 
-易标投标工具箱，项目源码、提示词已在 GitHub 完全开源：https://github.com/FB208/OpenBidKit_Yibiao
+数据集团工具箱投标工具箱，项目源码、提示词已在 GitHub 完全开源：https://github.com/数据集团/数据集团工具箱
 
 ## 你不需要RAG
 

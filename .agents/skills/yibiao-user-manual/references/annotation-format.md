@@ -48,7 +48,7 @@
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\capture-window.ps1 `
   -OutputPath "使用说明\images\03-文本模型配置.png" `
-  -WindowTitlePattern "易标投标工具箱"
+  -WindowTitlePattern "数据集团工具箱投标工具箱"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\annotate-screenshot.ps1 `
   -InputPath "使用说明\images\03-文本模型配置.png" `
