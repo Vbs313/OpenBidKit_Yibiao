@@ -249,6 +249,12 @@ const bridge = {
   },
   export: {
     exportWord: (payload) => ipcRenderer.invoke('export:word', payload),
+    batchExportWord: () => ipcRenderer.invoke('export:batch-word'),
+    onBatchExportProgress: (callback) => {
+      const listener = (_event, payload) => callback(payload);
+      ipcRenderer.on('export:batch-progress', listener);
+      return () => ipcRenderer.removeListener('export:batch-progress', listener);
+    },
     openFile: (filePath) => ipcRenderer.invoke('export:open-file', filePath),
     onWordExportProgress: (callback) => {
       const listener = (_event, payload) => callback(payload);

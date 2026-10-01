@@ -663,8 +663,11 @@ export interface YibiaoBridge {
   };
   export: {
     exportWord: (payload: unknown) => Promise<WordExportResult>;
+    /** 批量导出全部标段 Word（多标段项目一次性交付） */
+    batchExportWord: () => Promise<{ success: boolean; total: number; exported: number; failed: number; results: Array<{ section_id: string; section_name: string; success: boolean; file?: string; message?: string }>; message?: string }>;
     openFile: (filePath: string) => Promise<{ success: boolean }>;
     onWordExportProgress: (callback: (event: WordExportProgressEvent) => void) => () => void;
+    onBatchExportProgress: (callback: (event: { done: number; total: number; sectionName: string }) => void) => () => void;
   };
   systemFonts: {
     list: () => Promise<string[]>;

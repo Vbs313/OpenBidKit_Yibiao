@@ -459,7 +459,7 @@ function registerIpcHandlers({ app, mainWindow, gpuStartupState = {}, gpuTrialAr
   registerAgentIpc({ agentService });
   registerAutoConfirmationIpc({ autoConfirmationService });
   registerFileIpc({ fileService });
-  registerExportIpc({ exportService });
+  registerExportIpc({ exportService, technicalPlanStore, app });
   registerSystemFontIpc({ systemFontService });
   registerPluginIpc(ipcMain, app, {
     agentService,
