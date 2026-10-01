@@ -737,3 +737,51 @@
   border: 1px solid rgba(245, 158, 11, 0.32);
   border-radius: var(--yb-radius-md);
 }
+
+/* ── 首次启动引导 OnboardingWizard ────────────── */
+.onboarding-wizard {
+  display: grid;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.onboarding-progress {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.onboarding-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--yb-border-soft, #dcdff6);
+  transition: background 0.2s, transform 0.2s;
+}
+
+.onboarding-dot.is-active {
+  background: var(--yb-accent, #536176);
+  transform: scale(1.3);
+}
+
+.onboarding-dot.is-done {
+  background: var(--yb-success, #2e9d6e);
+}
+
+.onboarding-wizard h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--yb-text, #243048);
+}
+
+.onboarding-wizard p {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--yb-text-muted, #5a6472);
+}
+
+.onboarding-hint {
+  font-size: 12px;
+  text-align: center;
+  color: var(--yb-text-faint, #9aa3b0);
+}

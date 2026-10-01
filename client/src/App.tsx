@@ -3,6 +3,7 @@ import AppRouter from './app/AppRouter';
 import GpuHardwareAccelerationPrompt from './app/GpuHardwareAccelerationPrompt';
 import RequiredOnlineServicesPrompt from './app/RequiredOnlineServicesPrompt';
 import AppShell from './components/AppShell';
+import OnboardingWizard from './components/OnboardingWizard';
 import { useSettingsRedirect } from './app/useSettingsRedirect';
 import type { SectionId } from './shared/types/navigation';
 
@@ -55,6 +56,7 @@ function App() {
     <>
       <GpuHardwareAccelerationPrompt />
       <RequiredOnlineServicesPrompt />
+      <OnboardingWizard onNavigateToSettings={() => { void requestSectionChange('settings'); }} />
       <AppShell
         activeSection={activeSection}
         developerMode={developerMode}
