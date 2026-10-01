@@ -185,6 +185,16 @@ const TABLE_HINT_PATTERN = /评分|评审因素|评审内容|分值|采购清单
 const MIN_SUSPECT_CHARS = 4000;
 const MIN_DENSE_TAB_LINES = 3;
 
+/** 解析质量评分（0-100）：分数越低越建议改用 MinerU 精准解析。 */
+function scoreParseQuality({ level, gfmTableRows, htmlTableMarkers, chars, hasTableHint, isLocal, isStructuredSource }) {
+  const base = level === 'poor' ? 30 : level === 'warn' ? 70 : 100;
+  let score = base;
+  if (htmlTableMarkers > 0) score -= Math.min(25, htmlTableMarkers * 5);
+  if (isLocal && isStructuredSource && gfmTableRows === 0 && chars >= MIN_SUSPECT_CHARS && hasTableHint) score -= 15;
+  if (chars < MIN_SUSPECT_CHARS) score -= 10;
+  return Math.max(0, Math.min(100, score));
+}
+
 /**
  * 导入后质量探测：判断是否建议升级到 MinerU 精准解析。
  * 不改动正文，只产出 level/reason/文案，供导入消息与 UI 提示使用。
@@ -202,6 +212,8 @@ function assessParseQuality(markdown, { provider, sourcePath } = {}) {
     .split('\n')
     .filter((line) => (line.match(/\t/g) || []).length >= 3).length;
 
+  const score = (level) => scoreParseQuality({ level, gfmTableRows, htmlTableMarkers, chars, hasTableHint, isLocal, isStructuredSource });
+
   if (htmlTableMarkers > 0) {
     return {
       level: 'poor',
@@ -210,6 +222,7 @@ function assessParseQuality(markdown, { provider, sourcePath } = {}) {
       gfmTableRows,
       htmlTableMarkers,
       chars,
+      score: score('poor'),
       message: '解析结果仍残留 HTML 表格标记，表格结构可能不完整，建议改用 MinerU 精准解析',
     };
   }
@@ -222,6 +235,7 @@ function assessParseQuality(markdown, { provider, sourcePath } = {}) {
       gfmTableRows,
       htmlTableMarkers,
       chars,
+      score: score('warn'),
       message: '本地解析未识别到表格，但正文含评分/清单类结构，建议改用 MinerU 精准解析',
     };
   }
@@ -233,6 +247,7 @@ function assessParseQuality(markdown, { provider, sourcePath } = {}) {
     gfmTableRows,
     htmlTableMarkers,
     chars,
+    score: score('ok'),
     message: '',
   };
 }
@@ -255,4 +270,5 @@ module.exports = {
   countHtmlTableMarkers,
   assessParseQuality,
   pickWorstParseQuality,
+  scoreParseQuality,
 };

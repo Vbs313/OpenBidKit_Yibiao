@@ -1,6 +1,6 @@
-﻿const test = require('node:test');
+const test = require('node:test');
 const assert = require('node:assert/strict');
-const { assessParseQuality, pickWorstParseQuality } = require('./normalizeWorkspaceMarkdown.cjs');
+const { assessParseQuality, pickWorstParseQuality, scoreParseQuality } = require('./normalizeWorkspaceMarkdown.cjs');
 
 test('mineru output with GFM tables is ok', () => {
   const md = [
@@ -40,6 +40,34 @@ test('html residual is poor', () => {
   });
   assert.equal(quality.level, 'poor');
   assert.equal(quality.reason, 'html_table_residual');
+});
+
+test('scoreParseQuality ok level scores 100', () => {
+  const score = scoreParseQuality({ level: 'ok', gfmTableRows: 5, htmlTableMarkers: 0, chars: 10000, hasTableHint: false, isLocal: true, isStructuredSource: true });
+  assert.equal(score, 100);
+});
+
+test('scoreParseQuality warn level with table hint scores lower', () => {
+  const score = scoreParseQuality({ level: 'warn', gfmTableRows: 0, htmlTableMarkers: 0, chars: 10000, hasTableHint: true, isLocal: true, isStructuredSource: true });
+  assert.ok(score < 70);
+  assert.ok(score >= 50);
+});
+
+test('scoreParseQuality poor level with html residual scores lowest', () => {
+  const score = scoreParseQuality({ level: 'poor', gfmTableRows: 0, htmlTableMarkers: 3, chars: 10000, hasTableHint: true, isLocal: true, isStructuredSource: true });
+  assert.ok(score <= 30);
+});
+
+test('scoreParseQuality short text penalized', () => {
+  const score = scoreParseQuality({ level: 'ok', gfmTableRows: 0, htmlTableMarkers: 0, chars: 500, hasTableHint: false, isLocal: true, isStructuredSource: true });
+  assert.equal(score, 90);
+});
+
+test('assessParseQuality returns score field', () => {
+  const md = ['# tender', '| a | b |', '| --- | --- |', 'x'.repeat(5000)].join('\n');
+  const quality = assessParseQuality(md, { provider: 'mineru-accurate-api', sourcePath: 'C:/a.pdf' });
+  assert.equal(typeof quality.score, 'number');
+  assert.ok(quality.score >= 0 && quality.score <= 100);
 });
 
 test('pickWorstParseQuality prefers poor over warn over ok', () => {

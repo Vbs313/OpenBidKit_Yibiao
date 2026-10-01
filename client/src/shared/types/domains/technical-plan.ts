@@ -295,6 +295,8 @@ export interface DocumentParseQuality {
   gfmTableRows: number;
   htmlTableMarkers: number;
   chars: number;
+  /** 解析质量评分（0-100）：分数越低越建议改用 MinerU 精准解析。 */
+  score: number;
   message: string;
 }
 
