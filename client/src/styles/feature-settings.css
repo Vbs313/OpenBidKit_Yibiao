@@ -146,10 +146,18 @@ fieldset.settings-list {
   padding: 8px 12px;
   color: var(--yb-text);
   font-size: 13px;
-  background-color: #eef3fa;
-  border: 1px solid #ccd6e3;
-  border-radius: var(--yb-radius-md);
+  /* 企业级输入框：白底细边框，Fluent 风格 */
+  background-color: var(--yb-surface);
+  border: 1px solid var(--yb-border);
+  border-radius: var(--yb-radius-sm);
   outline: none;
+  transition: border-color var(--yb-duration-fast) ease, box-shadow var(--yb-duration-fast) ease;
+}
+
+.settings-row input:hover,
+.settings-row select:hover,
+.settings-row textarea:hover {
+  border-color: var(--yb-text-muted);
 }
 
 .settings-row .settings-readonly-value {
@@ -309,8 +317,8 @@ fieldset.settings-list {
 .settings-row input:focus,
 .settings-row select:focus,
 .settings-row textarea:focus {
-  background-color: #ffffff;
-  border-color: rgba(33, 116, 253, 0.5);
+  background-color: var(--yb-surface);
+  border-color: var(--yb-primary);
   box-shadow: var(--yb-focus-ring);
 }
 
