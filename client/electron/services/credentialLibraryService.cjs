@@ -1,3 +1,4 @@
+const { now, createId } = require('./stores/storeUtils.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -254,20 +255,12 @@ function normalizeTestImportData(folderPath, config) {
 }
 
 /** 返回当前时间的稳定存储格式。 */
-function now() {
-  return new Date().toISOString();
-}
-
 /** 把可选表单值统一保存为字符串。 */
 function text(value) {
   return value == null ? '' : String(value);
 }
 
 /** 生成业务记录主键。 */
-function createId(prefix) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
-
 /** 将相对路径转换为资信库本地资源地址。 */
 function buildAssetUrl(relativePath) {
   const encodedPath = String(relativePath || '').split('/').filter(Boolean).map(encodeURIComponent).join('/');

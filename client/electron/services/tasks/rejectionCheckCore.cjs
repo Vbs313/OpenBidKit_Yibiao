@@ -1,13 +1,10 @@
+const { now } = require('../stores/storeUtils.cjs');
 // 废标项检查的底层纯助手：文本/数组取数、id 生成、投标文件展示与去重。
 //
 // 这些函数被提示词构造、模型输出归一化、滚动状态三处共用，原本埋在 rejectionCheckTask.cjs（1728 行）里。
 // 拆分方向：core ← findings ← rolling ← prompts ← 编排（主文件）。
 
 const crypto = require('node:crypto');
-
-function now() {
-  return new Date().toISOString();
-}
 
 function createId(prefix) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;

@@ -1,12 +1,9 @@
+const { now } = require('../stores/storeUtils.cjs');
 // 查重用的文件签名小工具：稳定文件 id、载荷里的招标文件清单、签名串与哈希。
 // 这些原本是 duplicateCheckService.cjs 的模块级工具；搬出来后 service 与元数据模块共用。
 
 const fs = require('node:fs/promises');
 const crypto = require('node:crypto');
-
-function now() {
-  return new Date().toISOString();
-}
 
 function stableFileId(file) {
   return file?.id || crypto.createHash('sha1').update(String(file?.file_path || file?.file_name || '')).digest('hex');
