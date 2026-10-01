@@ -302,6 +302,57 @@ function createAiService({ app, configStore }) {
       throw new Error('当前服务商暂不支持测试');
     },
 
+    /**
+     * 测试文本模型可用性：发送最小请求验证 API Key/Base URL/模型名。
+     * 返回 { success, message, diagnosis }，diagnosis 给出可执行的修复建议。
+     */
+    async testTextModel(configOverride) {
+      const config = configOverride || configStore.load();
+      const textModel = config?.text_model || {};
+      const provider = textModel.provider || 'openai';
+      const apiKey = String(textModel.api_key || '').trim();
+      const baseUrl = String(textModel.base_url || '').trim();
+      const modelName = String(textModel.model_name || textModel.model || '').trim();
+
+      // 配置缺失诊断：明确指出缺哪一项。
+      const missing = [];
+      if (!apiKey) missing.push('API Key');
+      if (!baseUrl) missing.push('Base URL');
+      if (!modelName) missing.push('模型名称');
+      if (missing.length) {
+        return {
+          success: false,
+          message: `配置不完整：缺少 ${missing.join('、')}`,
+          diagnosis: '请在设置 → 文本模型中补全缺失项。',
+        };
+      }
+
+      try {
+        const body = {
+          model: modelName,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1,
+        };
+        await fetchChatCompletion(app, config, body, { timeoutMs: 15000 });
+        return { success: true, message: '文本模型连接正常', diagnosis: '' };
+      } catch (error) {
+        const msg = String(error?.message || error || '');
+        let diagnosis = '';
+        if (/401|403|unauthorized|invalid.*key|api.?key/i.test(msg)) {
+          diagnosis = 'API Key 无效或已过期，请检查设置 → 文本模型中的 API Key。';
+        } else if (/404|not.?found|model.*not/i.test(msg)) {
+          diagnosis = '模型名称不存在，请核对设置 → 文本模型中的模型名称。';
+        } else if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network|fetch failed/i.test(msg)) {
+          diagnosis = '网络不通或 Base URL 错误，请检查网络连接与 Base URL。';
+        } else if (/429|rate.?limit|quota/i.test(msg)) {
+          diagnosis = '请求频率超限或配额不足，请稍后重试或检查账户余额。';
+        } else {
+          diagnosis = '连接失败，请检查 API Key、Base URL 与模型名称是否正确。';
+        }
+        return { success: false, message: msg.slice(0, 200), diagnosis };
+      }
+    },
+
     getImageModelAvailability() {
       return getImageModelAvailability(configStore.load());
     },

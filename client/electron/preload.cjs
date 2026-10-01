@@ -34,6 +34,7 @@ const bridge = {
     chat: (request) => ipcRenderer.invoke('ai:chat', request),
     requestJson: (request) => ipcRenderer.invoke('ai:request-json', request),
     testImageModel: (config) => ipcRenderer.invoke('ai:test-image-model', config),
+    testTextModel: (config) => ipcRenderer.invoke('ai:test-text-model', config),
     onHttpError: (callback) => {
       const listener = (_event, payload) => callback(payload);
       ipcRenderer.on('ai:http-error', listener);
