@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isLibreOfficeRequiredMessage, MarkdownFullscreenViewer, MarkdownRenderer, UploadBoard, UploadEmpty, UploadFilePill, UploadRow, useDocumentParseNotice, useToast } from '../../../shared/ui';
 import type { FileParserProvider } from '../../../shared/types';
-import type { SectionId } from '../../../shared/types/navigation';
+import type { SettingsTab } from '../../settings/model';
 import type { TechnicalPlanOriginalPlanFile, TechnicalPlanState, TechnicalPlanTenderFile, TechnicalPlanTenderSourceFile, TechnicalPlanWorkflowKind } from '../../../shared/types/domains/technical-plan';
 
 type TechnicalPlanUploadBusy = 'tender' | 'originalPlan' | null;
@@ -70,8 +70,8 @@ interface DocumentAnalysisPageProps {
   originalPlanMarkdown: string;
   onFileImported: (state: TechnicalPlanState, markdown: string) => void;
   onOriginalPlanImported: (state: TechnicalPlanState, markdown: string) => void;
-  /** 用于「请先在设置中填写 X」类提示直达设置页。 */
-  onSectionChange?: (section: SectionId) => void;
+  /** 用于「请先在设置中填写 X」类提示直达设置页指定分类（如组件设置）。 */
+  openSettings?: (tab: SettingsTab) => void;
 }
 
 function DocumentAnalysisPage({
@@ -83,7 +83,7 @@ function DocumentAnalysisPage({
   originalPlanMarkdown,
   onFileImported,
   onOriginalPlanImported,
-  onSectionChange,
+  openSettings,
 }: DocumentAnalysisPageProps) {
   const [configuredParserLabel, setConfiguredParserLabel] = useState(parserLabels.local);
   const [busy, setBusy] = useState<TechnicalPlanUploadBusy>(null);
@@ -172,7 +172,7 @@ function DocumentAnalysisPage({
         const token = config?.components?.file_parser?.mineru_token || '';
         if (!token) {
           showToast('请先在设置 → 组件中填写 MinerU Token', 'error', {
-            actions: onSectionChange ? [{ label: '前往设置', variant: 'primary', onClick: () => onSectionChange('settings') }] : undefined,
+            actions: openSettings ? [{ label: '前往设置', variant: 'primary', onClick: () => openSettings('components') }] : undefined,
           });
           return;
         }

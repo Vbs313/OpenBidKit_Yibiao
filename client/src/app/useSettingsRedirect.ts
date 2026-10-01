@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { SettingsPageRequest } from '../features/settings/types';
-import type { SettingsTab } from '../features/settings/model';
+import type { SettingsPageRequest, SettingsTab } from '../features/settings/types';
 import type { SectionId } from '../shared/types/navigation';
 
 /**

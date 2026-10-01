@@ -49,7 +49,7 @@ function App() {
     return allowed;
   };
 
-  const { settingsRequest, clearSettingsRequest } = useSettingsRedirect(requestSectionChange);
+  const { settingsRequest, openSettings, clearSettingsRequest } = useSettingsRedirect(requestSectionChange);
 
   return (
     <>
@@ -70,6 +70,7 @@ function App() {
           }}
           settingsRequest={settingsRequest}
           onSettingsRequestHandled={clearSettingsRequest}
+          openSettings={openSettings}
         />
       </AppShell>
     </>

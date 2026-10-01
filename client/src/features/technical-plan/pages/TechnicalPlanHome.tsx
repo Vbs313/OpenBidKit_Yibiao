@@ -18,6 +18,7 @@ import { DEFAULT_OUTLINE_WORD_CONTROL_OPTIONS } from '../../../shared/types';
 import type { ExportFormatConfig } from '../../../shared/types/exportFormat';
 import { DEFAULT_EXPORT_FORMAT } from '../../../shared/types/exportFormat';
 import type { SectionId } from '../../../shared/types/navigation';
+import type { SettingsTab } from '../../settings/model';
 import { areRequiredBidAnalysisTasksReady, buildWordControlWarningDialog, isOutlineLeafCountOutsideRange } from '../technicalPlanHomeModel';
 import type { WordControlWarningDialogState } from '../technicalPlanHomeModel';
 import { collectLeafItems } from '../../../shared/utils/outlineMetrics';
@@ -28,6 +29,8 @@ interface TechnicalPlanHomeProps {
   workflowKind: TechnicalPlanWorkflowKind;
   registerLeaveGuard?: (guard: ((nextSection?: string) => Promise<boolean>) | null) => void;
   onSectionChange?: (section: SectionId) => void;
+  /** 用于「请先在设置中填写 X」类提示直达设置页指定分类。 */
+  openSettings?: (tab: SettingsTab) => void;
 }
 
 
@@ -103,7 +106,7 @@ const MAX_UI_TASK_LOGS = 80;
 
 
 
-function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }: TechnicalPlanHomeProps) {
+function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange, openSettings }: TechnicalPlanHomeProps) {
   const { hydrated, state, setState } = useTechnicalPlanWorkflow();
   const { showToast } = useToast();
   const [tenderMarkdown, setTenderMarkdown] = useState('');
@@ -528,7 +531,7 @@ function TechnicalPlanHome({ workflowKind, registerLeaveGuard, onSectionChange }
             setState((prev) => ({ ...prev, ...nextState }));
             setOriginalPlanMarkdown(markdown);
           }}
-          onSectionChange={onSectionChange}
+          openSettings={openSettings}
         />
       )}
 

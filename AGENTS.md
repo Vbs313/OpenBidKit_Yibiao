@@ -7,7 +7,7 @@
 ## Client
 - 开发 `client/` 前以及初次对话时，必须先完整阅读 `client/开发说明.md`，保持框架风格一致性。
 - 没有 root `package.json`；客户端命令都先 `cd client`。
-- 安装/验证：`npm ci` 后按改动范围跑门禁。`npm run build` 等价 `tsc --noEmit && vite build`；统一入口是 `npm test`（**647 条**纯 Node）+ `npm run test:electron-abi`（4 条，需要 Electron ABI）、`npm run verify:module-graph`（无环 + 层次方向硬门禁）和 13 个 `smoke:*`。仓库仍没有统一 lint 脚本。
+- 安装/验证：`npm ci` 后按改动范围跑门禁。`npm run build` 等价 `tsc --noEmit && vite build`；统一入口是 `npm test`（**622 条**纯 Node：611 通过 + 11 个 `require('electron')` 环境失败）+ `npm run test:electron-abi`（4 条，需要 Electron ABI）、`npm run verify:module-graph`（无环 + 层次方向硬门禁）和 13 个 `smoke:*`。仓库仍没有统一 lint 脚本。
 - 开发启动：`npm run dev`，固定 Vite `127.0.0.1:5173 --strictPort` 后再启动 Electron。
 - 打包：`npm run dist:win` / `npm run dist:mac`，配置在 `client/package.json` 的 `build` 字段，产物在 `client/release/`。
 - Electron Main 和 preload 是 CommonJS：`client/electron/**/*.cjs`；Renderer 是 ESM TypeScript：`client/src/**/*.ts(x)`。

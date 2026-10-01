@@ -23,6 +23,7 @@ import FeasibilityReportHome from '../features/feasibility-report/pages/Feasibil
 import SecondaryMenuPage from '../shared/ui/SecondaryMenuPage';
 import { RouteNotFound, UnderDevelopmentPage } from '../shared/ui';
 import type { SettingsPageRequest } from '../features/settings/types';
+import type { SettingsTab } from '../features/settings/model';
 
 interface AppRouterProps {
   activeSection: SectionId;
@@ -33,9 +34,11 @@ interface AppRouterProps {
   /** 应用级一次性设置页跳转请求（打开指定分类）。 */
   settingsRequest?: SettingsPageRequest | null;
   onSettingsRequestHandled?: () => void;
+  /** 直达设置页指定分类（如组件设置），用于「请先在设置中填写 X」类提示。 */
+  openSettings?: (tab: SettingsTab) => void;
 }
 
-function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSectionChange, registerLeaveGuard, settingsRequest, onSettingsRequestHandled }: AppRouterProps) {
+function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSectionChange, registerLeaveGuard, settingsRequest, onSettingsRequestHandled, openSettings }: AppRouterProps) {
   const activeMenuItem = getAppMenuItemById(activeSection, developerMode);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
@@ -55,9 +58,9 @@ function AppRouter({ activeSection, developerMode, onDeveloperModeChange, onSect
 
   switch (activeSection) {
     case 'technical-plan':
-      return <TechnicalPlanHome workflowKind="technical-plan" registerLeaveGuard={registerLeaveGuard} onSectionChange={onSectionChange} />;
+      return <TechnicalPlanHome workflowKind="technical-plan" registerLeaveGuard={registerLeaveGuard} onSectionChange={onSectionChange} openSettings={openSettings} />;
     case 'existing-plan-expansion':
-      return <TechnicalPlanHome workflowKind="existing-plan-expansion" registerLeaveGuard={registerLeaveGuard} onSectionChange={onSectionChange} />;
+      return <TechnicalPlanHome workflowKind="existing-plan-expansion" registerLeaveGuard={registerLeaveGuard} onSectionChange={onSectionChange} openSettings={openSettings} />;
     case 'feasibility-report':
       return <FeasibilityReportHome registerLeaveGuard={registerLeaveGuard} onSectionChange={onSectionChange} />;
     case 'business-bid':
