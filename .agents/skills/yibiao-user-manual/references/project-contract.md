@@ -3,7 +3,7 @@
 ## 默认位置
 
 - 优先把包含 `client/开发说明.md` 的当前仓库作为项目根目录。
-- 当前机器的已知项目位置为 `D:\CodeSpace\SelfSpace\yibiao-simple`，仅在当前工作目录无法定位仓库时使用。
+- 当前机器的已知项目位置为 `D:\CodeSpace\SelfSpace\sjjt-bid-toolkit`，仅在当前工作目录无法定位仓库时使用。
 - 当前机器的已知发行版位置为 `C:\Users\Administrator\AppData\Local\Programs\sjjt-bid-toolkit\数据集团工具箱投标工具箱.exe`。
 - 使用已知发行版前检查文件存在并确认 `VersionInfo.ProductName` 等于“数据集团工具箱投标工具箱”。路径失效或无法确定时询问用户，不搜索并猜测其他 EXE，也不启动开发版。
 - 手册根目录为 `<项目根目录>\使用说明`。

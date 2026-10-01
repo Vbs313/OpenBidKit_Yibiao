@@ -6,7 +6,7 @@
 
 Github: https://github.com/数据集团/数据集团工具箱
 
-Gitee: https://gitee.com/yibiao-ai/数据集团工具箱
+Gitee: https://gitee.com/数据集团/sjjt-bid-toolkit
 
 今天是第五期，我参考OpenCode的自我反思、矫正机制，优化了标书提纲生成，不再依赖模型自身能力“抽卡”，而是通过自我反思、矫正机制确保任何弱模型都能稳定输出结果。（测试用的LongCat-Flash-Lite）
 
@@ -649,4 +649,4 @@ for index, (item, group) in enumerate(zip(outline_items, groups), start=1):
 
 Github: https://github.com/数据集团/数据集团工具箱
 
-Gitee: https://gitee.com/yibiao-ai/数据集团工具箱
+Gitee: https://gitee.com/数据集团/sjjt-bid-toolkit

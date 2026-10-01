@@ -105,10 +105,10 @@ function parseRepoStatsFromHtml(html) {
 }
 
 function buildGitHubHeaders(env) {
-  const token = String(env.OPENBIDKIT_YIBIAO_METADATA_READ_TOKEN || '').trim();
+  const token = String(env.SJJT_METADATA_READ_TOKEN || '').trim();
   return {
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'OpenBidKit-Yibiao-Analytics',
+    'User-Agent': 'Sjjt-BidToolkit-Analytics',
     'X-GitHub-Api-Version': '2022-11-28',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
@@ -171,7 +171,7 @@ async function fetchRepoStatsFromHtml() {
   const response = await fetch(GITHUB_REPO_HTML_URL, {
     headers: {
       Accept: 'text/html',
-      'User-Agent': 'OpenBidKit-Yibiao-Analytics',
+      'User-Agent': 'Sjjt-BidToolkit-Analytics',
     },
   });
 

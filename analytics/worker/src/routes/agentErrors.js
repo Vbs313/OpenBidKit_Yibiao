@@ -31,7 +31,7 @@ export async function handleAgentErrorIngest(request, env, url) {
   if (request.method !== 'POST') return methodNotAllowed();
   let meta;
   try {
-    meta = normalizeAgentErrorMeta(decodeBase64UrlJson(request.headers.get('X-Yibiao-Report-Meta')));
+    meta = normalizeAgentErrorMeta(decodeBase64UrlJson(request.headers.get('X-Sjjt-Report-Meta')));
   } catch {
     meta = null;
   }
@@ -44,7 +44,7 @@ export async function handleAgentErrorIngest(request, env, url) {
 
   let license;
   try {
-    license = decodeBase64UrlJson(request.headers.get('X-Yibiao-License'));
+    license = decodeBase64UrlJson(request.headers.get('X-Sjjt-License'));
   } catch {
     license = null;
   }

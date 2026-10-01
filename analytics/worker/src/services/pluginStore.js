@@ -84,7 +84,7 @@ function buildGitHubHeaders(env) {
   const token = String(env.OPENBIDKIT_PET_READ_TOKEN || '').trim();
   return {
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'OpenBidKit-Yibiao-Plugin-Market',
+    'User-Agent': 'Sjjt-BidToolkit-Plugin-Market',
     'X-GitHub-Api-Version': GITHUB_API_VERSION,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
@@ -268,7 +268,7 @@ async function fetchGitHubPluginPackage(url) {
     let response;
     try {
       response = await fetch(url, {
-        headers: { 'User-Agent': 'OpenBidKit-Yibiao-Plugin-Market' },
+        headers: { 'User-Agent': 'Sjjt-BidToolkit-Plugin-Market' },
         redirect: 'follow',
         cache: 'no-store',
       });

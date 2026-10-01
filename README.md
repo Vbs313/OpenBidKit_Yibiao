@@ -58,7 +58,7 @@
 
 ## 💌 友情链接
 
-【[数据集团工具箱 Web 版 (由第三方提供)](https://github.com/jdcome/OpenBidKit-Yibiao-Web)】
+【[数据集团工具箱 Web 版 (由第三方提供)](https://github.com/jdcome/Sjjt-BidToolkit-Web)】
 
 
 <h2 align="center">✨ 核心功能与优势</h2>
@@ -154,7 +154,7 @@
 
 ### ⬇️ 下载方式
 
-从 [GitHub Releases](https://github.com/yibiaoai/yibiao-simple/releases) 下载最新版本，运行安装包或可执行文件即可启动。
+从 [GitHub Releases](https://github.com/数据集团/sjjt-bid-toolkit/releases) 下载最新版本，运行安装包或可执行文件即可启动。
 
 ### 🎬 使用方式
 
@@ -312,7 +312,7 @@ npm run dist:mac    # macOS Intel / Apple Silicon DMG 和 ZIP
 
 欢迎各种形式的贡献！
 
-1. **🐛 问题反馈**: 在 [Issues](https://github.com/yibiaoai/yibiao-simple/issues) 中报告bug
+1. **🐛 问题反馈**: 在 [Issues](https://github.com/数据集团/sjjt-bid-toolkit/issues) 中报告bug
 2. **💡 功能建议**: 提出新功能需求和改进建议  
 3. **🔧 代码贡献**: Fork项目，提交Pull Request
 4. **📖 文档完善**: 帮助改进文档和使用说明
@@ -334,7 +334,7 @@ npm run dist:mac    # macOS Intel / Apple Silicon DMG 和 ZIP
     <td width="50%" valign="top">
 
 - **官方网站**: [https://yibiao.pro](https://yibiao.pro)
-- **问题反馈**: [GitHub Issues](https://github.com/yibiaoai/yibiao-simple/issues)
+- **问题反馈**: [GitHub Issues](https://github.com/数据集团/sjjt-bid-toolkit/issues)
 - **邮箱联系**: support@yibiao.pro
 
     </td>

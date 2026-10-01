@@ -321,7 +321,7 @@ export async function syncModelInfoCache(env, trigger = 'manual') {
     const response = await fetch(MODEL_INFO_SOURCE_URL, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'OpenBidKit-Yibiao-Analytics',
+        'User-Agent': 'Sjjt-BidToolkit-Analytics',
       },
       cache: 'no-store',
     });

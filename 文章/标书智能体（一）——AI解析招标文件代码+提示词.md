@@ -220,6 +220,6 @@ async def stream_chat_completion(
 
 # 完整代码已开源
 
-Github：https://github.com/yibiaoai/yibiao-simple
+Github：https://github.com/数据集团/sjjt-bid-toolkit
 
-Gitee：https://gitee.com/yibiao-ai/yibiao-simple
+Gitee：https://gitee.com/数据集团/sjjt-bid-toolkit

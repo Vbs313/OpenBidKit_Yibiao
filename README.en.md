@@ -56,7 +56,7 @@
 
 ## 💌 Friendly Links
 
-[Yibiao Web Version (provided by a third party)](https://github.com/jdcome/OpenBidKit-Yibiao-Web)
+[Yibiao Web Version (provided by a third party)](https://github.com/jdcome/Sjjt-BidToolkit-Web)
 
 <h2 align="center">✨ Features & Advantages</h2>
 
@@ -151,7 +151,7 @@
 
 ### ⬇️ Download
 
-Download the latest release from [GitHub Releases](https://github.com/yibiaoai/yibiao-simple/releases), then run the installer or executable file.
+Download the latest release from [GitHub Releases](https://github.com/数据集团/sjjt-bid-toolkit/releases), then run the installer or executable file.
 
 ### 🎬 Usage Demo
 
@@ -311,7 +311,7 @@ People who provide requirement analysis, technical support, test files, useful f
 
 Contributions are welcome.
 
-1. **🐛 Bug Reports**: Report bugs in [Issues](https://github.com/yibiaoai/yibiao-simple/issues).
+1. **🐛 Bug Reports**: Report bugs in [Issues](https://github.com/数据集团/sjjt-bid-toolkit/issues).
 2. **💡 Feature Requests**: Suggest new features and improvements.
 3. **🔧 Code Contributions**: Fork the repository and submit a pull request.
 4. **📖 Documentation**: Help improve documentation and usage guides.
@@ -333,7 +333,7 @@ You may use, modify, distribute, and commercialize this project, but modified ve
     <td width="50%" valign="top">
 
 - **Official Website**: [https://yibiao.pro](https://yibiao.pro)
-- **Feedback**: [GitHub Issues](https://github.com/yibiaoai/yibiao-simple/issues)
+- **Feedback**: [GitHub Issues](https://github.com/数据集团/sjjt-bid-toolkit/issues)
 - **Email**: support@yibiao.pro
 
     </td>
