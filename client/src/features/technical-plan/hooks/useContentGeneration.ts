@@ -24,6 +24,8 @@ interface UseContentGenerationParams {
   resolvedCount: number;
   unresolvedCount: number;
   awaitingContentDecision: boolean;
+  /** 全文正文生成阶段失败（非单小节修改），可从原会话续接重试。 */
+  retryingBodyGeneration: boolean;
   canRetryContentCorrection: boolean;
   contentRetryTargetLabel: string;
   setSelectedItemId: (itemId: string) => void;
@@ -52,6 +54,7 @@ export function useContentGeneration({
   resolvedCount,
   unresolvedCount,
   awaitingContentDecision,
+  retryingBodyGeneration,
   canRetryContentCorrection,
   contentRetryTargetLabel,
   setSelectedItemId,
@@ -168,12 +171,14 @@ export function useContentGeneration({
     }
   };
 
-  // 只重新生成当前失败的正文小节，全部成功后由 Main 自动进入后续流程。
+  // 复用失败重试入口：续接原正文/审计会话，或继续已交付 HTML 的 Word 转换。
   const retryFailedSections = async () => {
-    if (!awaitingContentDecision || !unresolvedCount || taskBlocksGeneration) return;
+    if (!awaitingContentDecision && !retryingBodyGeneration) return;
+    if (awaitingContentDecision && !unresolvedCount) return;
+    if (taskBlocksGeneration) return;
     try {
       await window.yibiao?.tasks.startContentGeneration({ retryFailedSections: true });
-      showToast('失败小节重试任务已在后台启动', 'success');
+      showToast(retryingBodyGeneration ? '正文生成已从原会话继续' : '失败小节重试任务已在后台启动', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '启动失败小节重试失败', 'error');
     }

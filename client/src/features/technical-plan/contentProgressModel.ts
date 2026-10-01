@@ -114,6 +114,11 @@ export function buildContentProgressViewModel(input: ContentProgressInputs) {
     && resolvedCount === leaves.length
     && ['original-auditing', 'auditing', 'table-cleaning', 'final-section-word-adjusting', 'total-word-adjusting', 'illustration-planning', 'illustration-generating'].includes(String(contentStats?.phase || ''));
   const awaitingContentDecision = taskFailed && Boolean(contentStats?.awaiting_content_decision);
+  // 全文正文生成阶段失败（非单小节修改）：可从原会话续接重试，不依赖 awaiting_content_decision。
+  const retryingBodyGeneration = taskFailed
+    && !contentStats?.awaiting_content_decision
+    && String(contentStats?.phase || '') === 'generating'
+    && !canRetryContentCorrection;
   const generationStrategyLocked = paused;
   const retryingIllustrationPlanning = canRetryContentCorrection && contentStats?.phase === 'illustration-planning';
   const retryingIllustrationGeneration = canRetryContentCorrection && contentStats?.phase === 'illustration-generating';
@@ -307,6 +312,7 @@ export function buildContentProgressViewModel(input: ContentProgressInputs) {
     pendingCount,
     canRetryContentCorrection,
     awaitingContentDecision,
+    retryingBodyGeneration,
     generationStrategyLocked,
     contentRetryTargetLabel,
     displayProgress,

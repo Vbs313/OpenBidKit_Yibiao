@@ -171,6 +171,7 @@ function ContentEditPage({
     pendingCount,
     canRetryContentCorrection,
     awaitingContentDecision,
+    retryingBodyGeneration,
     generationStrategyLocked,
     contentRetryTargetLabel,
     displayProgress,
@@ -292,6 +293,7 @@ function ContentEditPage({
     resolvedCount,
     unresolvedCount,
     awaitingContentDecision,
+    retryingBodyGeneration,
     canRetryContentCorrection,
     contentRetryTargetLabel,
     setSelectedItemId,
@@ -388,16 +390,18 @@ function ContentEditPage({
               <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.05.05a2 2 0 0 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.08a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.87.34l-.05.05a2 2 0 0 1-2.83-2.83l.05-.05A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.08A1.7 1.7 0 0 0 4.6 8.93a1.7 1.7 0 0 0-.34-1.87l-.05-.05a2 2 0 0 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.87.34A1.7 1.7 0 0 0 10 3.01V3a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.05-.05a2 2 0 0 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.87 1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z" />
             </svg>
           </button>
-          {awaitingContentDecision ? (
+          {awaitingContentDecision || retryingBodyGeneration ? (
             <>
-              {unresolvedCount > 0 && (
+              {(awaitingContentDecision ? unresolvedCount > 0 : true) && (
                 <button type="button" className="primary-action" onClick={() => void retryFailedSections()} disabled={taskBlocksGeneration}>
-                  重试失败小节
+                  {retryingBodyGeneration ? '重试正文生成' : '重试失败小节'}
                 </button>
               )}
-              <button type="button" className="secondary-action" onClick={() => setContinuePostProcessingDialogOpen(true)} disabled={taskBlocksGeneration}>
-                继续后续流程
-              </button>
+              {awaitingContentDecision && (
+                <button type="button" className="secondary-action" onClick={() => setContinuePostProcessingDialogOpen(true)} disabled={taskBlocksGeneration}>
+                  继续后续流程
+                </button>
+              )}
             </>
           ) : (
             <button type="button" className="primary-action" onClick={handleGenerationButtonClick} disabled={pausing || !leaves.length}>
