@@ -1,6 +1,8 @@
-// 采购方式识别：从采购/招标/谈判/磋商文件 Markdown 判定采购方式。
+// 采购方式识别：从采购文件 Markdown 判定采购方式。
 //
-// 用途：招标解析日志与提示词口径（招标文件 vs 谈判文件 vs 磋商文件）。
+// 依据《中华人民共和国政府采购法》，政府采购方式共 6 种：
+//   公开招标、邀请招标、竞争性谈判、竞争性磋商、单一来源采购、询价。
+// 用途：招标解析日志与提示词口径（招标文件 vs 邀请招标文件 vs 谈判文件 vs 磋商文件）。
 // 不阻断流程：识别失败回落 open_tender，并按通用「采购文件」表述。
 
 const METHOD_RULES = [
@@ -29,6 +31,12 @@ const METHOD_RULES = [
     patterns: [/单一来源/, /单一来源采购/],
   },
   {
+    id: 'invited_tender',
+    label: '邀请招标',
+    fileLabel: '邀请招标文件',
+    patterns: [/邀请招标/, /投标邀请书/, /邀请书/, /被邀请/, /邀请招标公告/],
+  },
+  {
     id: 'open_tender',
     label: '公开招标',
     fileLabel: '招标文件',
@@ -42,7 +50,7 @@ function sampleDocumentHead(markdown) {
   const text = String(markdown || '');
   // 采购方式多出现在文首；长文只扫前段 + 首次出现方式关键词的邻域
   const head = text.slice(0, SAMPLE_CHARS);
-  const midHit = /竞争性谈判|竞争性磋商|询价|单一来源|公开招标/.exec(text.slice(SAMPLE_CHARS));
+  const midHit = /竞争性谈判|竞争性磋商|询价|单一来源|邀请招标|公开招标/.exec(text.slice(SAMPLE_CHARS));
   if (!midHit) return head;
   const start = Math.max(0, SAMPLE_CHARS + midHit.index - 200);
   return `${head}\n${text.slice(start, start + 800)}`;
@@ -100,7 +108,8 @@ function detectProcurementMethod(markdown) {
 
 function buildProcurementContextMessage(method) {
   const label = method?.fileLabel || '采购文件';
-  if (method?.id === 'open_tender' || !method) {
+  // 公开招标与邀请招标同属招标口径，沿用招标/投标术语。
+  if (!method || method.id === 'open_tender' || method.id === 'invited_tender') {
     return `本文件按${label}处理。文中“招标人/采购人”“投标人/供应商”“投标文件/响应文件”“开标/递交”等同义表述请按同一概念理解。`;
   }
   return `本文件采购方式识别为「${method.label}」，请按${label}口径解析：谈判/磋商/询价场景下的“响应文件”视同“投标文件”，“采购人/采购单位”视同“招标人”，“谈判/磋商/评审”视同“评标”相关环节。不要因为缺少“开标”“评标委员会”等招标专用词而判定信息缺失。`;

@@ -1,6 +1,6 @@
-﻿const test = require('node:test');
+const test = require('node:test');
 const assert = require('node:assert/strict');
-const { detectProcurementMethod, buildProcurementContextMessage } = require('./procurementMethod.cjs');
+const { detectProcurementMethod, buildProcurementContextMessage, METHOD_RULES } = require('./procurementMethod.cjs');
 
 test('detects competitive negotiation from part title', () => {
   const md = [
@@ -40,4 +40,36 @@ test('context message mentions negotiation semantics', () => {
   });
   assert.match(msg, /竞争性谈判/);
   assert.match(msg, /响应文件/);
+});
+
+test('detects invited tender (邀请招标)', () => {
+  const md = '投标邀请书\n我方就邀请招标项目邀请贵单位参与投标。请按邀请招标文件要求编制投标文件。';
+  const method = detectProcurementMethod(md);
+  assert.equal(method.id, 'invited_tender');
+  assert.equal(method.label, '邀请招标');
+  assert.match(method.fileLabel, /邀请招标/);
+});
+
+test('invited tender context uses tender wording (not negotiation)', () => {
+  const msg = buildProcurementContextMessage({
+    id: 'invited_tender',
+    label: '邀请招标',
+    fileLabel: '邀请招标文件',
+  });
+  assert.match(msg, /邀请招标/);
+  assert.match(msg, /投标文件\/响应文件/);
+  assert.doesNotMatch(msg, /谈判\/磋商\/评审/);
+});
+
+test('all 6 government procurement methods are supported (政府采购法)', () => {
+  const ids = METHOD_RULES.map((rule) => rule.id).sort();
+  assert.deepEqual(ids, [
+    'competitive_consultation',
+    'competitive_negotiation',
+    'inquiry',
+    'invited_tender',
+    'open_tender',
+    'single_source',
+  ]);
+  assert.equal(METHOD_RULES.length, 6);
 });
