@@ -84,6 +84,10 @@ CREATE TABLE IF NOT EXISTS technical_plan_meta (
   selected_section_id TEXT,
   selected_section_title TEXT,
   selected_section_head_line TEXT,
+  -- v29 审批流：pending(待审) / approved(已审) / rejected(驳回)
+  approval_status TEXT NOT NULL DEFAULT 'pending',
+  approval_comment TEXT,
+  approval_updated_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

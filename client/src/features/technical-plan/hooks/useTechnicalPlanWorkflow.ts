@@ -6,6 +6,8 @@ import type { TechnicalPlanState } from '../../../shared/types/domains/technical
 const initialState: TechnicalPlanState = {
   workflowKind: 'technical-plan',
   step: 'document-analysis',
+  approvalStatus: 'pending',
+  approvalComment: '',
   tenderFile: null,
   tenderFiles: [],
   bidTemplateExists: false,

@@ -529,6 +529,8 @@ export interface YibiaoBridge {
   };
   technicalPlan: {
     loadState: () => Promise<TechnicalPlanState>;
+    /** v29 审批流：更新审批状态（pending/approved/rejected） */
+    saveApproval: (payload: { status: 'pending' | 'approved' | 'rejected'; comment?: string }) => Promise<{ approval_status: string; approval_comment: string; approval_updated_at: string }>;
     importTenderDocument: (filePaths?: string[], options?: { forceProvider?: 'local' | 'mineru-accurate-api' | 'mineru-agent-api' }) => Promise<{
       success: boolean;
       message?: string;

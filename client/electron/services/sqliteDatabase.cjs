@@ -12,7 +12,7 @@ const { createFeasibilityReportSchema } = require('./db/schema/feasibilityReport
 const { createComplianceCheckSchema } = require('./db/schema/complianceCheck.cjs');
 const { createCredentialLibrarySchema } = require('./db/schema/credentialLibrary.cjs');
 
-const schemaVersion = 28;
+const schemaVersion = 29;
 
 function createTechnicalPlanGlobalFactsSchema(db) {
   db.exec(`
@@ -658,6 +658,22 @@ const migrations = [
         CREATE INDEX IF NOT EXISTS idx_technical_plan_snapshots_created
         ON technical_plan_snapshots(created_at DESC);
       `);
+    },
+  },
+  {
+    version: 29,
+    description: '技术方案新增审批状态字段',
+    up(db) {
+      const columns = getExistingColumns(db, 'technical_plan_meta');
+      if (!columns.has('approval_status')) {
+        db.exec("ALTER TABLE technical_plan_meta ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'pending'");
+      }
+      if (!columns.has('approval_comment')) {
+        db.exec('ALTER TABLE technical_plan_meta ADD COLUMN approval_comment TEXT');
+      }
+      if (!columns.has('approval_updated_at')) {
+        db.exec('ALTER TABLE technical_plan_meta ADD COLUMN approval_updated_at TEXT');
+      }
     },
   },
 ];

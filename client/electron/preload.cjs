@@ -127,6 +127,7 @@ const bridge = {
   },
   technicalPlan: {
     loadState: () => ipcRenderer.invoke('technical-plan:load-state'),
+    saveApproval: (payload) => ipcRenderer.invoke('technical-plan:save-approval', payload),
     importTenderDocument: (filePaths, options) => ipcRenderer.invoke('technical-plan:import-tender-document', filePaths, options),
     removeTenderDocument: (sourceId) => ipcRenderer.invoke('technical-plan:remove-tender-document', sourceId),
     importOriginalPlanDocument: (filePaths, options) => ipcRenderer.invoke('technical-plan:import-original-plan-document', filePaths, options),

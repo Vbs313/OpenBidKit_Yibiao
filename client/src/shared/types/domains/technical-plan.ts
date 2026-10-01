@@ -361,6 +361,10 @@ export interface DetectedBidSection {
 export interface TechnicalPlanState {
   workflowKind: TechnicalPlanWorkflowKind;
   step: TechnicalPlanStep;
+  /** v29 审批流：pending(待审) / approved(已审) / rejected(驳回) */
+  approvalStatus: 'pending' | 'approved' | 'rejected';
+  approvalComment: string;
+  approvalUpdatedAt?: string;
   tenderFile: TechnicalPlanTenderFile | null;
   tenderFiles: TechnicalPlanTenderSourceFile[];
   originalPlanFile: TechnicalPlanOriginalPlanFile | null;

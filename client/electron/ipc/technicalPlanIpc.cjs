@@ -3,6 +3,8 @@ const { previewContentSection } = require('../services/contentGenerationOutput.c
 
 function registerTechnicalPlanIpc({ technicalPlanStore, taskService, openXmlHelperService }) {
   ipcMain.handle('technical-plan:load-state', () => technicalPlanStore.loadTechnicalPlan());
+  // v29 审批流：更新审批状态。
+  ipcMain.handle('technical-plan:save-approval', (_event, payload) => technicalPlanStore.saveApprovalStatus(payload));
   ipcMain.handle('technical-plan:preview-content-word', (_event, sectionId) => previewContentSection({
     sectionId,
     technicalPlanStore,

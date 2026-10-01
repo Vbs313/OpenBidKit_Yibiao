@@ -59,6 +59,8 @@ const stepLabels: Record<TechnicalPlanStep, string> = {
 const resetState = {
   workflowKind: 'technical-plan' as TechnicalPlanWorkflowKind,
   step: 'document-analysis' as TechnicalPlanStep,
+  approvalStatus: 'pending' as const,
+  approvalComment: '',
   tenderFile: null,
   tenderFiles: [],
   originalPlanFile: null,

@@ -145,6 +145,11 @@ function normalizeWorkflowKind(value) {
   return value === 'existing-plan-expansion' ? 'existing-plan-expansion' : 'technical-plan';
 }
 
+// v29 审批流：pending(待审) / approved(已审) / rejected(驳回)。
+function normalizeApprovalStatus(value) {
+  return value === 'approved' || value === 'rejected' ? value : 'pending';
+}
+
 function normalizeNonNegativeInteger(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? Math.floor(number) : 0;
@@ -1291,6 +1296,10 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
       ...initialState,
       workflowKind: normalizeWorkflowKind(meta.workflow_kind),
       step: isValidStep(meta.step) ? meta.step : 'document-analysis',
+      // v29 审批流状态。
+      approvalStatus: normalizeApprovalStatus(meta.approval_status),
+      approvalComment: meta.approval_comment || '',
+      approvalUpdatedAt: meta.approval_updated_at || undefined,
       tenderFile,
       tenderFiles,
       originalPlanFile,
@@ -1721,8 +1730,29 @@ function createTechnicalPlanStore({ app, db, fileService, agentService, taskLogS
     app,
     clearContentIllustrationPlan,
   });
+  /** v29 审批流：更新审批状态。 */
+  function saveApprovalStatus({ status, comment }) {
+    const normalized = normalizeApprovalStatus(status);
+    const timestamp = now();
+    db.prepare(`
+      UPDATE technical_plan_meta
+      SET approval_status = @approval_status,
+          approval_comment = @approval_comment,
+          approval_updated_at = @approval_updated_at,
+          updated_at = @updated_at
+      WHERE id = 1
+    `).run({
+      approval_status: normalized,
+      approval_comment: comment == null ? null : String(comment).slice(0, 2000),
+      approval_updated_at: timestamp,
+      updated_at: timestamp,
+    });
+    return { approval_status: normalized, approval_comment: comment || '', approval_updated_at: timestamp };
+  }
+
   return {
     loadTechnicalPlan,
+    saveApprovalStatus,
     updateTechnicalPlan,
     updateTechnicalPlanWithoutReload,
     clearMermaidCache: clearTechnicalPlanMermaidCache,
