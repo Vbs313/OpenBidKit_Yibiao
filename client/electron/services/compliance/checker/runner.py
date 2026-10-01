@@ -14,6 +14,9 @@ from checks.cross_check import run_cross_check
 from checks.validity_check import CHECK_ID as VALIDITY_ID
 from checks.validity_check import CHECK_NAME as VALIDITY_NAME
 from checks.validity_check import run_validity_check
+from checks.performance_check import CHECK_ID as PERFORMANCE_ID
+from checks.performance_check import CHECK_NAME as PERFORMANCE_NAME
+from checks.performance_check import run_performance_check
 
 CheckRunner = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -38,6 +41,11 @@ CHECK_REGISTRY: dict[str, dict[str, Any]] = {
         "name": CROSS_CHECK_NAME,
         "runner": run_cross_check,
         "requires_model": True,
+    },
+    PERFORMANCE_ID: {
+        "name": PERFORMANCE_NAME,
+        "runner": run_performance_check,
+        "requires_model": False,
     },
 }
 
