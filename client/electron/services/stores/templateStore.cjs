@@ -25,7 +25,7 @@ function templateFromRow(row) {
 function createTemplateStore({ db }) {
   function listTemplates() {
     return db.prepare(`
-      SELECT template_id, template_name, config_json, created_at, updated_at
+      SELECT template_id, template_name, config_json, is_system, created_at, updated_at
       FROM export_templates
       ORDER BY updated_at DESC, created_at DESC
     `).all().map(templateFromRow);
@@ -33,7 +33,7 @@ function createTemplateStore({ db }) {
 
   function getTemplate(templateId) {
     const row = db.prepare(`
-      SELECT template_id, template_name, config_json, created_at, updated_at
+      SELECT template_id, template_name, config_json, is_system, created_at, updated_at
       FROM export_templates
       WHERE template_id = ?
     `).get(templateId);
@@ -61,6 +61,7 @@ function createTemplateStore({ db }) {
       template_id: templateId,
       template_name: templateName,
       config: nextConfig,
+      is_system: false,
       created_at: timestamp,
       updated_at: timestamp,
     };
@@ -80,7 +81,7 @@ function createTemplateStore({ db }) {
           config_json = @config_json,
           updated_at = @updated_at
       WHERE template_id = @template_id
-      RETURNING template_id, template_name, config_json, created_at, updated_at
+      RETURNING template_id, template_name, config_json, is_system, created_at, updated_at
     `).get({
       template_id: templateId,
       template_name: templateName,
