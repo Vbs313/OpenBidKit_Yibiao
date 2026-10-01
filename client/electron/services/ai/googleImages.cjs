@@ -131,7 +131,7 @@ async function testGoogleImageModel(app, config) {
   const requestMode = normalizeImageRequestMode(imageConfig);
   const requestId = createRequestId();
   const logTitle = 'AI生图测试-Google AI Studio';
-  const requestBody = createGoogleImageRequestBody('大字报，内容是“易标AI老好了”', normalizeGoogleImageSize(imageConfig));
+  const requestBody = createGoogleImageRequestBody('大字报，内容是“数据集团工具箱AI老好了”', normalizeGoogleImageSize(imageConfig));
   const url = createGoogleImageUrl(baseUrl, imageConfig.model_name, requestMode);
   let responseData = null;
 

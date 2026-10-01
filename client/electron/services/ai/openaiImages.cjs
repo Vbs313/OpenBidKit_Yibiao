@@ -138,7 +138,7 @@ async function testOpenAICompatibleImageModel(app, config, provider) {
   const requestBody = createOpenAICompatibleImageRequestBody(
     provider,
     imageConfig,
-    '大字报，内容是“易标AI老好了”',
+    '大字报，内容是“数据集团工具箱AI老好了”',
   );
 
   try {

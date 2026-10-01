@@ -1,9 +1,9 @@
 {
-  "name": "yibiao-client",
+  "name": "sjjt-bid-toolkit",
   "version": "0.1.0",
   "private": true,
-  "description": "数据集团投标工具箱独立桌面客户端",
-  "author": "mark",
+  "description": "数据集团工具箱独立桌面客户端",
+  "author": "数据集团",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -38,9 +38,9 @@
     "start": "electron ."
   },
   "build": {
-    "appId": "com.yibiao.openbidkit",
-    "productName": "数据集团投标工具箱",
-    "copyright": "Copyright © 2026 mark",
+    "appId": "com.sjjt.bidtoolkit",
+    "productName": "数据集团工具箱",
+    "copyright": "Copyright © 2026 数据集团",
     "asar": true,
     "directories": {
       "output": "release"
@@ -186,7 +186,7 @@
         }
       ]
     },
-    "artifactName": "数据集团投标工具箱-${version}-${os}-${arch}.${ext}"
+    "artifactName": "数据集团工具箱-${version}-${os}-${arch}.${ext}"
   },
   "dependencies": {
     "@docx-editor.dev/core": "2.15.0",

@@ -154,7 +154,7 @@ async function runSelfCheck() {
       const sessionSnapshot = agentCheck.session_snapshot || {};
       const snapshotValidation = agentCheck.snapshot_validation || validatePiSessionSnapshot(sessionSnapshot);
       if (Object.keys(sessionSnapshot).length) {
-        setStep('resources', snapshotValidation.resourcesValid ? 'success' : 'error', snapshotValidation.resourcesValid ? '仅加载易标内置工作区指令' : 'Pi 资源加载结果不符合配置');
+        setStep('resources', snapshotValidation.resourcesValid ? 'success' : 'error', snapshotValidation.resourcesValid ? '仅加载数据集团工具箱内置工作区指令' : 'Pi 资源加载结果不符合配置');
       } else {
         setStep('resources', 'skipped', 'Session 未创建，无法校验资源加载');
       }

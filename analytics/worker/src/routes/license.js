@@ -7,7 +7,7 @@ const LICENSE_PLANS = new Set(['free', 'personal_premium', 'enterprise_premium']
 const FINGERPRINT_VERSION = '2026-01';
 const OFFLINE_LICENSE_CODE_PREFIX = 'YB-LICENSE-';
 const DEFAULT_APP_ID = 'com.yibiao.openbidkit';
-const DEFAULT_PRODUCT_NAME = '易标投标工具箱';
+const DEFAULT_PRODUCT_NAME = '数据集团工具箱投标工具箱';
 
 function addDaysIso(days) {
   return new Date(Date.now() + Math.max(1, Number(days || 1)) * 86400000).toISOString();

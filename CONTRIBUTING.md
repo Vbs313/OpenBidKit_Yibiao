@@ -1,7 +1,7 @@
 
 # 贡献指南
 
-感谢你关注易标 AI（OpenBidKit_Yibiao）。
+感谢你关注数据集团工具箱 AI（数据集团工具箱）。
 
 本项目是一个开源免费的 AI 标书编写工具，欢迎提交问题反馈、功能建议、文档优化和代码贡献。
 
@@ -55,7 +55,7 @@ PR 描述建议包含：
 请先 Fork 本仓库，然后克隆到本地：
 
 ```bash
-git clone https://github.com/你的用户名/OpenBidKit_Yibiao.git
+git clone https://github.com/你的用户名/数据集团工具箱.git
 ````
 
 安装依赖：

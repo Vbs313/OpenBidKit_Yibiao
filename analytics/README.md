@@ -132,7 +132,7 @@ Worker 运行时还需要在 Cloudflare 后台配置 Secret：
 | `ADMIN_TOKEN` | Dashboard 管理 Token |
 | `ANALYTICS_API_TOKEN` | Analytics Engine SQL Read Token |
 | `OPENBIDKIT_PET_READ_TOKEN` | 插件同步专用 GitHub Fine-grained Token，仅授予 `openbidkit-pet` 仓库 `Contents: Read-only` 权限 |
-| `OPENBIDKIT_YIBIAO_METADATA_READ_TOKEN` | 可选，仓库统计专用 GitHub Fine-grained Token，仅选择 `OpenBidKit_Yibiao` 仓库并保留自动授予的 `Metadata: Read-only` 权限 |
+| `数据集团工具箱_METADATA_READ_TOKEN` | 可选，仓库统计专用 GitHub Fine-grained Token，仅选择 `数据集团工具箱` 仓库并保留自动授予的 `Metadata: Read-only` 权限 |
 | `LICENSE_PRIVATE_KEY_JWK` | ECDSA P-256 私钥 JWK，用于签发客户端 license |
 | `LICENSE_KEY_ID` | 可选，授权签名 key id，默认 `official-build-key-2026-01` |
 
@@ -207,7 +207,7 @@ Invoke-RestMethod `
   -Uri "https://analytics.agnet.top/track" `
   -Method Post `
   -ContentType "application/json" `
-  -Body '{"projectName":"yibiao-client","event":"app_open","version":"0.1.0","platform":"win32","arch":"x64","client_id":"test-client","client_created_at":"2026-06-13"}'
+  -Body '{"projectName":"sjjt-bid-toolkit","event":"app_open","version":"0.1.0","platform":"win32","arch":"x64","client_id":"test-client","client_created_at":"2026-06-13"}'
 ```
 
 如果要验证 `/track` 实时写入 D1 客户端表，`client_created_at` 需要使用当前业务日期或前 1 天日期；否则只写 AE，客户端会由后续 Cron 汇总补入 D1。
@@ -216,14 +216,14 @@ Invoke-RestMethod `
 
 ```powershell
 Invoke-RestMethod `
-  -Uri "https://analytics.agnet.top/api/overview?projectName=yibiao-client" `
+  -Uri "https://analytics.agnet.top/api/overview?projectName=sjjt-bid-toolkit" `
   -Method Get `
   -Headers @{ Authorization = "Bearer <ADMIN_TOKEN>" }
 ```
 
 ## 历史回填
 
-新版历史回填脚本会按 Cron 同一套逻辑，把 Analytics Engine 中 `yibiao-client` 在脚本执行当天北京时间之前的所有历史日期汇总到 D1 `stats_*` 表；回填会补齐留存所需的 30 天 `app_open` 活动窗口并生成 `stats_retention` 快照；资源点击量会按历史总量写入 `openbidkit-resources.resources.click_count`，不会按天重复累加。
+新版历史回填脚本会按 Cron 同一套逻辑，把 Analytics Engine 中 `sjjt-bid-toolkit` 在脚本执行当天北京时间之前的所有历史日期汇总到 D1 `stats_*` 表；回填会补齐留存所需的 30 天 `app_open` 活动窗口并生成 `stats_retention` 快照；资源点击量会按历史总量写入 `openbidkit-resources.resources.click_count`，不会按天重复累加。
 
 本地执行前，在 `analytics/scripts/.env` 中配置：
 
@@ -269,7 +269,7 @@ npm run backfill:overview-ai-totals
 
 | 项 | 说明 |
 | --- | --- |
-| 项目 | 固定回填 `yibiao-client` |
+| 项目 | 固定回填 `sjjt-bid-toolkit` |
 | 日期 | 默认自动发现 AE 中北京时间今天之前的所有有数据日期；设置 `BACKFILL_DATE=YYYY-MM-DD` 时只处理指定日期 |
 | 今天 | 脚本不回填今天，今天/7天/30天仍直接读 AE |
 | 留存 | 回填会先补齐回填窗口前 30 天到最后回填日的 `stats_client_activity`，再生成对应 `stats_retention` 快照 |

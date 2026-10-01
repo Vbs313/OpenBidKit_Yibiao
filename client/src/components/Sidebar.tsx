@@ -81,7 +81,7 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
           <img src={logoUrl} alt="" />
         </div>
         <div className="brand-copy">
-          <span>易标</span>
+          <span>数据集团工具箱</span>
           <strong>投标工具箱</strong>
         </div>
       </div>
@@ -135,11 +135,11 @@ function Sidebar({ activeSection, developerMode, onSectionChange }: SidebarProps
         onOpenChange={setGroupChatOpen}
         kicker="用户交流"
         title="扫码加入交流群"
-        description="使用微信扫描下方二维码，加入易标用户交流群。"
+        description="使用微信扫描下方二维码，加入数据集团工具箱用户交流群。"
         cardClassName="group-chat-dialog"
         actions={<button type="button" className="secondary-action" onClick={() => setGroupChatOpen(false)}>关闭</button>}
       >
-        <img className="group-chat-qr" src={groupChatQrUrl} alt="易标用户交流群二维码" />
+        <img className="group-chat-qr" src={groupChatQrUrl} alt="数据集团工具箱用户交流群二维码" />
       </AppDialog>
     </aside>
   );

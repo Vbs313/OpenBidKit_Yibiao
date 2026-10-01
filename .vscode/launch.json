@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "易标客户端：开发模式（npm run dev）",
+      "name": "数据集团工具箱客户端：开发模式（npm run dev）",
       "type": "node-terminal",
       "request": "launch",
       "command": "npm run dev",
