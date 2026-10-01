@@ -106,6 +106,23 @@ export default function OnboardingWizard({ onNavigateToSettings }: { onNavigateT
         </div>
         <h3>{current.title}</h3>
         <p>{current.description}</p>
+        {step === STEPS.length - 1 && (
+          <button
+            type="button"
+            className="secondary-action"
+            onClick={() => {
+              void window.yibiao?.file.getSampleTender().then((result) => {
+                if (result?.success) {
+                  showToast(`已加载示例招标文件（${result.content.length} 字），可直接体验完整流程`, 'success');
+                } else {
+                  showToast(result?.message || '加载示例失败', 'error');
+                }
+              });
+            }}
+          >
+            一键加载示例招标文件
+          </button>
+        )}
         <p className="onboarding-hint">
           第 {step + 1} / {STEPS.length} 步
         </p>

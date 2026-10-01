@@ -505,6 +505,8 @@ export interface YibiaoBridge {
     selectDuplicateCheckFiles: (options?: { multiple?: boolean; filePaths?: string[] }) => Promise<FileSelectionResult>;
     /** 把拖拽进来的 File 对象换成本地绝对路径，供各上传区拖拽导入使用 */
     getPathForFile: (file: File) => string;
+    /** 读取内置示例招标文件（一键体验用） */
+    getSampleTender: () => Promise<{ success: boolean; content: string; name: string; message?: string }>;
   };
   knowledgeBase: {
     list: () => Promise<KnowledgeBaseIndex>;

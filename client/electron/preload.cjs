@@ -99,6 +99,7 @@ const bridge = {
   },
   file: {
     selectDuplicateCheckFiles: (options) => ipcRenderer.invoke('file:select-duplicate-check-files', options),
+    getSampleTender: () => ipcRenderer.invoke('sample:get-tender'),
     /** 把拖拽进来的 File 对象换成本地绝对路径，供各上传区拖拽导入使用 */
     getPathForFile: (file) => webUtils.getPathForFile(file),
   },
