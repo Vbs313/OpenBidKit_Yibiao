@@ -40,6 +40,7 @@ const { createTaskService } = require('../services/taskService.cjs');
 const { createAgentWorkspaceService } = require('../services/agentWorkspaceService.cjs');
 const { createTaskLogStore } = require('./../services/stores/taskLogStore.cjs');
 const { createTechnicalPlanStore } = require('./../services/stores/technicalPlanStore.cjs');
+const { createSnapshotStore } = require('./../services/stores/snapshotStore.cjs');
 const { createFeasibilityReportStore } = require('./../services/stores/feasibilityReportStore.cjs');
 const { createTemplateStore } = require('./../services/stores/templateStore.cjs');
 const { checkRequiredOnlineServices, getRequiredOnlineServiceStatus } = require('../services/requiredOnlineServices.cjs');
@@ -285,6 +286,32 @@ function registerWorkspaceDatabaseServices({ app, configStore, aiService, agentS
   const knowledgeBaseService = createKnowledgeBaseService({ app, aiService, configStore, knowledgeBaseStore });
   const credentialLibraryService = createCredentialLibraryService({ app, db: sqliteDatabase.db });
   const technicalPlanStore = createTechnicalPlanStore({ app, db: sqliteDatabase.db, fileService, agentService, taskLogStore, configStore });
+  const snapshotStore = createSnapshotStore({ db: sqliteDatabase.db });
+  // 标书版本快照：保存/恢复/列出 outline + content 状态。
+  ipcMain.handle('snapshot:list', () => snapshotStore.listSnapshots());
+  ipcMain.handle('snapshot:save', (_event, payload) => {
+    const state = technicalPlanStore.loadTechnicalPlan();
+    return snapshotStore.saveSnapshot({
+      label: payload?.label,
+      outline_json: state.outlineData,
+      content_sections_json: state.sections,
+    });
+  });
+  ipcMain.handle('snapshot:delete', (_event, snapshotId) => snapshotStore.deleteSnapshot(snapshotId));
+  ipcMain.handle('snapshot:restore', (_event, snapshotId) => {
+    const snapshot = snapshotStore.loadSnapshotForRestore(snapshotId);
+    if (!snapshot) return { success: false, message: '快照不存在' };
+    // 回滚前自动保存当前状态为「回滚前快照」。
+    const state = technicalPlanStore.loadTechnicalPlan();
+    snapshotStore.saveSnapshot({
+      label: '回滚前快照',
+      outline_json: state.outlineData,
+      content_sections_json: state.sections,
+    });
+    // 写回主表。
+    technicalPlanStore.saveOutlineData(JSON.parse(snapshot.outline_json));
+    return { success: true, message: '已回滚到快照：' + snapshot.label };
+  });
   const feasibilityReportStore = createFeasibilityReportStore({ app, db: sqliteDatabase.db, fileService, taskLogStore, agentService });
   const duplicateCheckStore = createDuplicateCheckStore({ app, db: sqliteDatabase.db, taskLogStore });
   const rejectionCheckStore = createRejectionCheckStore({ app, db: sqliteDatabase.db, fileService, technicalPlanStore, taskLogStore });

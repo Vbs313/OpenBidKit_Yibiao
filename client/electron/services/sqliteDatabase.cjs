@@ -12,7 +12,7 @@ const { createFeasibilityReportSchema } = require('./db/schema/feasibilityReport
 const { createComplianceCheckSchema } = require('./db/schema/complianceCheck.cjs');
 const { createCredentialLibrarySchema } = require('./db/schema/credentialLibrary.cjs');
 
-const schemaVersion = 27;
+const schemaVersion = 28;
 
 function createTechnicalPlanGlobalFactsSchema(db) {
   db.exec(`
@@ -641,6 +641,23 @@ const migrations = [
       if (!columns.has('is_system')) {
         db.exec('ALTER TABLE export_templates ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0');
       }
+    },
+  },
+  {
+    version: 28,
+    description: '新增标书版本快照表',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS technical_plan_snapshots (
+          snapshot_id TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          outline_json TEXT NOT NULL,
+          content_sections_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_technical_plan_snapshots_created
+        ON technical_plan_snapshots(created_at DESC);
+      `);
     },
   },
 ];

@@ -854,6 +854,23 @@ CREATE INDEX IF NOT EXISTS idx_export_templates_updated
 ON export_templates(updated_at DESC);
 
 -- ============================================================================
+-- 标书版本快照 technical_plan_snapshots（v28）
+-- ============================================================================
+
+-- 标书版本快照：保存 outline + content 状态，支持回滚到任意快照。
+-- 独立表，不动主表；回滚时由调用方先自动保存当前状态为「回滚前快照」。
+CREATE TABLE IF NOT EXISTS technical_plan_snapshots (
+  snapshot_id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  outline_json TEXT NOT NULL,
+  content_sections_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_technical_plan_snapshots_created
+ON technical_plan_snapshots(created_at DESC);
+
+-- ============================================================================
 -- 可行性研究报告 feasibility_report_*（v23 已落地）
 -- ============================================================================
 
