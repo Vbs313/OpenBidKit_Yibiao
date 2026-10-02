@@ -1,4 +1,4 @@
-<img src="./screenshots/banner2.webp" alt="Yibiao usage demo video" width="100%">
+<img src="./screenshots/banner2.webp" alt="数据集团工具箱 usage demo video" width="100%">
 
 ## 🙏 Sponsors
 
@@ -8,7 +8,7 @@
 | ![JLaudeAPI](./screenshots/JLaudeAPI.png) | Thanks to JLaudeAPI for sponsoring this project!JLaudeAPI is a trusted AI API aggregation platform offering GPT, Claude, Gemini, Grok, leading Chinese LLMs, and mainstream image/video generation models with reliable access.It also provides an enterprise-grade management panel, transparent GPT-Pro account status, invoicing, and corporate payment support—built for business development and production use.Get started via this [registration link](https://s.markup.com.cn/jl).
  |
 
-# Yibiao Bid Toolbox - AI Bid Proposal Writing Assistant
+# 数据集团工具箱 - AI Bid Proposal Writing Assistant
 
 <p align="center">
   <a href="./README.md">简体中文</a> | <strong>English</strong>
@@ -38,25 +38,25 @@
 <p align="left">
   <strong>🚀 Out-of-the-box, open-source, and free AI bid proposal writing tool</strong>
   <br>
-  Yibiao Bid Toolbox is an intelligent bid document creation tool for tendering and bidding scenarios. It is fully open source and includes AI-generated technical proposals, image-and-text generation, commercial bid support, enterprise knowledge base management, duplicate checking, rejection-risk checks, tender information, and more features under development.
+  数据集团工具箱 is an intelligent bid document creation tool for tendering and bidding scenarios. It is fully open source and includes AI-generated technical proposals, image-and-text generation, commercial bid support, enterprise knowledge base management, duplicate checking, rejection-risk checks, tender information, and more features under development.
   <br>
   It supports all OpenAI-compatible AI APIs, as well as local models through Ollama, LM Studio, and similar tools.
   <br>
   <br>
   <strong>❓ What problem does it solve?</strong>
   <br>
-  There are many paid AI bid-writing tools today, but they are extremely expensive. A single proposal can cost tens of yuan, and unless a company reimburses it, small businesses can hardly afford them. Free tools often have very poor quality. OpenBidKit aims to become the OpenClaw of the bidding field by providing an out-of-the-box, high-quality proposal writing tool.
+  There are many paid AI bid-writing tools today, but they are extremely expensive. A single proposal can cost tens of yuan, and unless a company reimburses it, small businesses can hardly afford them. Free tools often have very poor quality. 数据集团工具箱 aims to become the industry-leading bid-writing tool by providing an out-of-the-box, high-quality proposal writing tool.
 
   In a test with gpt-5.6-terra, generating a 110,000-word bid proposal consumed 2,187,250 tokens and cost only CNY 1.03, excluding illustrations.
 </p>
 
 ## 🌐 Official Website
 
-**Online Experience**: [https://yibiao.pro](https://yibiao.pro)  [Get more product information, online demos, and technical support.]
+**Online Experience**: [企业内部部署，无公开官网]  [Get more product information, online demos, and technical support.]
 
 ## 💌 Friendly Links
 
-[Yibiao Web Version (provided by a third party)](https://github.com/jdcome/Sjjt-BidToolkit-Web)
+[数据集团工具箱 Web Version (provided by a third party)](https://github.com/jdcome/Sjjt-BidToolkit-Web)
 
 <h2 align="center">✨ Features & Advantages</h2>
 
@@ -156,14 +156,14 @@ Download the latest release from [GitHub Releases](https://github.com/数据集�
 ### 🎬 Usage Demo
 
 <a href="https://www.bilibili.com/video/BV1sC5i6SE74">
-  <img src="./screenshots/home_2.png" alt="Yibiao usage demo video" width="100%">
+  <img src="./screenshots/home_2.png" alt="数据集团工具箱 usage demo video" width="100%">
 </a>
 
 [Watch the usage demo on Bilibili](https://www.bilibili.com/video/BV1sC5i6SE74)
 
 ### Faster Access in Mainland China
 
-Most users are based in mainland China. When recommending this project, please share not only the GitHub repository (https://github.com/数据集团/数据集团工具箱), but also the official website directly accessible from mainland China (https://yibiao.pro/) and the accelerated download page (https://atomgit.com/数据集团/数据集团工具箱/releases).
+Most users are based in mainland China. When recommending this project, please share not only the GitHub repository (https://github.com/数据集团/数据集团工具箱), but also the official website directly accessible from mainland China (#) and the accelerated download page (https://atomgit.com/数据集团/数据集团工具箱/releases).
 
 ## 🧑‍💻 Local Development
 
@@ -192,16 +192,30 @@ Packaging artifacts are written to `client/release/`.
 
 ## 🛠️ Technical Architecture
 
-- **Desktop**: Electron Main / Preload provides local capabilities, which the Renderer accesses through `window.yibiao`.
+- **Desktop**: Electron Main / Preload provides local capabilities, which the Renderer accesses through `window.yibiao` (internal API contract, see IPC_CONTRACT_AUDIT.md).
 - **UI**: Vite + React + TypeScript with global CSS and Radix UI.
 - **Data and Tasks**: Configuration is stored in local files and business state in SQLite. Long-running tasks execute in the Main process and can be resumed.
 - **AI and Agent**: AI Service manages model requests, while Pi Agent runs agent tasks in independent Runtime / Session instances.
 - **Documents and Online Services**: Supports local or MinerU parsing, Open XML, and local image rendering. Cloudflare Worker provides notices, resources, plugins, model information, licensing, and analytics services.
 
+### 🔌 Internal API Contracts
+
+The project contains several **internal API contracts** (not user-facing branding) that are technical conventions for cross-layer communication. These **must not be renamed** (see [`IPC_CONTRACT_AUDIT.md`](IPC_CONTRACT_AUDIT.md)):
+
+| Contract | Purpose | Scale |
+|---|---|---|
+| `window.yibiao` / `window.yibiaoClient` | Preload bridge between Renderer and Main | 56 files × 180 methods |
+| `yibiao-asset://` | Local URL protocol for generated/imported images and credential resources | 14 files |
+| `<!-- yibiao:block -->` | AI hint for restricted HTML block splitting (C# AngleSharp auto-ignores comments) | 2 prompt files |
+| `--yibiao-trial-*` | GPU hardware acceleration trial process args | 2 files |
+
+> **Note**: These identifiers are **internal technical conventions**, not user-facing branding. Renaming requires syncing C#, tests, and docs — high risk, zero benefit.
+> The user-facing brand is **数据集团工具箱** (see `productName` / `appId` / window title).
+
 ### 🏗️ Project Structure
 
 ```
-Yibiao Bid Toolbox/
+数据集团工具箱/
 ├── client/                    # Electron desktop client
 │   ├── electron/              # Main, Preload, IPC, and local services
 │   ├── src/                   # Renderer application source
@@ -332,9 +346,9 @@ You may use, modify, distribute, and commercialize this project, but modified ve
   <tr>
     <td width="50%" valign="top">
 
-- **Official Website**: [https://yibiao.pro](https://yibiao.pro)
+- **Official Website**: [企业内部部署，无公开官网]
 - **Feedback**: [GitHub Issues](https://github.com/数据集团/sjjt-bid-toolkit/issues)
-- **Email**: support@yibiao.pro
+- **Email**: （企业内部联系方式）
 
     </td>
     <td width="33%" valign="top">

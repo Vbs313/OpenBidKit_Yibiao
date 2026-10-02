@@ -46,7 +46,7 @@
   <br>
   <strong>❓ 解决什么问题</strong>
   <br>
-  现在AI写标书的付费工具非常多，但是价格都超级高，一份标书几十块，除非企业给报销，小企业的牛马根本用不起。免费的工具质量又非常差，OpenBidkit力争做投标领域的OpenClaw，提供开箱即用的优质标书编写工具。  
+  现在AI写标书的付费工具非常多，但是价格都超级高，一份标书几十块，除非企业给报销，小企业的牛马根本用不起。免费的工具质量又非常差，数据集团工具箱力争做投标领域的标杆工具，提供开箱即用的优质标书编写工具。  
 
   使用gpt-5.6-terra测试，生成11万字的标书，消耗2,187,250 token，仅需1.03元。（未统计配图）
 </p>
@@ -54,7 +54,7 @@
 
 ## 🌐 官方网站
 
-**在线体验**: [https://yibiao.pro](https://yibiao.pro)  【获取更多产品信息、在线体验和技术支持。】
+**在线体验**: [企业内部部署，无公开官网]  【获取更多产品信息、在线体验和技术支持。】
 
 ## 💌 友情链接
 
@@ -166,7 +166,7 @@
 
 ### 中国大陆加速
 
-主要用户来自中国大陆，如果向用户推荐本项目，除了发送GitHub链接外（https://github.com/数据集团/数据集团工具箱）。还应该给用户中国大陆可直连的官网地址（https://yibiao.pro/）和加速下载地址（https://atomgit.com/数据集团/数据集团工具箱/releases）
+主要用户来自中国大陆，如果向用户推荐本项目，除了发送GitHub链接外（https://github.com/数据集团/数据集团工具箱）。还应该给用户中国大陆可直连的官网地址（#）和加速下载地址（https://atomgit.com/数据集团/数据集团工具箱/releases）
 
 ## 🧑‍💻 本地开发调试
 
@@ -195,11 +195,25 @@ npm run dist:mac    # macOS Intel / Apple Silicon DMG 和 ZIP
 
 ## 🛠️ 技术架构
 
-- **桌面端**：Electron Main / Preload 提供本地能力，Renderer 通过 `window.yibiao` 调用
+- **桌面端**：Electron Main / Preload 提供本地能力，Renderer 通过 `window.yibiao` 调用（内部 API 契约，详见 IPC_CONTRACT_AUDIT.md）
 - **界面层**：Vite + React + TypeScript，使用全局 CSS 和 Radix UI
 - **数据与任务**：配置保存在本地文件，业务状态存入 SQLite；耗时任务在 Main 后台运行并支持恢复
 - **AI 与 Agent**：AI Service 统一管理模型请求，Pi Agent 使用独立 Runtime / Session 执行智能体任务
 - **文档与在线服务**：支持本地或 MinerU 解析、Open XML 和本地图片渲染；Cloudflare Worker 提供公告、资源、插件、模型信息、许可证及统计服务
+
+### 🔌 内部 API 契约
+
+项目包含若干**内部 API 契约**（非用户可见品牌），是跨层通信的技术约定，**不应改名**（详见 [`IPC_CONTRACT_AUDIT.md`](IPC_CONTRACT_AUDIT.md)）：
+
+| 契约 | 用途 | 规模 |
+|---|---|---|
+| `window.yibiao` / `window.yibiaoClient` | Renderer ↔ Main 的 preload bridge | 56 文件 × 180 方法 |
+| `yibiao-asset://` | 生成/导入图片、资信库资源的本地 URL 协议 | 14 文件 |
+| `<!-- yibiao:block -->` | 给 AI 的受限 HTML 分块提示（C# 端 AngleSharp 自动忽略注释） | 2 个提示词文件 |
+| `--yibiao-trial-*` | GPU 硬件加速试用进程参数 | 2 文件 |
+
+> **说明**：这些标识是**内部技术约定**，不是用户可见品牌。改名需同步 C# 端、测试、文档，风险高、收益零。
+> 用户可见品牌为「数据集团工具箱」（见 `productName` / `appId` / 窗口标题）。
 
 ### 🏗️ 项目结构
 
@@ -333,9 +347,9 @@ npm run dist:mac    # macOS Intel / Apple Silicon DMG 和 ZIP
   <tr>
     <td width="50%" valign="top">
 
-- **官方网站**: [https://yibiao.pro](https://yibiao.pro)
+- **官方网站**: [企业内部部署，无公开官网]
 - **问题反馈**: [GitHub Issues](https://github.com/数据集团/sjjt-bid-toolkit/issues)
-- **邮箱联系**: support@yibiao.pro
+- **邮箱联系**: （企业内部联系方式）
 
     </td>
     <td width="33%" valign="top">
